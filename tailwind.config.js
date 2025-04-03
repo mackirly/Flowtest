@@ -1,8 +1,11 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
-    "./Frontend/**/*.{html,js}",
-    "./Frontend/**/*.vue",
+    "./Frontend/*.html",
+    "./Frontend/components/*.html",
+    "./Frontend/templates/*.html",
+    "./Frontend/js/**/*.js",
+    "./Frontend/flowtest-vue/src/**/*.vue",
   ],
   darkMode: 'class',
   theme: {

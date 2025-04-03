@@ -1,3 +1,6 @@
+import { fetchWithAuth } from './api-utils.js';
+import { I18N_CONFIG } from './i18n-config.js';
+
 class TestExecutionManager {
     constructor() {
         this.testRunId = null;
@@ -5,14 +8,14 @@ class TestExecutionManager {
         this.lastOutput = '';
         this.startTime = null;
         this.activeTests = new Map();
-        this.baseUrl = config.API_BASE_URL;
+        this.baseUrl = I18N_CONFIG.API_BASE_URL;
         console.log('TestExecutionManager initialized');
     }
 
     async executeTest(testCaseId) {
         console.log('executeTest called with ID:', testCaseId);
         try {
-            const response = await fetch(`${this.baseUrl}${config.API_PREFIX}/execute-test/${testCaseId}/`, {
+            const response = await fetch(`${this.baseUrl}/api/execute-test/${testCaseId}/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -250,3 +253,43 @@ class TestExecutionManager {
 document.addEventListener('DOMContentLoaded', () => {
     window.testExecutionManager = new TestExecutionManager();
 });
+
+// Функция для запуска теста
+async function runTest(testId) {
+    try {
+        const response = await fetchWithAuth(`/test-execution/`, {
+            method: 'POST',
+            body: JSON.stringify({ test_id: testId })
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to start test execution: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error('Error running test:', error);
+        throw error;
+    }
+}
+
+// Функция для проверки статуса теста
+async function checkTestStatus(executionId) {
+    try {
+        const response = await fetchWithAuth(`/test-status/?execution_id=${executionId}`);
+
+        if (!response.ok) {
+            throw new Error(`Failed to check test status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error('Error checking test status:', error);
+        throw error;
+    }
+}
+
+// Экспортируем функции
+export { runTest, checkTestStatus };

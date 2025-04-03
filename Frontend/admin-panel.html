@@ -74,6 +74,15 @@
                 <div class="flex items-center justify-between p-4">
                     <h1 class="text-2xl font-semibold text-gray-800 dark:text-gray-200" data-i18n="adminPanel">Admin Panel</h1>
                     <div class="flex items-center space-x-4 ml-auto">
+                        <!-- Project Selector -->
+                        <div class="flex items-center space-x-2">
+                            <div class="w-48">
+                                <select id="projectSelector" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-coral-500 focus:border-coral-500 block w-full p-2 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-coral-500 dark:focus:border-coral-500">
+                                    <option value="" selected data-i18n="selectProject">Select Project</option>
+                                </select>
+                            </div>
+                        </div>
+
                         <!-- User Menu -->
                         <div class="relative">
                             <button id="userMenuButton" class="flex items-center space-x-2" aria-expanded="false">
@@ -128,46 +137,102 @@
                         </div>
                     </div>
 
-                    <!-- Search and Filter -->
-                    <div class="mb-6 flex flex-wrap gap-4 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm">
-                        <div class="flex-1 min-w-[300px]">
-                            <label for="userSearch" class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300" data-i18n="searchUser">Search Users</label>
-                            <div class="relative">
-                                <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                                    <i class="ri-search-line text-gray-400"></i>
+                    <!-- User Tabs -->
+                    <div class="mb-4 border-b border-gray-200 dark:border-gray-700">
+                        <ul class="flex flex-wrap -mb-px text-sm font-medium text-center">
+                            <li class="mr-2">
+                                <a href="#" class="inline-block p-4 border-b-2 border-coral-500 dark:border-coral-400 rounded-t-lg" data-users-tab="project" data-i18n="projectUsers">Пользователи проекта</a>
+                            </li>
+                            <li class="mr-2">
+                                <a href="#" class="inline-block p-4 border-b-2 border-transparent rounded-t-lg hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300" data-users-tab="all" data-i18n="allUsers">Все пользователи</a>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <!-- Project Users Content -->
+                    <div data-users-content="project">
+                        <!-- Search and Filter -->
+                        <div class="mb-6 flex flex-wrap gap-4 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm">
+                            <div class="flex-1 min-w-[300px]">
+                                <label for="projectUserSearch" class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300" data-i18n="searchUser">Search Users</label>
+                                <div class="relative">
+                                    <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                        <i class="ri-search-line text-gray-400"></i>
+                                    </div>
+                                    <input type="text" id="projectUserSearch" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-coral-500 focus:border-coral-500 block w-full pl-10 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-coral-500 dark:focus:border-coral-500" placeholder="Search by username, email, name...">
                                 </div>
-                                <input type="text" id="userSearch" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-coral-500 focus:border-coral-500 block w-full pl-10 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-coral-500 dark:focus:border-coral-500" placeholder="Search by username, email, name...">
+                            </div>
+                            <div class="w-48">
+                                <label for="projectRoleFilter" class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300" data-i18n="filterByRole">Filter by Role</label>
+                                <select id="projectRoleFilter" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-coral-500 focus:border-coral-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-coral-500 dark:focus:border-coral-500">
+                                    <option value="" selected data-i18n="allRoles">All Roles</option>
+                                </select>
                             </div>
                         </div>
-                        <div class="w-48">
-                            <label for="roleFilter" class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300" data-i18n="filterByRole">Filter by Role</label>
-                            <select id="roleFilter" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-coral-500 focus:border-coral-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-coral-500 dark:focus:border-coral-500">
-                                <option value="" selected data-i18n="allRoles">All Roles</option>
-                                <!-- Roles will be populated here -->
-                            </select>
+
+                        <!-- Project Users Table -->
+                        <div class="relative overflow-x-auto shadow-md sm:rounded-lg">
+                            <table class="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+                                <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+                                    <tr>
+                                        <th scope="col" class="px-6 py-3" data-i18n="username">Username</th>
+                                        <th scope="col" class="px-6 py-3" data-i18n="fullName">Full Name</th>
+                                        <th scope="col" class="px-6 py-3" data-i18n="email">Email</th>
+                                        <th scope="col" class="px-6 py-3" data-i18n="role">Role</th>
+                                        <th scope="col" class="px-6 py-3" data-i18n="status">Status</th>
+                                        <th scope="col" class="px-6 py-3" data-i18n="actions">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="projectUsersTableBody">
+                                    <tr class="bg-white border-b dark:bg-gray-800 dark:border-gray-700">
+                                        <td class="px-6 py-4 text-center" colspan="6" data-i18n="loadingUsers">Loading users...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
 
-                    <!-- Users Table -->
-                    <div class="relative overflow-x-auto shadow-md sm:rounded-lg">
-                        <table class="w-full text-sm text-left text-gray-500 dark:text-gray-400">
-                            <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
-                                <tr>
-                                    <th scope="col" class="px-6 py-3" data-i18n="username">Username</th>
-                                    <th scope="col" class="px-6 py-3" data-i18n="fullName">Full Name</th>
-                                    <th scope="col" class="px-6 py-3" data-i18n="email">Email</th>
-                                    <th scope="col" class="px-6 py-3" data-i18n="role">Role</th>
-                                    <th scope="col" class="px-6 py-3" data-i18n="status">Status</th>
-                                    <th scope="col" class="px-6 py-3" data-i18n="actions">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="usersTableBody">
-                                <!-- User rows will be populated here -->
-                                <tr class="bg-white border-b dark:bg-gray-800 dark:border-gray-700">
-                                    <td class="px-6 py-4 text-center" colspan="6" data-i18n="loadingUsers">Loading users...</td>
-                                </tr>
-                            </tbody>
-                        </table>
+                    <!-- All Users Content -->
+                    <div data-users-content="all" class="hidden">
+                        <!-- Search and Filter -->
+                        <div class="mb-6 flex flex-wrap gap-4 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm">
+                            <div class="flex-1 min-w-[300px]">
+                                <label for="allUserSearch" class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300" data-i18n="searchUser">Search Users</label>
+                                <div class="relative">
+                                    <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                        <i class="ri-search-line text-gray-400"></i>
+                                    </div>
+                                    <input type="text" id="allUserSearch" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-coral-500 focus:border-coral-500 block w-full pl-10 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-coral-500 dark:focus:border-coral-500" placeholder="Search by username, email, name...">
+                                </div>
+                            </div>
+                            <div class="w-48">
+                                <label for="allRoleFilter" class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300" data-i18n="filterByRole">Filter by Role</label>
+                                <select id="allRoleFilter" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-coral-500 focus:border-coral-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-coral-500 dark:focus:border-coral-500">
+                                    <option value="" selected data-i18n="allRoles">All Roles</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- All Users Table -->
+                        <div class="relative overflow-x-auto shadow-md sm:rounded-lg">
+                            <table class="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+                                <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+                                    <tr>
+                                        <th scope="col" class="px-6 py-3" data-i18n="username">Username</th>
+                                        <th scope="col" class="px-6 py-3" data-i18n="fullName">Full Name</th>
+                                        <th scope="col" class="px-6 py-3" data-i18n="email">Email</th>
+                                        <th scope="col" class="px-6 py-3" data-i18n="role">Role</th>
+                                        <th scope="col" class="px-6 py-3" data-i18n="status">Status</th>
+                                        <th scope="col" class="px-6 py-3" data-i18n="actions">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="allUsersTableBody">
+                                    <tr class="bg-white border-b dark:bg-gray-800 dark:border-gray-700">
+                                        <td class="px-6 py-4 text-center" colspan="6" data-i18n="loadingUsers">Loading users...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
 
@@ -248,46 +313,39 @@
                         </div>
                         
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="userFormFields">
-                            <div>
-                                <label for="username" class="block text-sm font-medium text-gray-700 dark:text-gray-300" data-i18n="username">Username</label>
-                                <input type="text" id="username" name="username" class="mt-1 block w-full px-3 py-2 rounded-md border border-gray-300 shadow-sm focus:border-coral-500 focus:ring-coral-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white" required>
-                                <div class="error-message"></div>
+                            <div id="createUserFields" class="md:col-span-2">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label for="username" class="block text-sm font-medium text-gray-700 dark:text-gray-300" data-i18n="username">Username</label>
+                                        <input type="text" id="username" name="username" class="mt-1 block w-full px-3 py-2 rounded-md border border-gray-300 shadow-sm focus:border-coral-500 focus:ring-coral-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white" required>
+                                        <div class="error-message"></div>
+                                    </div>
+                                    <div id="passwordField">
+                                        <label for="password" class="block text-sm font-medium text-gray-700 dark:text-gray-300" data-i18n="password">Password</label>
+                                        <input type="password" id="password" name="password" class="mt-1 block w-full px-3 py-2 rounded-md border border-gray-300 shadow-sm focus:border-coral-500 focus:ring-coral-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 hidden" id="passwordHelpText" data-i18n="passwordEditHelp">Leave blank to keep current password</p>
+                                    </div>
+                                    <div>
+                                        <label for="firstName" class="block text-sm font-medium text-gray-700 dark:text-gray-300" data-i18n="firstName">First Name</label>
+                                        <input type="text" id="firstName" name="first_name" class="mt-1 block w-full px-3 py-2 rounded-md border border-gray-300 shadow-sm focus:border-coral-500 focus:ring-coral-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                    </div>
+                                    <div>
+                                        <label for="lastName" class="block text-sm font-medium text-gray-700 dark:text-gray-300" data-i18n="lastName">Last Name</label>
+                                        <input type="text" id="lastName" name="last_name" class="mt-1 block w-full px-3 py-2 rounded-md border border-gray-300 shadow-sm focus:border-coral-500 focus:ring-coral-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                    </div>
+                                    <div>
+                                        <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300" data-i18n="email">Email</label>
+                                        <input type="email" id="email" name="email" pattern="[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$" class="mt-1 block w-full px-3 py-2 rounded-md border border-gray-300 shadow-sm focus:border-coral-500 focus:ring-coral-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white" required>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Например: user@example.com</p>
+                                        <div class="error-message"></div>
+                                    </div>
+                                </div>
                             </div>
-                            <div id="passwordField">
-                                <label for="password" class="block text-sm font-medium text-gray-700 dark:text-gray-300" data-i18n="password">Password</label>
-                                <input type="password" id="password" name="password" class="mt-1 block w-full px-3 py-2 rounded-md border border-gray-300 shadow-sm focus:border-coral-500 focus:ring-coral-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 hidden" id="passwordHelpText" data-i18n="passwordEditHelp">Leave blank to keep current password</p>
-                            </div>
-                            <div>
-                                <label for="firstName" class="block text-sm font-medium text-gray-700 dark:text-gray-300" data-i18n="firstName">First Name</label>
-                                <input type="text" id="firstName" name="first_name" class="mt-1 block w-full px-3 py-2 rounded-md border border-gray-300 shadow-sm focus:border-coral-500 focus:ring-coral-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white" required>
-                            </div>
-                            <div>
-                                <label for="lastName" class="block text-sm font-medium text-gray-700 dark:text-gray-300" data-i18n="lastName">Last Name</label>
-                                <input type="text" id="lastName" name="last_name" class="mt-1 block w-full px-3 py-2 rounded-md border border-gray-300 shadow-sm focus:border-coral-500 focus:ring-coral-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white" required>
-                            </div>
-                            <div>
-                                <label for="middleName" class="block text-sm font-medium text-gray-700 dark:text-gray-300" data-i18n="middleName">Middle Name</label>
-                                <input type="text" id="middleName" name="middle_name" class="mt-1 block w-full px-3 py-2 rounded-md border border-gray-300 shadow-sm focus:border-coral-500 focus:ring-coral-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                            </div>
-                            <div>
-                                <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300" data-i18n="email">Email</label>
-                                <input type="email" id="email" name="email" pattern="[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$" class="mt-1 block w-full px-3 py-2 rounded-md border border-gray-300 shadow-sm focus:border-coral-500 focus:ring-coral-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white" required>
-                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Например: user@example.com</p>
-                                <div class="error-message"></div>
-                            </div>
-                            <div>
+                            <div class="md:col-span-2">
                                 <label for="userRole" class="block text-sm font-medium text-gray-700 dark:text-gray-300" data-i18n="role">Role</label>
                                 <select id="userRole" name="role" class="mt-1 block w-full px-3 py-2 rounded-md border border-gray-300 shadow-sm focus:border-coral-500 focus:ring-coral-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                                     <option value="" data-i18n="selectRole">Select Role</option>
                                     <!-- Roles will be populated here -->
-                                </select>
-                            </div>
-                            <div>
-                                <label for="userStatus" class="block text-sm font-medium text-gray-700 dark:text-gray-300" data-i18n="status">Status</label>
-                                <select id="userStatus" name="is_active" class="mt-1 block w-full px-3 py-2 rounded-md border border-gray-300 shadow-sm focus:border-coral-500 focus:ring-coral-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                                    <option value="true" data-i18n="active">Active</option>
-                                    <option value="false" data-i18n="inactive">Inactive</option>
                                 </select>
                             </div>
                         </div>
@@ -532,20 +590,6 @@
                 // Создаем событие о загрузке переводов
                 window.translationsLoaded = true;
                 document.dispatchEvent(new CustomEvent('translations:loaded'));
-                
-                // Загружаем i18n.js динамически после загрузки переводов
-                loadScript('js/i18n.js').then(() => {
-                    console.log('i18n.js loaded successfully');
-                    // Инициализируем админ-панель после загрузки i18n.js
-                    if (typeof initAdminPanel === 'function') {
-                        console.log('Initializing admin panel...');
-                        initAdminPanel();
-                    } else {
-                        console.error('initAdminPanel function not found');
-                    }
-                }).catch(error => {
-                    console.error('Error loading i18n.js:', error);
-                });
             } catch (error) {
                 console.error('Error loading localizations:', error);
                 // Загружаем стандартный набор переводов для критических элементов
@@ -557,24 +601,10 @@
                     'companyLogo': 'Company Logo'
                 }};
                 
-                // Даже при ошибке загрузки создаем событие и загружаем i18n.js
+                // При ошибке загрузки создаем событие
                 window.translationsLoaded = true;
                 document.dispatchEvent(new CustomEvent('translations:loaded'));
-                loadScript('js/i18n.js').catch(error => {
-                    console.error('Failed to load i18n.js after localization error:', error);
-                });
             }
-        }
-        
-        // Функция для динамической загрузки скриптов
-        function loadScript(src) {
-            return new Promise((resolve, reject) => {
-                const script = document.createElement('script');
-                script.src = src;
-                script.onload = () => resolve();
-                script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
-                document.head.appendChild(script);
-            });
         }
         
         // Вызываем функцию загрузки локализации
@@ -585,6 +615,10 @@
     <script src="js/auth-interceptor.js"></script>
     <script src="js/auth.js"></script>
     <script src="js/user.js"></script>
-    <script src="js/admin-panel.js"></script>
+    <script src="js/admin-common.js" type="module"></script>
+    <script src="js/admin-user-management.js" type="module"></script>
+    <script src="js/admin-roles.js" type="module"></script>
+    <script src="js/admin-permissions.js" type="module"></script>
+    <script src="js/admin-panel.js" type="module"></script>
 </body>
 </html>

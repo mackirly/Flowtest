@@ -31,6 +31,8 @@ router.register(r'test-cases', views.TestCaseViewSet)
 router.register(r'folders', views.FolderViewSet)
 router.register(r'projects', views.ProjectViewSet)
 router.register(r'report-templates', views.ReportTemplateViewSet, basename='report-template')
+router.register(r'testruns', views.TestRunViewSet)
+router.register(r'users', views.CustomUserViewSet, basename='user')
 
 urlpatterns = [
     # API маршруты
@@ -42,6 +44,9 @@ urlpatterns = [
     
     # Получение текущего пользователя
     path('users/get_current_user/', views.get_user_profile, name='get_current_user'),
+    
+    # Обновление темы пользователя
+    path('users/theme/', views.update_theme, name='update_theme'),
     
     # User management
     path('create-user/', create_custom_user, name='create_custom_user'),

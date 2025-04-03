@@ -83,6 +83,30 @@ const translations = {
         "testsSection": "Тесты",
         "chartsSection": "Графики",
 
+        // Типы тестов
+        "testTypeValues": {
+            "manual": "Ручной",
+            "automated": "Автоматизированный",
+            "api": "API",
+            "performance": "Производительность"
+        },
+        
+        // Платформы
+        "platformValues": {
+            "web": "Веб",
+            "mobile": "Мобильный",
+            "desktop": "Десктоп",
+            "api": "API",
+            "any": "Любая"
+        },
+
+        // Приоритеты
+        "priorityValues": {
+            "high": "Высокий",
+            "medium": "Средний",
+            "low": "Низкий"
+        },
+        
         // Графики и статистика
         "successRate": "Успешность",
         "passed": "Пройдено",
@@ -99,12 +123,6 @@ const translations = {
         "secondsShort": "с",
         "testsExecutedPerDay": "Количество выполненных тестов",
         "numberOfTests": "Количество тестов",
-
-        // Приоритеты
-        "priorityDistribution": "Распределение по приоритетам",
-        "high": "Высокий",
-        "medium": "Средний",
-        "low": "Низкий",
 
         // Результаты графика
         "resultsPassed": "Успешные",
@@ -364,6 +382,44 @@ const translations = {
         "userPassword": "Пароль",
         "userRole": "Роль пользователя",
         "usersTab": "Пользователи",
+
+        // Типы тестов
+        "testType": {
+            "manual": "Ручной",
+            "automated": "Автоматизированный",
+            "api": "API",
+            "performance": "Производительность"
+        },
+        
+        // Тест-кейс детали
+        "test": "Тест",
+        "created": "Создан",
+        "updated": "Обновлен",
+        "author": "Автор",
+        "overview": "Обзор",
+        "code": "Код",
+        "steps": "Шаги",
+        "runs": "Запуски",
+        "description": "Описание",
+        "tags": "Теги",
+        "noTagsAdded": "Теги не добавлены",
+        "addTag": "Добавить тег",
+        "details": "Детали",
+        "platform": "Платформа",
+        "priority": "Приоритет",
+        "estimatedTime": "Оценочное время (минуты)",
+        "testType": "Тип теста",
+        "runTest": "Запустить тест",
+        "testSteps": "Шаги теста",
+        "noStepsDefined": "Для этого тест-кейса не определены шаги",
+        "testRuns": "Запуски теста",
+        "noRecentRuns": "Нет недавних запусков",
+        "testCode": "Код теста",
+        "platformLabel": "Платформа",
+        "priorityLabel": "Приоритет",
+        "estimatedTimeLabel": "Оценочное время (минуты)",
+        "testTypeLabel": "Тип теста",
+        "detailsLabel": "Детали",
     },
     en: {
         // Common
@@ -467,10 +523,20 @@ const translations = {
         "numberOfTests": "Number of Tests",
 
         // Priorities
-        "priorityDistribution": "Priority Distribution",
-        "high": "High",
-        "medium": "Medium",
-        "low": "Low",
+        "priorityValues": {
+            "high": "High",
+            "medium": "Medium",
+            "low": "Low"
+        },
+        
+        // Platforms
+        "platformValues": {
+            "web": "Web",
+            "mobile": "Mobile",
+            "desktop": "Desktop",
+            "api": "API",
+            "any": "Any"
+        },
 
         // Results Chart
         "resultsPassed": "Passed",
@@ -691,7 +757,45 @@ const translations = {
         "sortNewest": "Newest First",
         "selectProjectFirst": "Select a project to display templates",
         "noTemplatesFound": "No templates found",
-        "loadingTemplates": "Loading templates..."
+        "loadingTemplates": "Loading templates...",
+
+        // Types of tests
+        "testTypeValues": {
+            "manual": "Manual",
+            "automated": "Automated",
+            "api": "API",
+            "performance": "Performance"
+        },
+        
+        // Test case details
+        "test": "Test",
+        "created": "Created",
+        "updated": "Updated",
+        "author": "Author",
+        "overview": "Overview",
+        "code": "Code",
+        "steps": "Steps",
+        "runs": "Runs",
+        "description": "Description",
+        "tags": "Tags",
+        "noTagsAdded": "No tags added",
+        "addTag": "Add tag",
+        "details": "Details",
+        "platform": "Platform",
+        "priority": "Priority",
+        "estimatedTime": "Estimated Time (minutes)",
+        "testType": "Test Type",
+        "runTest": "Run Test",
+        "testSteps": "Test Steps",
+        "noStepsDefined": "No steps defined for this test case",
+        "testRuns": "Test Runs",
+        "noRecentRuns": "No recent test runs",
+        "testCode": "Test Code",
+        "platformLabel": "Platform",
+        "priorityLabel": "Priority",
+        "estimatedTimeLabel": "Estimated Time (minutes)",
+        "testTypeLabel": "Test Type",
+        "detailsLabel": "Details",
     },
     de: {
         // Allgemein
@@ -795,10 +899,20 @@ const translations = {
         "numberOfTests": "Anzahl der Tests",
 
         // Prioritäten
-        "priorityDistribution": "Prioritätsverteilung",
-        "high": "Hoch",
-        "medium": "Mittel",
-        "low": "Niedrig",
+        "priorityValues": {
+            "high": "Hoch",
+            "medium": "Mittel",
+            "low": "Niedrig"
+        },
+        
+        // Plattformen
+        "platformValues": {
+            "web": "Web",
+            "mobile": "Mobil",
+            "desktop": "Desktop",
+            "api": "API",
+            "any": "Beliebig"
+        },
 
         // Ergebnisdiagramm
         "resultsPassed": "Bestanden",
@@ -1002,7 +1116,45 @@ const translations = {
         "sortNewest": "Neueste zuerst",
         "selectProjectFirst": "Wählen Sie ein Projekt aus, um Vorlagen anzuzeigen",
         "noTemplatesFound": "Keine Vorlagen gefunden",
-        "loadingTemplates": "Vorlagen werden geladen..."
+        "loadingTemplates": "Vorlagen werden geladen...",
+
+        // Typen von Tests
+        "testTypeValues": {
+            "manual": "Manuell",
+            "automated": "Automatisiert",
+            "api": "API",
+            "performance": "Leistung"
+        },
+        
+        // Testfall Details
+        "test": "Test",
+        "created": "Erstellt",
+        "updated": "Aktualisiert",
+        "author": "Autor",
+        "overview": "Überblick",
+        "code": "Code",
+        "steps": "Schritte",
+        "runs": "Durchläufe",
+        "description": "Beschreibung",
+        "tags": "Tags",
+        "noTagsAdded": "Keine Tags hinzugefügt",
+        "addTag": "Tag hinzufügen",
+        "details": "Details",
+        "platform": "Plattform",
+        "priority": "Priorität",
+        "estimatedTime": "Geschätzte Zeit (Minuten)",
+        "testType": "Testtyp",
+        "runTest": "Test starten",
+        "testSteps": "Test-Schritte",
+        "noStepsDefined": "Keine Schritte für diesen Testfall definiert",
+        "testRuns": "Testausführungen",
+        "noRecentRuns": "Keine kürzlichen Testausführungen",
+        "testCode": "Test-Code",
+        "platformLabel": "Plattform",
+        "priorityLabel": "Priorität",
+        "estimatedTimeLabel": "Geschätzte Zeit (Minuten)",
+        "testTypeLabel": "Testtyp",
+        "detailsLabel": "Details",
     }
 };
 
@@ -1013,6 +1165,25 @@ let currentLanguage = localStorage.getItem('language') || 'en';
 function t(key) {
     // Используем i18n.currentLanguage если i18n определен, иначе используем локальную переменную
     const lang = (typeof i18n !== 'undefined') ? i18n.currentLanguage : currentLanguage;
+    
+    // Проверяем, есть ли точка в ключе (вложенный ключ)
+    if (key.includes('.')) {
+        const parts = key.split('.');
+        let result = translations[lang];
+        
+        // Переходим по вложенным ключам
+        for (const part of parts) {
+            if (result && typeof result === 'object' && part in result) {
+                result = result[part];
+            } else {
+                // Если ключ не найден, возвращаем исходный ключ
+                return key;
+            }
+        }
+        return result || key;
+    }
+    
+    // Обычный случай для простых ключей
     const translation = translations[lang]?.[key];
     return translation || key;
 }

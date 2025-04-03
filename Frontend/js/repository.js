@@ -1,3 +1,5 @@
+import { API, ApiClient } from './api-config.js';
+
 document.addEventListener('DOMContentLoaded', () => {
     loadRepositories();
     setupEventListeners();
@@ -277,4 +279,129 @@ function setupEventListeners() {
 function showNotification(message, type = 'info') {
     // Implement your notification system here
     console.log(`${type}: ${message}`);
+}
+
+export class Repository {
+    constructor() {
+        this.client = ApiClient;
+    }
+
+    async getRepositories() {
+        try {
+            const response = await this.client.fetch(API.AUTOMATION.ALL);
+            if (!response.ok) {
+                throw new Error('Failed to fetch repositories');
+            }
+            return await response.json();
+        } catch (error) {
+            console.error('Error fetching repositories:', error);
+            return [];
+        }
+    }
+
+    async getRepositoryTests(repoId) {
+        try {
+            const response = await this.client.fetch(API.AUTOMATION.TESTS(repoId));
+            if (!response.ok) {
+                throw new Error('Failed to fetch repository tests');
+            }
+            return await response.json();
+        } catch (error) {
+            console.error('Error fetching repository tests:', error);
+            return [];
+        }
+    }
+
+    async createRepository(data) {
+        try {
+            const response = await this.client.fetch(API.AUTOMATION.ALL, {
+                method: 'POST',
+                body: JSON.stringify(data)
+            });
+            if (!response.ok) {
+                throw new Error('Failed to create repository');
+            }
+            return await response.json();
+        } catch (error) {
+            console.error('Error creating repository:', error);
+            throw error;
+        }
+    }
+
+    async runTests(repoId, testIds) {
+        try {
+            const response = await this.client.fetch(API.AUTOMATION.RUN_TESTS(repoId), {
+                method: 'POST',
+                body: JSON.stringify({ test_ids: testIds })
+            });
+            if (!response.ok) {
+                throw new Error('Failed to run tests');
+            }
+            return await response.json();
+        } catch (error) {
+            console.error('Error running tests:', error);
+            throw error;
+        }
+    }
+
+    async runAllTests(repoId) {
+        try {
+            const response = await this.client.fetch(API.AUTOMATION.RUN_ALL_TESTS(repoId), {
+                method: 'POST'
+            });
+            if (!response.ok) {
+                throw new Error('Failed to run all tests');
+            }
+            return await response.json();
+        } catch (error) {
+            console.error('Error running all tests:', error);
+            throw error;
+        }
+    }
+
+    async scheduleTests(repoId, schedule) {
+        try {
+            const response = await this.client.fetch(API.AUTOMATION.SCHEDULE(repoId), {
+                method: 'POST',
+                body: JSON.stringify(schedule)
+            });
+            if (!response.ok) {
+                throw new Error('Failed to schedule tests');
+            }
+            return await response.json();
+        } catch (error) {
+            console.error('Error scheduling tests:', error);
+            throw error;
+        }
+    }
+
+    async getRepositoryDetails(repoId) {
+        try {
+            const response = await this.client.fetch(API.AUTOMATION.DETAILS(repoId), {
+                method: 'GET'
+            });
+            if (!response.ok) {
+                throw new Error('Failed to fetch repository details');
+            }
+            return await response.json();
+        } catch (error) {
+            console.error('Error fetching repository details:', error);
+            throw error;
+        }
+    }
+
+    async syncRepository(repoId) {
+        try {
+            const response = await this.client.fetch(API.AUTOMATION.SYNC(repoId), {
+                method: 'POST'
+            });
+            if (!response.ok) {
+                throw new Error('Failed to sync repository');
+            }
+            return await response.json();
+        } catch (error) {
+            console.error('Error syncing repository:', error);
+            throw error;
+        }
+    }
 }

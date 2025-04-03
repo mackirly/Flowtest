@@ -1,13 +1,18 @@
+import { login } from './auth.js';
+import { showNotification } from './notifications.js';
+
+const HOME_PAGE = '/index.html';
+
 document.addEventListener('DOMContentLoaded', function() {
     try {
         // Проверяем, есть ли действующий токен
-        const token = localStorage.getItem('access');
+        const token = localStorage.getItem('authToken');
         if (token) {
-            window.location.href = '/index.html';
+            window.location.replace(HOME_PAGE);
             return;
         }
 
-        // Initialize i18n
+        // Initialize i18n once
         i18n.init();
         
         // Initialize language select
@@ -16,13 +21,6 @@ document.addEventListener('DOMContentLoaded', function() {
             const currentLang = localStorage.getItem('language') || 'en';
             languageSelect.value = currentLang;
             updateFlag(currentLang);
-            
-            languageSelect.addEventListener('change', function(e) {
-                const lang = e.target.value;
-                localStorage.setItem('language', lang);
-                updateFlag(lang);
-                i18n.init();
-            });
         }
 
         // Handle login form
@@ -34,24 +32,34 @@ document.addEventListener('DOMContentLoaded', function() {
                 const username = document.getElementById('username').value;
                 const password = document.getElementById('password').value;
                 
+                // Отключаем кнопку на время запроса
+                const submitButton = form.querySelector('button[type="submit"]');
+                if (submitButton) {
+                    submitButton.disabled = true;
+                }
+                
                 try {
-                    const data = await login(username, password);
-                    if (data && data.access) {
-                        window.location.href = '/index.html';
+                    const success = await login(username, password);
+                    if (success) {
+                        showNotification('Успешная авторизация', 'success');
+                        window.location.replace(HOME_PAGE);
+                    } else {
+                        throw new Error('Ошибка авторизации');
                     }
                 } catch (error) {
                     console.error('Login error:', error);
-                    // Показываем ошибку пользователю
-                    const errorElement = document.getElementById('loginError');
-                    if (errorElement) {
-                        errorElement.textContent = error.message;
-                        errorElement.classList.remove('hidden');
+                    showNotification(error.message || 'Ошибка авторизации', 'error');
+                } finally {
+                    // Включаем кнопку обратно
+                    if (submitButton) {
+                        submitButton.disabled = false;
                     }
                 }
             });
         }
     } catch (error) {
         console.error('Initialization error:', error);
+        showNotification('Ошибка инициализации страницы', 'error');
     }
 });
 
@@ -74,30 +82,5 @@ function updateFlag(lang) {
                 flagElement.classList.add('fi-de');
                 break;
         }
-    }
-}
-
-async function login(username, password) {
-    try {
-        const response = await fetch('http://127.0.0.1:8000/api/token/', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ username, password }),
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.detail || 'Login failed');
-        }
-
-        const data = await response.json();
-        localStorage.setItem('access', data.access);
-        localStorage.setItem('refresh', data.refresh);
-        return data;
-    } catch (error) {
-        console.error('Login error:', error);
-        throw error;
     }
 }

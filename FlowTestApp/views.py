@@ -43,6 +43,19 @@ from .services.repository_service import RepositoryService
 from .services.scheduler_service import SchedulerService
 from .tasks import execute_test
 from FlowTest.celery import app
+from django.contrib import admin
+from django.urls import path, include
+from rest_framework import routers, viewsets, status
+from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.authentication import SessionAuthentication
+from django.core.exceptions import ValidationError
+from django.conf import settings
+from .parsers import FlexibleJSONParser
 
 # Валидаторы для аватара
 def validate_avatar_size(value):
@@ -581,21 +594,10 @@ class RoleViewSet(viewsets.ModelViewSet):
 
 # ViewSet для CustomUser
 class CustomUserViewSet(viewsets.ModelViewSet):
-    queryset = CustomUser.objects.all()
     serializer_class = CustomUserSerializer
     permission_classes = [IsAuthenticated]
-    parser_classes = [JSONParser, MultiPartParser, FormParser]
-    renderer_classes = [JSONRenderer]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
     authentication_classes = [JWTAuthentication, SessionAuthentication]
-    
-    def get_permissions(self):
-        """
-        Override to set custom permissions per action
-        """
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            # Only staff/admin users can create, update or delete users
-            return [IsAuthenticated(), IsAdminUser()]
-        return super().get_permissions()
 
     def get_queryset(self):
         if not self.request.user.is_authenticated:
@@ -610,17 +612,9 @@ class CustomUserViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def get_current_user(self, request):
-        if not request.user.is_authenticated:
-            return Response({"error": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
-        
-        user = request.user
-        print(f"Avatar path: {user.avatar.path if user.avatar else 'None'}")
-        print(f"Avatar URL: {user.avatar.url if user.avatar else 'None'}")
-        print(f"Avatar name: {user.avatar.name if user.avatar else 'None'}")
-        
-        serializer = self.get_serializer(user, context={'request': request})
+        serializer = self.get_serializer(request.user)
         data = serializer.data
-        print(f"Serialized data: {data}")
+        data['is_staff'] = request.user.role.is_admin_role if request.user.role else False
         return Response(data)
 
     @action(detail=True, methods=['patch'])
@@ -628,21 +622,38 @@ class CustomUserViewSet(viewsets.ModelViewSet):
         try:
             if str(request.user.id) != str(pk):
                 return Response({"error": "You can only update your own avatar"}, status=status.HTTP_403_FORBIDDEN)
+            
             user = self.get_object()
             if 'avatar' not in request.FILES:
                 return Response({"error": "No avatar file provided"}, status=status.HTTP_400_BAD_REQUEST)
+            
             avatar_file = request.FILES['avatar']
             validate_avatar_size(avatar_file)
             validate_avatar_extension(avatar_file)
+            
+            # Удаляем старый аватар, если он существует
             if user.avatar:
-                user.avatar.delete(save=False)
+                try:
+                    old_avatar_path = user.avatar.path
+                    if os.path.exists(old_avatar_path):
+                        os.remove(old_avatar_path)
+                except Exception as e:
+                    print(f"Error removing old avatar: {str(e)}")
+            
+            # Сохраняем новый аватар
             user.avatar = avatar_file
             user.save()
+            
+            # Получаем URL нового аватара
             serializer = self.get_serializer(user, context={'request': request})
-            return Response(serializer.data)
+            response_data = serializer.data
+            print(f"New avatar URL: {response_data.get('avatar_url')}")
+            
+            return Response(response_data)
         except ValidationError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
+            print(f"Error in update_avatar: {str(e)}")
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def update(self, request, *args, **kwargs):
@@ -658,6 +669,7 @@ class CustomUserViewSet(viewsets.ModelViewSet):
         except ValidationError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
+            print(f"Error in update: {str(e)}")
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # ViewSet для AutomationProject
@@ -2082,3 +2094,78 @@ def test_execution_stats(request, project_id=None):
             },
             'avg_execution_time': 0
         })
+
+@api_view(['PATCH', 'POST'])
+@permission_classes([IsAuthenticated])
+def update_theme(request):
+    """
+    Обновление темы пользователя
+    """
+    import sys
+    import traceback
+    import logging
+    import json
+    
+    logger = logging.getLogger('django')
+    logger.info("=" * 50)
+    logger.info("update_theme вызван")
+    logger.info(f"HTTP метод: {request.method}")
+    logger.info(f"Content-Type: {request.content_type}")
+    
+    # Пытаемся получить данные из разных источников
+    theme = None
+    
+    # 1. Проверяем request.data (обработано DRF)
+    if hasattr(request, 'data') and request.data:
+        logger.info(f"Данные request.data: {request.data}")
+        if isinstance(request.data, dict) and 'theme' in request.data:
+            theme = request.data.get('theme')
+            logger.info(f"Тема из request.data: {theme}")
+    
+    # 2. Прямой доступ к request.body
+    if not theme and request.body:
+        try:
+            body_text = request.body.decode('utf-8')
+            logger.info(f"Тело запроса: {body_text}")
+            
+            try:
+                body_json = json.loads(body_text)
+                if isinstance(body_json, dict) and 'theme' in body_json:
+                    theme = body_json.get('theme')
+                    logger.info(f"Тема из JSON.loads: {theme}")
+            except json.JSONDecodeError:
+                # Не JSON, возможно form-data
+                if 'theme=' in body_text:
+                    theme = body_text.split('theme=')[1].split('&')[0]
+                    logger.info(f"Тема из form-data: {theme}")
+        except Exception as e:
+            logger.error(f"Ошибка при декодировании body: {str(e)}")
+    
+    # Проверяем результат
+    if not theme:
+        logger.warning("Тема не найдена в запросе")
+        return Response({'error': 'Тема не указана'}, status=400)
+        
+    if theme not in ['light', 'dark']:
+        logger.warning(f"Недопустимое значение темы: {theme}")
+        return Response({'error': 'Недопустимое значение темы. Допустимые значения: light, dark'}, status=400)
+    
+    try:
+        # Получаем пользователя
+        user = request.user
+        logger.info(f"Пользователь: {user.username}, текущая тема: {user.theme}")
+        
+        # Сохраняем новую тему
+        user.theme = theme
+        user.save()
+        logger.info(f"Тема успешно обновлена на: {theme}")
+        
+        return Response({'theme': theme, 'success': True})
+    except Exception as e:
+        # Логируем ошибку
+        logger.error(f"ОШИБКА: {str(e)}")
+        tb_lines = traceback.format_exception(type(e), e, e.__traceback__)
+        for line in tb_lines:
+            logger.error(line.rstrip())
+        
+        return Response({'error': str(e)}, status=500)

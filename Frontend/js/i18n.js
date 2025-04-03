@@ -1,92 +1,95 @@
+// i18n.js - Интерфейс для работы с переводами
+
 const i18n = {
-    currentLanguage: localStorage.getItem('language') || navigator.language.split('-')[0] || 'en',
-    initialized: false,
-
-    async init() {
-        console.log('Initializing i18n with language:', this.currentLanguage);
-        
-        // Проверяем, загружены ли переводы
-        if (typeof window.translations === 'undefined') {
-            console.error('Translations not loaded. Waiting for translations to be available.');
-            return false;
-        }
-
-        try {
-            await this.loadTranslations();
-            this.translatePage();
-            this.initialized = true;
-            
-            // Отправляем событие о завершении инициализации
-            const event = new CustomEvent('i18n:initialized');
-            document.dispatchEvent(event);
-            
-            console.log('Translation complete:', this.translations);
-            return true;
-        } catch (error) {
-            console.error('Error during i18n initialization:', error);
-            return false;
-        }
+    currentLanguage: localStorage.getItem('language') || 'ru',
+    
+    // Инициализация системы переводов
+    init() {
+        this.updatePageTranslations();
+        this.setupLanguageSelector();
+        this.updateLanguageFlag();
     },
 
-    loadTranslations() {
-        return new Promise((resolve, reject) => {
-            try {
-                this.translations = window.translations[this.currentLanguage];
-                if (!this.translations) {
-                    throw new Error(`Translations for language ${this.currentLanguage} not found`);
-                }
-                resolve();
-            } catch (error) {
-                reject(error);
+    // Получение перевода по ключу
+    t(key) {
+        return window.t ? window.t(key) : key;
+    },
+
+    // Установка языка
+    setLanguage(lang) {
+        if (window.setLanguage(lang)) {
+            this.currentLanguage = lang;
+            localStorage.setItem('language', lang);
+            this.updatePageTranslations();
+            this.updateLanguageFlag();
+            return true;
+        }
+        return false;
+    },
+
+    // Обновление всех переводов на странице
+    updatePageTranslations() {
+        // Обновляем текстовые элементы
+        document.querySelectorAll('[data-i18n]').forEach(element => {
+            const key = element.getAttribute('data-i18n');
+            if (key) {
+                element.textContent = this.t(key);
+            }
+        });
+
+        // Обновляем плейсхолдеры
+        document.querySelectorAll('[data-i18n-placeholder]').forEach(element => {
+            const key = element.getAttribute('data-i18n-placeholder');
+            if (key) {
+                element.placeholder = this.t(key);
             }
         });
     },
 
-    isInitialized() {
-        return this.initialized;
-    },
-
-    t(key) {
-        if (!this.translations) {
-            console.warn(`Translations not loaded yet for key: ${key}`);
-            return key;
+    // Настройка селектора языка
+    setupLanguageSelector() {
+        const selector = document.getElementById('languageSelect');
+        if (selector) {
+            selector.value = this.currentLanguage;
+            selector.addEventListener('change', (e) => {
+                this.setLanguage(e.target.value);
+            });
         }
-        
-        return this.translations[key] || key;
     },
 
-    translatePage() {
-        document.querySelectorAll('[data-i18n]').forEach(element => {
-            const key = element.getAttribute('data-i18n');
-            element.textContent = this.t(key);
-        });
-
-        document.querySelectorAll('[data-i18n-placeholder]').forEach(element => {
-            const key = element.getAttribute('data-i18n-placeholder');
-            element.placeholder = this.t(key);
-        });
+    // Обновление флага языка
+    updateLanguageFlag() {
+        const flagElement = document.querySelector('.language-flag');
+        if (flagElement) {
+            // Очищаем предыдущие классы флагов
+            flagElement.className = 'language-flag fi';
+            // Добавляем класс для текущего языка
+            switch (this.currentLanguage) {
+                case 'en':
+                    flagElement.classList.add('fi-gb');
+                    break;
+                case 'ru':
+                    flagElement.classList.add('fi-ru');
+                    break;
+                case 'de':
+                    flagElement.classList.add('fi-de');
+                    break;
+            }
+        }
     }
 };
 
-window.i18n = i18n;
+// Глобальная конфигурация для других скриптов
+const i18nConfig = {
+    defaultLanguage: 'ru',
+    supportedLanguages: ['ru', 'en', 'de'],
+    apiEndpoint: '/api',
+    authEndpoint: '/api/token/',
+    refreshTokenEndpoint: '/api/token/refresh/'
+};
 
-// Инициализация после загрузки переводов
-// Если переводы уже загружены, инициализируем сразу
-// Иначе ждем события translations:loaded
-(function() {
-    console.log('i18n script loaded, checking translations status');
-    if (window.translationsLoaded) {
-        console.log('Translations already loaded, initializing i18n');
-        i18n.init().catch(error => {
-            console.error('Failed to initialize i18n on script load:', error);
-        });
-    } else {
-        console.log('Waiting for translations to be loaded...');
-        document.addEventListener('translations:loaded', () => {
-            console.log('Translations loaded event received, initializing i18n');
-            i18n.init().catch(error => {
-                console.error('Failed to initialize i18n after translations loaded:', error);
-            });
-        });
-    }
-})();
+// Инициализация будет вызываться явно из других скриптов
+
+// Экспортируем для использования в других скриптах
+window.i18n = i18n;
+window.i18nConfig = i18nConfig;

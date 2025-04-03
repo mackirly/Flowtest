@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles */
+.dark {
+    color-scheme: dark;
+}
+
+/* Flag icon styles */
+.fi {
+    width: 1.5em;
+    height: 1em;
+    margin-right: 0.5em;
+    display: inline-block;
+    vertical-align: middle;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    box-shadow: 0 0 0.5px rgba(0, 0, 0, 0.1);
+    border-radius: 2px;
+}
+
+/* Theme icon styles */
+.theme-icon {
+    width: 1.2em;
+    height: 1.2em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    vertical-align: middle;
+    color: #FF7F50;
+}
+
+@layer components {
+    .btn-primary {
+        @apply px-4 py-2 bg-coral-500 text-white rounded-lg hover:bg-coral-600 focus:ring-2 focus:ring-coral-200 dark:focus:ring-coral-900;
+    }
+    
+    .btn-secondary {
+        @apply px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700;
+    }
+    
+    .input-field {
+        @apply w-full p-2 rounded-lg border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-coral-200 dark:focus:ring-coral-900 focus:outline-none dark:bg-gray-800 dark:text-gray-100;
+    }
+}

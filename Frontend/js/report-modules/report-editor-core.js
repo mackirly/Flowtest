@@ -165,7 +165,7 @@ function loadUserInfo() {
             
             if (userAvatar) {
                 if (user.avatar) {
-                    const avatarUrl = user.avatar.startsWith('http') ? user.avatar : `${config.API_BASE_URL}${user.avatar}`;
+                    const avatarUrl = user.avatar.startsWith('http') ? user.avatar : `${i18nConfig.API_BASE_URL}${user.avatar}`;
                     userAvatar.innerHTML = `<img src="${avatarUrl}" class="w-8 h-8 rounded-full" alt="User avatar">`;
                 } else {
                     // Set initials if no avatar
@@ -257,7 +257,7 @@ function loadProjects() {
     }
     
     // Fetch projects from API
-    fetchWithAuth(`${config.API_BASE_URL}${config.ENDPOINTS.PROJECTS}`, {
+    fetchWithAuth(`${i18nConfig.API_BASE_URL}${config.ENDPOINTS.PROJECTS}`, {
         method: 'GET',
         headers: {
             'Content-Type': 'application/json'

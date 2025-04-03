@@ -21,10 +21,15 @@
             },
         }
     </script>
-    <script src="js/translations.js"></script>
-    <script src="js/i18n.js"></script>
+    <script src="js/translations.js"></script> 
+    <!-- <script src="js/i18n.js"></script> --> <!-- Закомментировано, т.к. будем использовать i18next из CDN -->
+    <!-- Добавляем CDN скрипты для i18next -->
+    <script src="https://cdn.jsdelivr.net/npm/i18next@latest/i18next.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/i18next-http-backend@latest/i18nextHttpBackend.min.js"></script>
+    <!-- Подключаем конфигурацию i18n (как модуль) -->
+    <script type="module" src="js/i18n-config.js"></script> 
     <script src="js/theme-manager.js"></script>
-    <script src="js/settings.js"></script>
+    <script type="module" src="js/settings.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@6.11.0/css/flag-icons.min.css"/>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.2.0/flowbite.min.css" rel="stylesheet"/>
     <style>

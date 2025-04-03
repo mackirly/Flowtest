@@ -69,3 +69,37 @@ function getNotificationIcon(type) {
                     </svg>`;
     }
 }
+
+// Utility functions for working with dates
+function formatDate(date) {
+    if (!date) return '';
+    const d = new Date(date);
+    return d.toLocaleDateString();
+}
+
+function formatDateTime(date) {
+    if (!date) return '';
+    const d = new Date(date);
+    return d.toLocaleString();
+}
+
+// Utility function for debouncing
+function debounce(func, wait) {
+    let timeout;
+    return function(...args) {
+        const context = this;
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(context, args), wait);
+    };
+}
+
+// Export utilities for ES modules
+export const Utils = {
+    showNotification,
+    formatDate,
+    formatDateTime,
+    debounce
+};
+
+// Also make available globally
+window.Utils = Utils;

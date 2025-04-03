@@ -16,8 +16,8 @@ import ProfileSettings from '../views/ProfileSettings.vue';
 
 // Определение маршрутов
 const routes: Array<RouteRecordRaw> = [
-  { path: '/', redirect: '/login' }, 
-  { path: '/login', name: 'Login', component: Login },
+  { path: '/', redirect: '/login.html' }, 
+  { path: '/login.html', name: 'Login', component: Login },
   { path: '/dashboard', name: 'Dashboard', component: Dashboard },
   { path: '/test-cases', name: 'TestCases', component: TestCases },
   { path: '/test-runs', name: 'TestRuns', component: TestRuns },
@@ -38,7 +38,7 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   const isAuthenticated = !!localStorage.getItem('access_token');
   if (to.meta.requiresAuth && !isAuthenticated) {
-    next('/login');  // Перенаправляем на страницу логина, если не авторизован
+    next('/login.html');  // Перенаправляем на страницу логина, если не авторизован
   } else {
     next();
   }

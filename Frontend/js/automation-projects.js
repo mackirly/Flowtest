@@ -8,11 +8,8 @@ const AutomationProjectsManager = {
     // Загрузка списка проектов
     async loadProjects() {
         try {
-            const response = await fetch('http://127.0.0.1:8000/api/automation-projects/', {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('access')}`
-                }
-            });
+            const automationProjectsUrl = config.getFullEndpoint(config.ENDPOINTS.AUTOMATION.PROJECTS);
+            const response = await fetchWithAuth(automationProjectsUrl);
             
             if (!response.ok) throw new Error('Failed to load projects');
             

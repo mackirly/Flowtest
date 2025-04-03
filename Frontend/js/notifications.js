@@ -1,3 +1,59 @@
+// Define notification styles
+const notificationStyles = `
+    @keyframes slideIn {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    
+    @keyframes slideOut {
+        from {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        to {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+    }
+    
+    .notification {
+        font-family: system-ui, -apple-system, sans-serif;
+        font-size: 14px;
+        line-height: 1.5;
+        color: #1F2937;
+    }
+    
+    .notification i {
+        font-size: 18px;
+    }
+    
+    .notification .close-button {
+        margin-left: 12px;
+        background: none;
+        border: none;
+        font-size: 20px;
+        color: #9CA3AF;
+        cursor: pointer;
+        padding: 0;
+        line-height: 1;
+    }
+    
+    .notification .close-button:hover {
+        color: #4B5563;
+    }
+`;
+
+// Add styles to document
+const styleElement = document.createElement('style');
+styleElement.textContent = notificationStyles;
+document.head.appendChild(styleElement);
+
 // Load notifications HTML
 document.addEventListener('DOMContentLoaded', function() {
     const notificationsWrapper = document.getElementById('notifications-wrapper');
@@ -176,3 +232,92 @@ document.addEventListener('click', function(event) {
         notificationList.classList.add('hidden');
     }
 });
+
+/**
+ * Показывает уведомление пользователю
+ * @param {string} message - Текст сообщения
+ * @param {string} type - Тип уведомления ('success', 'error', 'warning', 'info')
+ * @param {number} duration - Длительность показа в миллисекундах
+ */
+export function showNotification(message, type = 'info', duration = 5000) {
+    // Создаем контейнер для уведомления
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    
+    // Добавляем иконку в зависимости от типа
+    const icon = document.createElement('i');
+    switch (type) {
+        case 'success':
+            icon.className = 'fas fa-check-circle';
+            break;
+        case 'error':
+            icon.className = 'fas fa-exclamation-circle';
+            break;
+        case 'warning':
+            icon.className = 'fas fa-exclamation-triangle';
+            break;
+        default:
+            icon.className = 'fas fa-info-circle';
+    }
+    
+    // Создаем текстовый элемент
+    const text = document.createElement('span');
+    text.textContent = message;
+    
+    // Создаем кнопку закрытия
+    const closeButton = document.createElement('button');
+    closeButton.className = 'close-button';
+    closeButton.innerHTML = '&times;';
+    closeButton.onclick = () => notification.remove();
+    
+    // Собираем уведомление
+    notification.appendChild(icon);
+    notification.appendChild(text);
+    notification.appendChild(closeButton);
+    
+    // Добавляем стили
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 16px 24px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: white;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        z-index: 1000;
+        animation: slideIn 0.3s ease-out;
+    `;
+    
+    // Добавляем стили в зависимости от типа
+    switch (type) {
+        case 'success':
+            notification.style.borderLeft = '4px solid #10B981';
+            icon.style.color = '#10B981';
+            break;
+        case 'error':
+            notification.style.borderLeft = '4px solid #EF4444';
+            icon.style.color = '#EF4444';
+            break;
+        case 'warning':
+            notification.style.borderLeft = '4px solid #F59E0B';
+            icon.style.color = '#F59E0B';
+            break;
+        default:
+            notification.style.borderLeft = '4px solid #3B82F6';
+            icon.style.color = '#3B82F6';
+    }
+    
+    // Добавляем уведомление на страницу
+    document.body.appendChild(notification);
+    
+    // Удаляем уведомление через указанное время
+    setTimeout(() => {
+        if (document.body.contains(notification)) {
+            notification.style.animation = 'slideOut 0.3s ease-in';
+            setTimeout(() => notification.remove(), 300);
+        }
+    }, duration);
+}

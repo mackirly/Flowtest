@@ -275,7 +275,7 @@ async function fetchMetricsData(projectId, queryParams) {
     try {
         // Determine data source type and parameters
         const dataSource = currentTemplate.configuration.dataSource || { type: 'general', timePeriod: 'week' };
-        let apiUrl = `${config.API_BASE_URL}${config.ENDPOINTS.REPORTS.ANALYTICS}metrics`;
+        let apiUrl = `${i18nConfig.API_BASE_URL}${config.ENDPOINTS.REPORTS.ANALYTICS}metrics`;
         
         // Always add project ID
         if (!queryParams) {

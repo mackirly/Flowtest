@@ -1,178 +1,230 @@
+/**
+ * Authentication module
+ */
+
+import { API_BASE_URL, API_PREFIX } from './api-config.js';
+import { showNotification } from './notifications.js';
+import { fetchWithAuth } from './api-utils.js';
+
+const authApi = {
+    async login(username, password) {
+        try {
+            console.log('Attempting to login with username:', username);
+            const response = await fetch(`${API_BASE_URL}${API_PREFIX}/token/`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify({ username, password })
+            });
+
+            console.log('Login response status:', response.status);
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error('Login failed:', errorData);
+                showNotification(errorData.detail || 'Ошибка авторизации', 'error');
+                return false;
+            }
+
+            const responseData = await response.json();
+            console.log('Login response data:', responseData);
+
+            if (!responseData.access || !responseData.refresh) {
+                console.error('Invalid token data received:', responseData);
+                showNotification('Получены некорректные данные авторизации', 'error');
+                return false;
+            }
+
+            console.log('Login successful, storing tokens...');
+            localStorage.setItem('authToken', responseData.access);
+            localStorage.setItem('refreshToken', responseData.refresh);
+            
+            // Проверяем, что токены сохранились
+            const savedAuthToken = localStorage.getItem('authToken');
+            const savedRefreshToken = localStorage.getItem('refreshToken');
+            
+            if (!savedAuthToken || !savedRefreshToken) {
+                console.error('Tokens were not saved properly');
+                showNotification('Ошибка сохранения данных авторизации', 'error');
+                return false;
+            }
+
+            console.log('Tokens stored successfully');
+            return true;
+        } catch (error) {
+            console.error('Login error:', error);
+            showNotification('Ошибка при попытке входа', 'error');
+            return false;
+        }
+    },
+
+    async getCurrentUser() {
+        try {
+            const currentUserEndpoint = `${API_BASE_URL}${API_PREFIX}/users/get_current_user/`;
+            console.log('Fetching current user from:', currentUserEndpoint);
+            const response = await fetchWithAuth(currentUserEndpoint);
+            if (!response.ok) {
+                if (response.status === 401) {
+                    window.location.replace(LOGIN_PAGE);
+                }
+                throw new Error('Failed to get current user');
+            }
+            const userData = await response.json();
+            console.log('Current user data:', userData);
+            console.log('Is staff:', userData.is_staff);
+            return userData;
+        } catch (error) {
+            console.error('Error getting current user:', error);
+            throw error;
+        }
+    }
+};
+const LOGIN_PAGE = '/login.html';
+const HOME_PAGE = '/index.html';
+
 async function refreshToken() {
-    const refresh = localStorage.getItem('refresh');
-    if (!refresh) {
-        window.location.href = '/login.html';
-        return;
+    const refreshToken = localStorage.getItem('refreshToken');
+    if (!refreshToken) {
+        console.log('No refresh token found');
+        return null;
     }
 
     try {
-        const response = await fetch(config.API_BASE_URL + config.ENDPOINTS.AUTH.REFRESH, {
+        console.log('Attempting to refresh token...');
+        const response = await fetch(`${API_BASE_URL}${API_PREFIX}/token/refresh/`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ refresh }),
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ refresh: refreshToken })
         });
 
-        if (!response.ok) {
-            throw new Error('Failed to refresh token');
+        if (response.ok) {
+            const data = await response.json();
+            console.log('Token refresh successful');
+            localStorage.setItem('authToken', data.access);
+            return data.access;
+        } else {
+            console.error('Token refresh failed:', response.status);
+            const errorData = await response.json();
+            console.error('Error details:', errorData);
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('refreshToken');
+            return null;
         }
-
-        const data = await response.json();
-        console.log('Token refreshed successfully');
-        
-        // Обновляем токены
-        localStorage.setItem('access', data.access);
-        if (data.refresh) {
-            localStorage.setItem('refresh', data.refresh);
-        }
-        
-        return data.access;
     } catch (error) {
         console.error('Error refreshing token:', error);
-        // При ошибке обновления токена, очищаем хранилище и перенаправляем на страницу входа
-        localStorage.removeItem('access');
-        localStorage.removeItem('refresh');
-        localStorage.removeItem('user');
-        window.location.href = '/login.html';
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('refreshToken');
+        return null;
     }
 }
 
 async function login(username, password) {
     try {
-        const response = await fetch(config.API_BASE_URL + config.ENDPOINTS.AUTH.LOGIN, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password }),
-        });
-
-        if (!response.ok) {
+        const success = await authApi.login(username, password);
+        if (!success) {
             throw new Error('Login failed');
         }
-
-        const data = await response.json();
-        
-        // Сохраняем токены
-        localStorage.setItem('access', data.access);
-        localStorage.setItem('refresh', data.refresh);
-        
-        // Получаем данные пользователя
-        const userResponse = await fetch(config.API_BASE_URL + config.ENDPOINTS.USERS.PROFILE, {
-            headers: {
-                'Authorization': `Bearer ${data.access}`,
-                'Content-Type': 'application/json'
-            }
-        });
-        
-        if (userResponse.ok) {
-            const userData = await userResponse.json();
-            localStorage.setItem('user', JSON.stringify(userData));
-        }
-
-        // Перенаправляем на главную страницу
-        window.location.href = '/index.html';
+        return true;
     } catch (error) {
         console.error('Login error:', error);
         throw error;
     }
 }
 
-// Функция для выполнения запросов с авторизацией
-async function fetchWithAuth(url, options = {}) {
-    // Базовые заголовки
-    const headers = {
-        'Content-Type': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest',
-        ...options.headers
-    };
-    
-    // Добавляем JWT токен, если он есть
-    const access = localStorage.getItem('access');
-    if (access) {
-        headers['Authorization'] = `Bearer ${access}`;
-    }
-    
-    // Формируем полный URL с учетом слеша
-    let fullUrl;
-    if (url.startsWith('http')) {
-        fullUrl = url;
-    } else {
-        // Make sure we don't double up on slashes
-        const apiPrefix = '/api'; // Используем статический префикс вместо config.API_PREFIX
-        if (url.startsWith('/')) {
-            fullUrl = `${config.API_BASE_URL}${apiPrefix}${url}`;
-        } else {
-            fullUrl = `${config.API_BASE_URL}${apiPrefix}/${url}`;
-        }
-    }
-    
-    console.log('API Request:', fullUrl, options.method || 'GET');
-    
+/**
+ * Get current user information
+ */
+async function getCurrentUser() {
     try {
-        const response = await fetch(fullUrl, {
-            ...options,
-            headers,
-            credentials: 'include'  // Важно для работы с сессионными куками
-        });
-        
-        // Если ошибка авторизации и есть JWT токен, пробуем его обновить
-        if (response.status === 401 && access) {
-            console.log('Получен 401, пробуем обновить токен...');
-            try {
-                const newAccess = await refreshToken();
-                headers['Authorization'] = `Bearer ${newAccess}`;
-                console.log('Токен обновлен, повторяем запрос...');
-                return await fetch(fullUrl, {
-                    ...options,
-                    headers,
-                    credentials: 'include'
-                });
-            } catch (error) {
-                console.error('Не удалось обновить токен:', error);
-                localStorage.removeItem('access');
-                localStorage.removeItem('refresh');
-                // Перенаправляем на страницу логина, если мы не на ней
-                if (!window.location.href.includes('login.html')) {
-                    window.location.href = '/login.html';
-                }
-                throw new Error(`Ошибка авторизации: ${error.message}`);
-            }
-        }
-        
-        if (!response.ok) {
-            console.error('API ответил ошибкой:', {
-                status: response.status,
-                statusText: response.statusText,
-                url: response.url
-            });
-        }
-        
-        return response;
+        return await authApi.getCurrentUser();
     } catch (error) {
-        console.error('Ошибка запроса:', error.name, error.message);
-        console.error('URL запроса:', fullUrl);
-        console.error('Метод запроса:', options.method || 'GET');
-        throw new Error(`Сетевая ошибка: ${error.message}`);
+        console.error('Error getting current user:', error);
+        return null;
     }
 }
 
-// Проверяем токен при загрузке страницы
-document.addEventListener('DOMContentLoaded', async () => {
-    const access = localStorage.getItem('access');
-    if (!access) {
-        const refresh = localStorage.getItem('refresh');
-        if (refresh) {
-            try {
-                await refreshToken();
-            } catch (error) {
-                console.error('Failed to refresh token on page load:', error);
-            }
+// Функция для проверки авторизации
+export async function checkAuth() {
+    const token = localStorage.getItem('authToken');
+    const refreshTokenValue = localStorage.getItem('refreshToken');
+
+    // Если нет токенов - на логин
+    if (!token && !refreshTokenValue) {
+        window.location.replace(LOGIN_PAGE);
+        return false;
+    }
+
+    // Если нет access токена, но есть refresh - пробуем обновить
+    if (!token && refreshTokenValue) {
+        const newToken = await refreshToken();
+        if (!newToken) {
+            window.location.replace(LOGIN_PAGE);
+            return false;
         }
+    }
+
+    // Проверяем валидность токена
+    try {
+        const user = await getCurrentUser();
+        if (!user) {
+            throw new Error('Failed to get user info');
+        }
+        return true;
+    } catch (error) {
+        console.error('Auth check failed:', error);
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('refreshToken');
+        window.location.replace(LOGIN_PAGE);
+        return false;
+    }
+}
+
+// Функция для выхода
+export async function logout() {
+    try {
+        await fetchWithAuth(`${API_BASE_URL}${API_PREFIX}/auth/logout/`, {
+            method: 'POST'
+        });
+    } catch (error) {
+        console.error('Error during logout:', error);
+    } finally {
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('refreshToken');
+        window.location.replace(LOGIN_PAGE);
+    }
+}
+
+// Инициализация при загрузке страницы
+document.addEventListener('DOMContentLoaded', () => {
+    // Проверяем авторизацию только если мы не на странице логина
+    const currentPage = window.location.pathname;
+    if (!currentPage.includes('login.html')) {
+        checkAuth();
+    }
+    
+    // Добавляем обработчик для кнопки выхода
+    const logoutButton = document.getElementById('logoutButton');
+    if (logoutButton) {
+        logoutButton.addEventListener('click', logout);
     }
 });
 
-// Автоматическое обновление токена каждые 4 минуты
-setInterval(refreshToken, config.TOKEN_REFRESH_INTERVAL);
+// Периодическое обновление токена каждые 4 минуты
+setInterval(async () => {
+    const currentPage = window.location.pathname;
+    if (!currentPage.includes('login.html')) {
+        const token = localStorage.getItem('authToken');
+        if (token) {
+            await refreshToken();
+        }
+    }
+}, 4 * 60 * 1000);
 
-// Экспортируем функции для использования в других файлах
-window.login = login;
-window.refreshToken = refreshToken;
-window.fetchWithAuth = fetchWithAuth;
+export { login, refreshToken, getCurrentUser };

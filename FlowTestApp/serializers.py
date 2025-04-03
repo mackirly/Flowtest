@@ -9,12 +9,20 @@ class ProjectSerializer(serializers.ModelSerializer):
 
 
 class FolderSerializer(serializers.ModelSerializer):
+    test_cases_count = serializers.SerializerMethodField()
+    author_username = serializers.CharField(source='author.username', read_only=True, required=False)
+
     class Meta:
         model = Folder
         fields = '__all__'
 
+    def get_test_cases_count(self, obj):
+        return obj.test_cases.count()
+
 
 class TestCaseSerializer(serializers.ModelSerializer):
+    author_username = serializers.CharField(source='author.username', read_only=True, required=False)
+
     class Meta:
         model = TestCase
         fields = '__all__'
@@ -33,9 +41,20 @@ class TestCaseSerializer(serializers.ModelSerializer):
 
 
 class TestRunSerializer(serializers.ModelSerializer):
+    test_case_title = serializers.CharField(source='test_case.title', read_only=True)
+    executed_by_username = serializers.CharField(source='executor.username', read_only=True)
+    duration = serializers.SerializerMethodField()
+
     class Meta:
         model = TestRun
-        fields = '__all__'
+        fields = ['id', 'test_case', 'test_case_title', 'status', 'started_at', 'finished_at', 
+                 'execution_time', 'error_message', 'output', 'executor', 'executed_by_username', 'duration']
+        read_only_fields = ['id', 'test_case_title', 'executed_by_username', 'duration']
+
+    def get_duration(self, obj):
+        if obj.started_at and obj.finished_at:
+            return (obj.finished_at - obj.started_at).total_seconds()
+        return None
 
 
 class SchedulerEventSerializer(serializers.ModelSerializer):
@@ -71,76 +90,36 @@ class RoleSerializer(serializers.ModelSerializer):
 
 
 class CustomUserSerializer(serializers.ModelSerializer):
-    avatar_url = serializers.SerializerMethodField()
+    avatar = serializers.SerializerMethodField()
     password = serializers.CharField(write_only=True, required=False)
+    theme = serializers.ChoiceField(choices=['light', 'dark'], required=False)
 
-    class Meta:
-        model = CustomUser
-        fields = ['id', 'username', 'email', 'password', 'first_name', 'last_name', 'middle_name', 'language', 'phone_number', 'avatar_url', 'theme', 'role', 'is_active']
-        read_only_fields = ['id', 'avatar_url']
-        extra_kwargs = {
-            'username': {'required': True}
-        }
-        
-    def get_avatar_url(self, obj):
-        if obj.avatar and obj.avatar.name:
+    def get_avatar(self, obj):
+        if obj.avatar:
             request = self.context.get('request')
             if request:
                 return request.build_absolute_uri(obj.avatar.url)
             return obj.avatar.url
         return None
-        
-    def create(self, validated_data):
-        """
-        Override create method to handle password hashing
-        """
-        # First, check if a user with this username already exists
-        username = validated_data.get('username')
-        if username and CustomUser.objects.filter(username=username).exists():
-            raise serializers.ValidationError({"username": f"Пользователь с именем '{username}' уже существует. Пожалуйста, выберите другое имя пользователя."})
-            
-        # Handle password correctly
-        password = validated_data.pop('password', None)
-        user = CustomUser(**validated_data)
-        if password:
-            user.set_password(password)
-        
-        try:
-            user.save()
-        except Exception as e:
-            print(f"Error saving user: {str(e)}")
-            # Custom error handling for database constraints
-            if "unique constraint" in str(e).lower() or "duplicate key" in str(e).lower():
-                if "username" in str(e).lower():
-                    raise serializers.ValidationError({"username": f"Пользователь с именем '{username}' уже существует. Пожалуйста, выберите другое имя пользователя."})
-                elif "email" in str(e).lower():
-                    raise serializers.ValidationError({"email": "Пользователь с такой электронной почтой уже существует"})
-            # Re-raise other exceptions
-            raise  
-            
-        return user
-    
+
+    class Meta:
+        model = CustomUser
+        fields = ['id', 'username', 'password', 'email', 'first_name', 'last_name', 
+                  'middle_name', 'language', 'phone_number', 'avatar', 'theme', 'role']
+        extra_kwargs = {
+            'password': {'write_only': True},
+            'theme': {'required': False}
+        }
+
     def update(self, instance, validated_data):
-        """
-        Override update method to handle password updates
-        """
-        # Check username uniqueness only if it changed and not for this user
-        username = validated_data.get('username')
-        if username and username != instance.username:
-            if CustomUser.objects.filter(username=username).exists():
-                raise serializers.ValidationError({"username": "Пользователь с таким именем уже существует"})
-        
-        # Handle password correctly
-        password = validated_data.pop('password', None)
-        if password:
-            instance.set_password(password)
-            
-        # Update other fields
-        for key, value in validated_data.items():
-            setattr(instance, key, value)
-            
-        instance.save()
-        return instance
+        if 'avatar' in validated_data:
+            if instance.avatar:
+                instance.avatar.delete(save=False)
+        if 'theme' in validated_data:
+            instance.theme = validated_data['theme']
+            instance.save(update_fields=['theme'])
+            return instance
+        return super().update(instance, validated_data)
 
 
 class AutomationProjectSerializer(serializers.ModelSerializer):

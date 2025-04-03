@@ -14,6 +14,7 @@ import threading
 from playwright.sync_api import sync_playwright
 import logging
 import os
+from .validators import validate_avatar_size, validate_avatar_extension, avatar_upload_path
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,7 @@ class Folder(models.Model):
         related_name='subfolders'
     )
     status = models.CharField(max_length=50, default='active', blank=True, null=True)
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='authored_folders')
 
     def __str__(self):
         return self.name
@@ -73,6 +75,8 @@ class TestCase(models.Model):
     author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='authored_tests')
     # Поля для автоматизированных тестов
     script_path = models.CharField(max_length=255, blank=True, null=True)
+    class_name = models.CharField(max_length=255, blank=True, null=True)
+    method_name = models.CharField(max_length=255, blank=True, null=True)
     framework = models.CharField(
         max_length=50,
         choices=[
@@ -155,15 +159,6 @@ class Role(models.Model):
     def __str__(self):
         return self.name
 
-def avatar_upload_path(instance, filename):
-    """
-    Функция для определения пути загрузки аватара
-    """
-    # Get the original file extension
-    ext = os.path.splitext(filename)[1].lower()
-    # Generate a filename that won't be hex-encoded
-    return f'avatars/{instance.id}{ext}'
-
 class CustomUser(AbstractUser):
     """
     Расширенная модель пользователя
@@ -178,35 +173,29 @@ class CustomUser(AbstractUser):
         ('dark', 'Dark'),
     ]
     
-    middle_name = models.CharField(max_length=150, blank=True, null=True, verbose_name="Отчество")
+    middle_name = models.CharField(max_length=150, blank=True, null=True)
     first_name = models.CharField(max_length=150, blank=False, verbose_name="Имя")
     last_name = models.CharField(max_length=150, blank=False, verbose_name="Фамилия")
-    language = models.CharField(max_length=10, choices=LANGUAGE_CHOICES, default='en')
+    language = models.CharField(max_length=10, choices=LANGUAGE_CHOICES, default='ru')
     theme = models.CharField(max_length=10, choices=THEME_CHOICES, default='light')
-    phone_number = models.CharField(max_length=15, blank=True)
+    phone_number = models.CharField(max_length=20, blank=True)
     avatar = models.ImageField(
         upload_to=avatar_upload_path,
         null=True,
         blank=True,
-        max_length=255
+        validators=[validate_avatar_size, validate_avatar_extension]
     )
-    role = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True, blank=True, related_name='users')
-    
-    def save(self, *args, **kwargs):
-        if self.avatar:
-            # Проверяем размер файла
-            if self.avatar.size > 2 * 1024 * 1024:  # 2MB
-                raise ValidationError('Avatar file too large ( > 2MB )')
-            
-            # Проверяем расширение файла
-            ext = os.path.splitext(self.avatar.name)[1].lower()
-            if ext not in ['.jpg', '.jpeg', '.png', '.gif']:
-                raise ValidationError('Unsupported file extension')
-                
-        super().save(*args, **kwargs)
+    role = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True, blank=True)
     
     def __str__(self):
         return self.username
+
+    def save(self, *args, **kwargs):
+        if self.avatar:
+            # Валидация при сохранении
+            validate_avatar_size(self.avatar)
+            validate_avatar_extension(self.avatar)
+        super().save(*args, **kwargs)
 
 class SchedulerEvent(models.Model):
     EVENT_TYPE_CHOICES = [

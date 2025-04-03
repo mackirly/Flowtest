@@ -1,95 +1,95 @@
 /**
- * Скрипт редактора отчетов
- * 
- * Предоставляет функциональность для редактора отчетов:
- * - Перетаскивание элементов отчета
- * - Настройка и изменение размеров графиков
- * - Интеграция с API для сохранения/загрузки шаблонов отчетов
- * - Предпросмотр и экспорт отчетов
+ * Report Editor script
+ *
+ * Provides functionality for the report editor:
+ * - Dragging report elements
+ * - Configuring and resizing charts
+ * - API integration for saving/loading report templates
+ * - Previewing and exporting reports
  */
 
-console.log('Загрузка скрипта редактора отчетов...');
+console.log('Loading report editor script...');
 
-// Переопределяем console.error для отображения уведомлений в интерфейсе
+// Override console.error to display notifications in the UI
 const originalConsoleError = console.error;
 console.error = function(...args) {
     originalConsoleError.apply(console, args);
     try {
         if (typeof showToast === 'function') {
-            showToast(`Ошибка: ${args.join(' ')}`, 'error');
+            showToast(`Error: ${args.join(' ')}`, 'error');
         }
     } catch (e) {
-        originalConsoleError('Ошибка в обработчике console.error:', e);
+        originalConsoleError('Error in console.error handler:', e);
     }
 };
 
 function initializeEditor() {
-    console.log('Инициализация редактора отчетов...');
+    console.log('Initializing report editor...');
 
-    // Инициализируем i18n, если доступен
+    // Initialize i18n if available
     if (typeof i18n !== 'undefined') {
         i18n.init();
     }
 
     try {
-        // Проверяем режим редактирования из параметров URL
+        // Check edit mode from URL parameters
         const urlParams = new URLSearchParams(window.location.search);
         const mode = urlParams.get('mode');
-        const isEditMode = mode === 'edit' || !mode; // По умолчанию режим редактирования, если не указано
+        const isEditMode = mode === 'edit' || !mode; // Default to edit mode if not specified
         const projectId = urlParams.get('projectId');
-        
-        console.log('Параметры URL:', { 
-            mode, 
-            isEditMode, 
-            projectId, 
+
+        console.log('URL parameters:', {
+            mode,
+            isEditMode,
+            projectId,
             templateId: urlParams.get('templateId')
         });
 
         if (!isEditMode) {
             document.body.style.cursor = 'not-allowed';
-            showToast('Режим просмотра: редактирование отключено', 'info');
+            showToast('View mode: Editing is disabled', 'info');
             return;
         }
-        
-        // Установить projectId в шаблон, если он передан в URL
+
+        // Set projectId in template if provided in URL
         if (projectId) {
             currentTemplate.project = parseInt(projectId, 10);
-            console.log('ID проекта установлен из URL:', currentTemplate.project);
+            console.log('Project ID set from URL:', currentTemplate.project);
         }
 
-        // Инициализация меню пользователя
+        // Initialize user menu
         initializeUserMenu();
-        
-        // Загрузка данных проектов
+
+        // Load project data
         loadProjects();
-        
-        // Настройка функциональности перетаскивания
+
+        // Set up drag and drop functionality
         setupDragAndDrop();
-        
-        // Настройка обработчиков событий
+
+        // Set up event listeners
         setupEventListeners();
-        
-        // Анализ параметров URL для проверки редактирования существующего шаблона
+
+        // Analyze URL parameters to check if editing an existing template
         const templateId = urlParams.get('templateId');
-        
+
         if (templateId) {
             loadTemplate(templateId);
-            showToast('Редактирование шаблона #' + templateId, 'info');
+            showToast('Editing template #' + templateId, 'info');
         } else {
-            // Инициализация пустого шаблона при создании нового отчета
-            console.log('Создание нового шаблона, сброс метрик');
-            
-            // Очищаем метрики в шаблоне
+            // Initialize empty template when creating a new report
+            console.log('Creating new template, resetting metrics');
+
+            // Clear metrics in template
             currentTemplate.configuration.metrics = [];
-            
-            // Очищаем DOM-контейнер метрик, если он существует
+
+            // Clear DOM container of metrics, if it exists
             const metricsContainer = document.getElementById('metrics-container');
             if (metricsContainer) {
                 metricsContainer.innerHTML = '';
-                console.log('Контейнер метрик очищен');
+                console.log('Metrics container cleared');
             }
-            
-            showToast('Создание нового шаблона', 'info');
+
+            showToast('Creating new template', 'info');
         }
 
         // Enable dragging for report elements
@@ -97,12 +97,12 @@ function initializeEditor() {
         reportElements.forEach(element => {
             element.style.cursor = 'grab';
             element.draggable = true;
-            
-            // Добавляем подсказку при наведении
+
+            // Add tooltip on hover
             element.title = "Drag this element to the report area";
         });
-        
-        // Загружаем данные метрик, если есть выбранный проект
+
+        // Load metrics data if there is a selected project
         if (currentTemplate && currentTemplate.project) {
             setTimeout(() => {
                 console.log('Loading metrics data from initializeEditor...');
@@ -118,19 +118,19 @@ function initializeEditor() {
 // Use both DOMContentLoaded and window.onload to ensure everything is initialized
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOMContentLoaded: Initializing report editor...');
-    
-    // Проверяем наличие токена доступа
+
+    // Check for access token
     const accessToken = localStorage.getItem('access');
     if (!accessToken) {
         console.warn('No access token found, redirecting to login page');
-        window.location.href = 'login.html?redirect=' + encodeURIComponent(window.location.href);
+        window.location.replace('login.html?redirect=' + encodeURIComponent(window.location.href));
         return;
     }
-    
-    // Инициализируем редактор отчетов
+
+    // Initialize report editor
     initializeEditor();
-    
-    // Инициализируем данные метрик если уже выбран проект
+
+    // Initialize metrics data if there is a selected project
     setTimeout(() => {
         if (currentTemplate && currentTemplate.project) {
             console.log('Loading initial metrics data...');
@@ -142,18 +142,18 @@ document.addEventListener('DOMContentLoaded', function() {
 window.onload = function() {
     // Re-run initialization after window load to ensure all resources are available
     console.log('Window loaded, reinitializing editor...');
-    
+
     // Re-setup drag and drop functionality
     setupDragAndDrop();
-    
+
     // Check if any metrics are loaded and reload if needed
-    if (currentTemplate && currentTemplate.project && 
-        currentTemplate.configuration && 
+    if (currentTemplate && currentTemplate.project &&
+        currentTemplate.configuration &&
         currentTemplate.configuration.metrics &&
         currentTemplate.configuration.metrics.length > 0) {
         loadMetricsData();
     }
-    
+
     console.log('Editor reinitialized after window load');
 };
 
@@ -222,7 +222,7 @@ function loadUserInfo() {
             
             if (userAvatar) {
                 if (user.avatar) {
-                    const avatarUrl = user.avatar.startsWith('http') ? user.avatar : `${config.API_BASE_URL}${user.avatar}`;
+                    const avatarUrl = user.avatar.startsWith('http') ? user.avatar : `${i18nConfig.API_BASE_URL}${user.avatar}`;
                     userAvatar.innerHTML = `<img src="${avatarUrl}" class="w-8 h-8 rounded-full" alt="User avatar">`;
                 } else {
                     // Set initials if no avatar

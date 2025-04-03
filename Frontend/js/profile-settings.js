@@ -1,3 +1,74 @@
+import { fetchWithAuth } from './api-utils.js';
+import { I18N_CONFIG } from './i18n-config.js';
+// Используем глобальные переменные из CDN
+const i18next = window.i18next;
+const Backend = window.i18nextHttpBackend;
+
+// Проверяем наличие зависимостей
+if (!i18next || !Backend) {
+    throw new Error('i18next dependencies not loaded. Please check CDN scripts.');
+}
+
+// Инициализация i18n
+i18next
+  .use(Backend)
+  .init({
+    lng: I18N_CONFIG.DEFAULT_LANGUAGE,
+    fallbackLng: 'en',
+    debug: true,
+    keySeparator: '.', // Указываем разделитель ключей
+    ns: ['translation'], // Используем неймспейс 'translation'
+    defaultNS: 'translation',
+    backend: {
+        // Исправляем путь для соответствия файлам en.json, ru.json и т.д.
+        loadPath: `${window.location.origin}/locales/{{lng}}.json`, // Убираем API префикс, предполагаем статический доступ
+    }
+  }, (err, t) => {
+    if (err) {
+        console.error('Error initializing i18next:', err);
+        return;
+    }
+    console.log('i18next initialized successfully!');
+    // После инициализации обновляем переводы
+    updatePageTranslations();
+  });
+
+// Функция для обновления переводов на странице
+function updatePageTranslations() {
+    const elements = document.querySelectorAll('[data-i18n]');
+    elements.forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        const translation = i18next.t(key);
+        console.log(`Translating key ${key} to: ${translation}`);
+        el.textContent = translation;
+    });
+}
+
+// Обработчик смены языка
+function handleLanguageChange(event) {
+    const newLang = event.target.value;
+    i18next.changeLanguage(newLang, (err, t) => {
+        if (err) return console.error('Error changing language:', err);
+        updatePageTranslations();
+        localStorage.setItem('userLanguage', newLang); // Сохраняем выбор пользователя
+        // Добавляем логистику выбора языка, т.е. язык настраивается в выбранном варианте
+        const languageSelector = document.getElementById('languageSelector');
+        if (languageSelector) {
+            languageSelector.value = newLang;
+        }
+    });
+}
+
+// Экспортируем функции для использования в других модулях
+export {
+  showNotification,
+  setAvatar,
+  updateProfile,
+  getCurrentUser,
+  loadUserData,
+  uploadAvatar
+};
+
 let currentUserId = null;
 let originalData = {};
 
@@ -105,12 +176,19 @@ async function updateProfile(formData) {
         console.log('Updating profile for user:', currentUserId);
         console.log('Form data:', Object.fromEntries(formData));
 
-        const response = await fetchWithAuth(`/api/profile/${currentUserId}/`, {
+        // Конвертируем FormData в объект
+        const jsonData = {};
+        formData.forEach((value, key) => {
+            jsonData[key] = value;
+        });
+
+        const response = await fetchWithAuth(`/api/users/${currentUserId}/`, {
             method: 'PATCH',
             headers: {
+                'Content-Type': 'application/json',
                 'Accept': 'application/json'
             },
-            body: formData
+            body: JSON.stringify(jsonData)
         });
 
         if (!response.ok) {
@@ -218,7 +296,7 @@ async function loadUserData() {
 async function uploadAvatar(file) {
     try {
         if (!file) throw new Error('No file selected');
-        if (!VALID_AVATAR_TYPES.includes(file.type)) throw new Error('Invalid file type. Please upload a JPEG, PNG or GIF image.');
+        if (!VALID_AVATAR_TYPES.includes(file.type)) throw new Error(window.i18n.t('profileSettings.invalidFileType'));
         if (file.size > MAX_AVATAR_SIZE) throw new Error('File is too large. Maximum size is 2MB.');
 
         const formData = new FormData();
@@ -246,11 +324,38 @@ async function uploadAvatar(file) {
 }
 
 // Инициализация при загрузке страницы
-document.addEventListener('DOMContentLoaded', async () => {
-    console.log('DOM loaded, initializing profile settings...');
+// Ждем полной загрузки страницы
+window.addEventListener('load', async () => {
+    console.log('Page fully loaded, initializing profile settings...');
+    
+    // Проверяем наличие необходимых элементов DOM
+    const requiredElements = [
+        'username', 'email', 'first_name', 'last_name', 
+        'avatar-preview', 'profileForm', 'avatar-upload'
+    ];
+    
+    const missingElements = requiredElements.filter(id => !document.getElementById(id));
+    if (missingElements.length > 0) {
+        console.error('Missing required elements:', missingElements);
+        return;
+    }
     try {
         // Загружаем данные пользователя
         await loadUserData();
+
+        // Обработчик кнопки изменения пароля
+        const togglePasswordBtn = document.getElementById('togglePasswordChange');
+        const passwordSection = document.getElementById('passwordChangeSection');
+        
+        if (togglePasswordBtn && passwordSection) {
+            togglePasswordBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                passwordSection.classList.toggle('hidden');
+                this.textContent = passwordSection.classList.contains('hidden') 
+                    ? 'Изменить пароль' 
+                    : 'Скрыть';
+            });
+        }
         
         // Добавляем обработчик отправки формы
         const profileForm = document.getElementById('profileForm');
@@ -280,7 +385,38 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
     } catch (error) {
-        console.error('Failed to initialize profile settings:', error);
-        showNotification('Failed to load profile data', 'error');
-    }
+    console.error('Failed to initialize profile settings:', error);
+    showNotification('Failed to load profile data', 'error');
+  }
+
+  // Добавляем обработчик для селектора языка
+  const languageSelector = document.getElementById('languageSelector');
+  if (languageSelector) {
+      languageSelector.addEventListener('change', handleLanguageChange);
+      // Устанавливаем начальное значение из localStorage или i18next
+      const savedLang = localStorage.getItem('userLanguage') || i18next.language;
+      languageSelector.value = savedLang;
+      // Если язык из localStorage отличается от текущего в i18next, меняем его
+      if (savedLang !== i18next.language) {
+          i18next.changeLanguage(savedLang, (err, t) => {
+              if (err) return console.error('Error setting initial language:', err);
+              updatePageTranslations();
+          });
+      }
+  } else {
+      console.error('Language selector not found');
+  }
 });
+
+// Удаленный обработчик выбора языка из блока инициализации
+// languageSelector.addEventListener('change', handleLanguageChange);
+
+// Удаленный обработчик выбора языка из блока инициализации
+// const savedLang = localStorage.getItem('userLanguage') || i18next.language;
+// languageSelector.value = savedLang;
+// if (savedLang !== i18next.language) {
+//     i18next.changeLanguage(savedLang, (err, t) => {
+//         if (err) return console.error('Error setting initial language:', err);
+//         updatePageTranslations();
+//     });
+// }

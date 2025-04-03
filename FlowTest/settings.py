@@ -27,7 +27,7 @@ SECRET_KEY = 'django-insecure-ihu#1h_^hb=h%m$oef)(4u+l7q38fh8h6$_j=5qiogkn_yx7_r
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ['*', '192.168.1.102', '127.0.0.1', 'localhost']
 
 
 # Application definition
@@ -45,19 +45,18 @@ INSTALLED_APPS = [
     'FlowTestApp',
     'Backend',  # Добавляем Backend в список установленных приложений
     'rest_framework_simplejwt.token_blacklist',
-    'whitenoise.runserver_nostatic',
 ]
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'FlowTestApp.middleware.debug_middleware.RequestDebugMiddleware',  # Middleware для отладки
 ]
 
 ROOT_URLCONF = 'FlowTest.urls'
@@ -92,7 +91,7 @@ DATABASES = {
         'NAME': 'flowtest',
         'USER': 'test_user',
         'PASSWORD': '123456',
-        'HOST': '127.0.0.1',
+        'HOST': 'localhost',  # Локальный хост
         'PORT': '5432',
     }
 }
@@ -137,27 +136,13 @@ STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'static'),
 ]
 
-# WhiteNoise configuration
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-WHITENOISE_MIMETYPES = {
-    '.css': 'text/css',
-    '.js': 'application/javascript',
-    '.html': 'text/html',
-    '.png': 'image/png',
-    '.jpg': 'image/jpeg',
-    '.svg': 'image/svg+xml',
-    '.ico': 'image/x-icon'
-}
-
-# Frontend files
-FRONTEND_ROOT = os.path.join(BASE_DIR, 'Frontend')
-
 # Media files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # File Upload Settings
 FILE_UPLOAD_PERMISSIONS = 0o644
+FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o755
 FILE_UPLOAD_MAX_MEMORY_SIZE = 2621440  # 2.5 MB
 
 # Default primary key field type
@@ -191,16 +176,26 @@ CSRF_COOKIE_HTTPONLY = False
 CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:8080",
     "http://localhost:8080",
+    "http://127.0.0.1:8000",
+    "http://localhost:8000",
+    "http://192.168.1.102:8080",
+    "http://192.168.1.102:8000"
 ]
 
 # CORS settings
-CORS_ALLOW_ALL_ORIGINS = True
-CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
+    "http://127.0.0.1:8000",
+    "http://localhost:8000",
+    "http://127.0.0.1:5500",
+    "http://localhost:5500",
     "http://127.0.0.1:8080",
     "http://localhost:8080",
+    "http://192.168.1.102:8080",
+    "http://192.168.1.102:8000"
 ]
-CORS_EXPOSE_HEADERS = ['Content-Type', 'X-CSRFToken']
+
+CORS_ALLOW_CREDENTIALS = True
+
 CORS_ALLOW_METHODS = [
     'DELETE',
     'GET',
@@ -209,6 +204,21 @@ CORS_ALLOW_METHODS = [
     'POST',
     'PUT',
 ]
+
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
+CORS_EXPOSE_HEADERS = ['Content-Type', 'X-CSRFToken']
+CORS_PREFLIGHT_MAX_AGE = 86400  # 24 часа
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
@@ -223,11 +233,16 @@ REST_FRAMEWORK = {
         'rest_framework.renderers.JSONRenderer',
         'rest_framework.renderers.BrowsableAPIRenderer',
     ],
+    'DEFAULT_PARSER_CLASSES': [
+        'rest_framework.parsers.JSONParser',
+        'rest_framework.parsers.FormParser',
+        'rest_framework.parsers.MultiPartParser',
+    ],
 }
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=8),  # Увеличено до 8 часов
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),   # Увеличено до 7 дней
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
     'AUTH_HEADER_TYPES': ('Bearer',),
@@ -290,3 +305,18 @@ LOGGING = {
         },
     },
 }
+
+# Настройки для обработки медиа-файлов
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# Настройки для обработки статических файлов
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, 'Frontend'),
+    os.path.join(BASE_DIR, 'static'),
+]
+
+# Настройки безопасности для медиа-файлов
+MEDIA_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'

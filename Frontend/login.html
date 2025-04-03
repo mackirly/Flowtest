@@ -14,20 +14,21 @@
                 extend: {
                     colors: {
                         coral: {
-                            50: '#FFF0EB',
-                            100: '#FFE1D6',
-                            200: '#FFC3B3',
-                            300: '#FFA590',
-                            400: '#FF876D',
-                            500: '#FF7F50',
-                            600: '#FF6347',
-                            700: '#FF4733',
-                            800: '#FF2B20',
-                            900: '#FF0F0D',
-                        },
-                    },
-                },
-            },
+                            50: '#fff5f2',
+                            100: '#ffe6e0',
+                            200: '#ffc7b8',
+                            300: '#ffa590',
+                            400: '#ff7f50',  // Base coral color
+                            500: '#ff6347',  // Slightly darker
+                            600: '#ed4c2d',
+                            700: '#db3c1d',
+                            800: '#b32d15',
+                            900: '#8f2311',
+                            950: '#4b0404',
+                        }
+                    }
+                }
+            }
         }
     </script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -61,7 +62,7 @@
     <!-- Theme and Language Controls -->
     <div class="absolute top-4 right-4 flex space-x-4">
         <div class="relative">
-            <select id="theme" onchange="saveTheme(this.value)" class="appearance-none bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg pl-10 pr-8 py-2 focus:ring-2 focus:ring-coral-500 focus:border-transparent">
+            <select id="theme" onchange="window.themeManager.setTheme(this.value)" class="appearance-none bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg pl-10 pr-8 py-2 focus:ring-2 focus:ring-coral-500 focus:border-transparent">
                 <option value="light" data-i18n="light">Light</option>
                 <option value="dark" data-i18n="dark">Dark</option>
                 <option value="system" data-i18n="system">System</option>
@@ -124,6 +125,8 @@
                 <a href="#" class="text-sm font-medium text-coral-600 hover:text-coral-500" data-i18n="forgot">Forgot password?</a>
             </div>
 
+            <div id="loginError" class="hidden mt-2 text-sm text-red-600 dark:text-red-500"></div>
+
             <button type="submit" 
                     class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-coral-500 hover:bg-coral-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-coral-500"
                     data-i18n="signin-btn">Sign in</button>
@@ -136,10 +139,11 @@
     </div>
 
     <!-- Load scripts at the end -->
-    <script src="js/theme-manager.js"></script>
-    <script src="js/translations.js"></script>
-    <script src="js/i18n.js"></script>
-    <script src="js/auth.js"></script>
-    <script src="js/login.js"></script>
+    <script type="module" src="js/theme.js"></script>
+    <script type="module" src="js/config.js"></script>
+    <script type="module" src="js/translations.js"></script>
+    <script type="module" src="js/i18n.js"></script>
+    <script type="module" src="js/auth.js"></script>
+    <script type="module" src="js/login.js"></script>
 </body>
 </html>

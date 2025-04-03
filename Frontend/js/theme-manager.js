@@ -48,8 +48,8 @@ const ThemeManager = {
 
             // Only try to save to server if we're on a page that requires auth
             if (!window.location.pathname.includes('login.html')) {
-                const response = await fetch('http://127.0.0.1:8000/api/users/update_theme/', {
-                    method: 'POST',
+                const response = await fetch('http://127.0.0.1:8000/api/users/theme/', {
+                    method: 'PATCH',
                     headers: {
                         'Accept': 'application/json',
                         'Content-Type': 'application/json',

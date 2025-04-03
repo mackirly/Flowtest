@@ -73,7 +73,7 @@ function loadTemplate(templateId) {
     const urlParams = new URLSearchParams(window.location.search);
     const projectId = urlParams.get('projectId');
     
-    let apiUrl = `${config.API_BASE_URL}${config.ENDPOINTS.REPORTS.TEMPLATES}${templateId}/`;
+    let apiUrl = `${i18nConfig.API_BASE_URL}${config.ENDPOINTS.REPORTS.TEMPLATES}${templateId}/`;
     // Add project ID to URL if available
     if (projectId) {
         apiUrl += `?project=${projectId}`;

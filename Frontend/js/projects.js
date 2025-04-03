@@ -1,3 +1,5 @@
+import { fetchWithAuth } from './api-utils.js';
+
 async function refreshAccessToken() {
     const refresh = localStorage.getItem('refresh');
     if (!refresh) {
@@ -5,7 +7,9 @@ async function refreshAccessToken() {
     }
 
     try {
-        const response = await fetch('http://127.0.0.1:8000/api/token/refresh/', {
+        const refreshUrl = config.getFullEndpoint(config.ENDPOINTS.AUTH.REFRESH);
+        
+        const response = await fetch(refreshUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -29,7 +33,8 @@ async function refreshAccessToken() {
 
 async function fetchProjects() {
     try {
-        const response = await fetchWithAuth('/api/projects/');
+        const projectsUrl = config.getFullEndpoint(config.ENDPOINTS.PROJECTS.ALL);
+        const response = await fetchWithAuth(projectsUrl);
         if (!response.ok) {
             throw new Error('Failed to fetch projects');
         }
