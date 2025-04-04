@@ -86,8 +86,10 @@ const testCaseManager = {
             // Заполняем селектор
             this.initializeProjectSelector(projects);
 
-            // Устанавливаем обработчики событий
-            this.initializeButtonHandlers();
+            // Устанавливаем обработчики событий для кнопок и селектора проекта
+            this.initializeProjectAndButtonHandlers();
+            // Устанавливаем обработчики для фильтров
+            this.initializeFilterHandlers();
 
             // Теперь, когда селектор заполнен, устанавливаем выбранное значение
             if (selectedProjectId) {
@@ -115,8 +117,8 @@ const testCaseManager = {
         }
     },
 
-    // Инициализация обработчиков кнопок
-    initializeButtonHandlers() {
+    // Инициализация обработчиков селектора проекта и кнопок
+    initializeProjectAndButtonHandlers() {
         const projectSelector = document.getElementById('projectSelector');
         if (projectSelector) {
             projectSelector.addEventListener('change', async () => {
@@ -149,6 +151,61 @@ const testCaseManager = {
                 this.createFolder(null); // null = корневая папка
             });
         }
+
+        // Кнопка создания новой папки
+        const newFolderBtn = document.getElementById('newFolderBtn');
+        if (newFolderBtn) {
+            newFolderBtn.addEventListener('click', () => {
+                this.createFolder(null); // null = корневая папка
+            });
+        }
+        // Добавьте здесь обработчики для других кнопок, если нужно
+    },
+
+    // Инициализация обработчиков фильтров
+    initializeFilterHandlers() {
+        const searchInput = document.getElementById('filterSearchInput'); // Предполагаемый ID
+        const prioritySelect = document.getElementById('filterPrioritySelect'); // Предполагаемый ID
+        const tagsInput = document.getElementById('filterTagsInput'); // Предполагаемый ID
+
+        const triggerFetch = () => {
+            // Небольшая задержка для полей ввода, чтобы не слать запрос на каждую букву
+            clearTimeout(this.filterTimeout);
+            this.filterTimeout = setTimeout(() => {
+                this.fetchFoldersAndTestCases();
+            }, 300); // 300ms задержка
+        };
+
+        if (searchInput) {
+            searchInput.addEventListener('input', triggerFetch);
+        }
+        if (prioritySelect) {
+            prioritySelect.addEventListener('change', () => this.fetchFoldersAndTestCases());
+        }
+        if (tagsInput) {
+            // Для тегов может быть другое событие, например, 'change' или кастомное
+            tagsInput.addEventListener('change', () => this.fetchFoldersAndTestCases());
+        }
+    },
+
+    // Получение текущих значений фильтров
+    getFilterParameters() {
+        const params = new URLSearchParams();
+        const searchInput = document.getElementById('filterSearchInput');
+        const prioritySelect = document.getElementById('filterPrioritySelect');
+        const tagsInput = document.getElementById('filterTagsInput'); // Или другой элемент для тегов
+
+        if (searchInput && searchInput.value) {
+            params.append('search', searchInput.value);
+        }
+        if (prioritySelect && prioritySelect.value) {
+            params.append('priority', prioritySelect.value);
+        }
+        if (tagsInput && tagsInput.value) {
+            // Предполагаем, что теги вводятся через запятую
+            params.append('tags', tagsInput.value);
+        }
+        return params.toString();
     },
 
     // Загрузка проектов
@@ -176,37 +233,52 @@ const testCaseManager = {
     async fetchFoldersAndTestCases() {
         if (!this.currentProject) {
             console.warn('Проект не выбран');
-            return;
+            console.log(`Загрузка данных для проекта ${this.currentProject}...`);
+            this.showNotification('Загрузка данных...', 'loading'); // Показываем индикатор загрузки
         }
-        
+
         try {
-            // Загружаем папки
-            const foldersResponse = await apiUtils.fetchWithAuth(`${i18nConfig.API_PREFIX}/projects/${this.currentProject}/folders/`);
-            
-            if (!foldersResponse.ok) {
-                throw new Error(`Ошибка при загрузке папок: ${foldersResponse.statusText}`);
+            // Получаем параметры фильтров
+            const filterParams = this.getFilterParameters();
+            const queryString = filterParams ? `?${filterParams}` : '';
+
+            // Формируем URL с параметрами фильтра
+            const url = `${i18nConfig.API_PREFIX}/projects/${this.currentProject}/folders_and_test_cases/${queryString}`;
+            console.log('Запрос данных с URL:', url);
+
+            const response = await apiUtils.fetchWithAuth(url);
+
+            if (!response.ok) {
+                 const errorData = await response.text(); // Попробуем получить текст ошибки
+                 console.error('Server response:', errorData);
+                 throw new Error(`Ошибка при загрузке данных: ${response.statusText} (${response.status})`);
             }
-            
-            this.folders = await foldersResponse.json();
-            console.log('Папки загружены:', this.folders);
-            
-            // Загружаем тест-кейсы
-            const testCasesResponse = await apiUtils.fetchWithAuth(`${i18nConfig.API_PREFIX}/projects/${this.currentProject}/test-cases/`);
-            
-            if (!testCasesResponse.ok) {
-                throw new Error(`Ошибка при загрузке тест-кейсов: ${testCasesResponse.statusText}`);
-            }
-            
-            this.testCases = await testCasesResponse.json();
-            console.log('Тест-кейсы загружены:', this.testCases);
-            
-            // Обновляем дерево папок
-            this.updateFolderTree(this.folders, this.testCases);
-            
+
+            const data = await response.json();
+            console.log('Данные (папки и тест-кейсы) загружены:', data);
+
+            // Предполагаем, что API возвращает структуру, похожую на:
+            // { folders: [...], test_cases: [...] } или просто массив папок с вложенными тест-кейсами
+            // Адаптируем под фактическую структуру ответа от /folders_and_test_cases/
+            // В нашем случае бэкенд возвращает массив папок, где каждая папка содержит 'test_cases'
+            this.folders = data; // Весь ответ - это массив папок с тест-кейсами
+            this.testCases = data.reduce((acc, folder) => {
+                if (folder.test_cases) {
+                    acc.push(...folder.test_cases);
+                }
+                return acc;
+            }, []); // Собираем все тест-кейсы для возможного использования
+
+            // Обновляем дерево папок, передавая структуру, полученную от API
+            this.updateFolderTree(this.folders); // Передаем массив папок с вложенными тест-кейсами
+
+            this.showNotification('Данные успешно загружены', 'success');
+
+            // Возвращаем загруженные данные (хотя это может быть и не нужно, т.к. дерево обновляется)
             return {
-                folders: this.folders,
-                testCases: this.testCases
-            };
+                 folders: this.folders, // Массив папок с тест-кейсами
+                 testCases: this.testCases // Плоский список всех тест-кейсов
+             };
             
         } catch (error) {
             console.error('Ошибка при загрузке данных:', error);
@@ -278,11 +350,110 @@ const testCaseManager = {
         this.showNotification('Функциональность запуска теста еще не реализована', 'info');
     },
 
-    // Minimum implementation of other key methods
-    updateFolderTree(folders, testCases) {
-        console.log('Обновление дерева папок с', folders.length, 'папками и', testCases.length, 'тест-кейсами');
-        // Здесь будет код для обновления дерева папок в UI
-    }
+    // Обновление дерева папок
+    updateFolderTree(foldersWithTestCases) {
+        console.log('Обновление дерева папок с данными:', foldersWithTestCases);
+        const treeContainer = document.getElementById('folderTree'); // Предполагаемый ID контейнера дерева
+        if (!treeContainer) {
+            console.error('Контейнер дерева папок не найден!');
+            return;
+        }
+
+        // Очищаем текущее дерево
+        treeContainer.innerHTML = '';
+
+        // Проверяем, есть ли данные
+        if (!foldersWithTestCases || foldersWithTestCases.length === 0) {
+            treeContainer.innerHTML = '<p class="text-gray-500">Нет папок или тест-кейсов, соответствующих фильтрам.</p>';
+            return;
+        }
+
+        // Строим дерево (примерная реализация, нужно адаптировать под вашу HTML/CSS структуру)
+        const ul = document.createElement('ul');
+        foldersWithTestCases.forEach(folder => {
+            const li = document.createElement('li');
+            li.classList.add('folder-item'); // Добавьте классы для стилизации
+
+            // Иконка папки и название
+            let folderHtml = `
+                <div class="folder-header flex items-center cursor-pointer p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded">
+                    <svg class="w-5 h-5 mr-2 text-yellow-500" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"></path></svg>
+                    <span class="folder-name font-semibold">${folder.name || 'Тест-кейсы без папки'}</span>
+                    <!-- Добавить кнопки действий для папки (редактировать, удалить, добавить тест-кейс) -->
+                </div>
+            `;
+
+            // Список тест-кейсов в папке
+            if (folder.test_cases && folder.test_cases.length > 0) {
+                const testCasesUl = document.createElement('ul');
+                testCasesUl.classList.add('test-case-list', 'ml-4', 'hidden'); // Скрыт по умолчанию
+
+                folder.test_cases.forEach(testCase => {
+                    const testCaseLi = document.createElement('li');
+                    testCaseLi.classList.add('test-case-item', 'p-1', 'hover:bg-blue-100', 'dark:hover:bg-blue-900', 'rounded', 'cursor-pointer');
+                    testCaseLi.dataset.testCaseId = testCase.id; // Сохраняем ID
+                    testCaseLi.innerHTML = `
+                        <div class="flex items-center">
+                           <span class="priority-indicator mr-1 text-xs font-bold ${this.getPriorityClass(testCase.priority)}">${testCase.priority || 'N/A'}</span>
+                           <span class="test-case-title">${testCase.title}</span>
+                           <!-- Добавить иконку статуса последнего запуска, если нужно -->
+                        </div>
+                    `;
+                    // Обработчик клика для отображения деталей тест-кейса
+                    testCaseLi.addEventListener('click', (event) => {
+                         event.stopPropagation(); // Предотвращаем сворачивание папки
+                         this.displayTestCaseDetails(testCase.id);
+                    });
+                    testCasesUl.appendChild(testCaseLi);
+                });
+                folderHtml += testCasesUl.outerHTML; // Добавляем HTML список тест-кейсов
+            } else if (!folder.id) { // Если это "папка" для нераспределенных и она пуста
+                 li.innerHTML = `<div class="p-1 text-gray-500">${folder.name} (пусто)</div>`;
+                 ul.appendChild(li);
+                 return; // Пропускаем добавление обработчика для пустой "папки"
+            }
+
+
+            li.innerHTML = folderHtml;
+
+            // Добавляем обработчик для сворачивания/разворачивания папки
+            const folderHeader = li.querySelector('.folder-header');
+            if (folderHeader) {
+                folderHeader.addEventListener('click', () => {
+                    const tcList = li.querySelector('.test-case-list');
+                    if (tcList) {
+                        tcList.classList.toggle('hidden');
+                        // Можно добавить смену иконки папки (открыта/закрыта)
+                    }
+                });
+            }
+
+            ul.appendChild(li);
+        });
+
+        treeContainer.appendChild(ul);
+        console.log('Дерево папок обновлено в DOM');
+    },
+
+    // Вспомогательная функция для стилизации приоритета
+    getPriorityClass(priority) {
+        switch (priority?.toLowerCase()) {
+            case 'high': return 'text-red-600';
+            case 'medium': return 'text-yellow-600';
+            case 'low': return 'text-green-600';
+            default: return 'text-gray-500';
+        }
+    },
+
+    // Отображение деталей тест-кейса (заглушка)
+    displayTestCaseDetails(testCaseId) {
+        console.log(`Отображение деталей для тест-кейса ID: ${testCaseId}`);
+        // Здесь должен быть код для загрузки и отображения деталей тест-кейса
+        // Например, вызов другого модуля или обновление правой панели
+        this.showNotification(`Загрузка деталей для тест-кейса ${testCaseId}...`, 'info');
+        // Возможно, нужно будет сделать еще один API-запрос для получения полных данных тест-кейса
+        // fetchWithAuth(`/api/test-cases/${testCaseId}/`).then(...)
+    },
 };
 
 // Immediately make this available globally

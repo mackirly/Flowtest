@@ -768,11 +768,47 @@ class ProjectViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'])
     def folders_and_test_cases(self, request, pk=None):
         project = self.get_object()
-        folders = project.folders.all()
+        folders = project.folders.all() # Пока загружаем все папки
         folder_data = []
-        test_cases = project.test_cases.all()
+
+        # --- Фильтрация тест-кейсов ---
+        test_cases_queryset = project.test_cases.all()
+
+        # Фильтр по поисковому запросу (название, описание)
+        search_query = request.query_params.get('search', None)
+        if search_query:
+            test_cases_queryset = test_cases_queryset.filter(
+                Q(title__icontains=search_query) | Q(description__icontains=search_query)
+            )
+
+        # Фильтр по приоритету
+        priority = request.query_params.get('priority', None)
+        if priority:
+            test_cases_queryset = test_cases_queryset.filter(priority=priority)
+
+        # Фильтр по тегам (предполагаем, что теги передаются через запятую)
+        tags_query = request.query_params.get('tags', None)
+        if tags_query:
+            tags_list = [tag.strip() for tag in tags_query.split(',') if tag.strip()]
+            if tags_list:
+                # Фильтр по содержанию хотя бы одного из тегов
+                # test_cases_queryset = test_cases_queryset.filter(tags__overlap=tags_list) # Если tags - ArrayField PostgreSQL
+                # Или если tags - JSONField или TextField со списком строк:
+                query = Q()
+                for tag in tags_list:
+                    query |= Q(tags__icontains=tag) # Простая проверка на вхождение строки
+                test_cases_queryset = test_cases_queryset.filter(query)
+
+        # Фильтр по статусу последнего запуска (если нужно)
+        # status = request.query_params.get('status', None)
+        # if status:
+        #     # Это потребует более сложного запроса с подзапросами или аннотациями
+        #     # для получения статуса последнего TestRun для каждого TestCase
+        #     pass # Реализация зависит от требований
+
+        # --- Группировка отфильтрованных тест-кейсов по папкам ---
         test_cases_by_folder = {}
-        for test_case in test_cases:
+        for test_case in test_cases_queryset:
             folder_id = test_case.folder_id if test_case.folder else None
             if folder_id not in test_cases_by_folder:
                 test_cases_by_folder[folder_id] = []
@@ -783,12 +819,16 @@ class ProjectViewSet(viewsets.ModelViewSet):
             test_case_serializer = TestCaseSerializer(folder_test_cases, many=True)
             folder_info = folder_serializer.data
             folder_info['test_cases'] = test_case_serializer.data
-            folder_data.append(folder_info)
+            # Добавляем папку, только если она не пуста после фильтрации тест-кейсов
+            if folder_info['test_cases']:
+                folder_data.append(folder_info)
+
+        # Обработка тест-кейсов без папки (если они прошли фильтр)
         unassigned_test_cases = test_cases_by_folder.get(None, [])
         if unassigned_test_cases:
             folder_data.append({
-                'id': None,
-                'name': 'Unassigned',
+                'id': None, # Используем null или специальный идентификатор
+                'name': 'Тест-кейсы без папки', # Или локализованное название
                 'description': 'Test cases without folder',
                 'project': project.id,
                 'test_cases': TestCaseSerializer(unassigned_test_cases, many=True).data
