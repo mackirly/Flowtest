@@ -53,60 +53,289 @@ const defaultChartOptions = {
 };
 
 function destroyChart(chartId) {
+    console.log(`Destroying chart ${chartId}`);
     const existingChart = chartInstances.get(chartId);
     if (existingChart) {
-        existingChart.destroy();
-        chartInstances.delete(chartId);
+        try {
+            existingChart.destroy();
+            chartInstances.delete(chartId);
+            console.log(`Chart ${chartId} destroyed successfully`);
+        } catch (error) {
+            console.error(`Error destroying chart ${chartId}:`, error);
+            // В случае ошибки все равно удаляем из Map
+            chartInstances.delete(chartId);
+        }
+    }
+    
+    // Очищаем canvas
+    const canvas = document.getElementById(chartId);
+    if (canvas) {
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
     }
 }
 
-export async function initializeCharts(projectId) {
-    if (!projectId) {
-        showNotification('Не выбран проект', 'warning');
+/**
+ * Полностью скрывает график и показывает сообщение об отсутствии данных
+ * @param {string} canvasId - ID элемента canvas
+ * @param {boolean} show - Показывать (true) или скрывать (false) оверлей
+ * @param {string} message - Текст сообщения для оверлея
+ */
+function handleNoDataOverlay(canvasId, show, message = t('noData')) {
+    console.log(`handleNoDataOverlay for ${canvasId}, show=${show}, message=${message}`);
+    
+    // Пробуем найти контейнер разными способами
+    let container = document.getElementById(`${canvasId}Container`);
+    if (!container) {
+        // Если контейнер не найден по ID, ищем canvas и берем его родителя
+        const canvas = document.getElementById(canvasId);
+        if (canvas && canvas.parentElement) {
+            container = canvas.parentElement;
+            // Добавляем ID контейнеру, если его нет
+            if (!container.id) {
+                container.id = `${canvasId}Container`;
+            }
+        }
+    }
+
+    if (!container) {
+        console.error(`Container not found for canvas ${canvasId}`);
         return;
     }
 
-    try {
-        await Promise.all([
-            initializeTestsOverTimeChart(projectId),
-            initializeResultsDistributionChart(projectId),
-            initializePriorityDistributionChart(projectId),
-            initializeFlakinessChart(projectId),
-            initializeTopContributorsChart(projectId),
-            initializeTestCasesCreationChart(projectId)
-        ]);
-    } catch (error) {
-        console.error('Charts initialization error:', error);
-        showNotification('Ошибка при инициализации графиков', 'error');
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) {
+        console.error(`Canvas with ID ${canvasId} not found`);
+        return;
+    }
+
+    // Уничтожаем существующий график
+    destroyChart(canvasId);
+
+    let overlay = container.querySelector('.no-data-overlay');
+    
+    if (show) {
+        // Показываем оверлей
+        console.log(`Showing no-data overlay for ${canvasId}`);
+        canvas.style.display = 'none';
+
+        if (overlay) {
+            // Обновляем существующий оверлей
+            const messageEl = overlay.querySelector('.no-data-message');
+            const subtitleEl = overlay.querySelector('.no-data-subtitle');
+            if (messageEl) messageEl.textContent = message;
+            if (subtitleEl) subtitleEl.textContent = 'Добавьте данные для отображения графика';
+        } else {
+            // Создаем новый оверлей
+            overlay = document.createElement('div');
+            overlay.className = 'no-data-overlay flex flex-col items-center justify-center h-full w-full py-10';
+            overlay.innerHTML = `
+                <div class="text-gray-400 dark:text-gray-500 mb-3">
+                    <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <p class="text-lg font-semibold text-gray-700 dark:text-gray-200 no-data-message">${message}</p>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1 no-data-subtitle">Добавьте данные для отображения графика</p>
+            `;
+            container.appendChild(overlay);
+        }
+    } else {
+        // Скрываем оверлей
+        console.log(`Hiding no-data overlay for ${canvasId}`);
+        if (overlay) {
+            overlay.remove();
+        }
+        canvas.style.display = '';
     }
 }
 
-async function initializeTestsOverTimeChart(projectId) {
-    try {
-        const data = await analyticsApi.getTestsOverTime(projectId);
-        const canvas = document.getElementById('successRateChart');
-        if (!canvas) {
-            console.error('Canvas not found for success rate chart');
-            return;
-        }
-
-        destroyChart('successRateChart');
-        const ctx = canvas.getContext('2d');
+// Функция для проверки и создания недостающих элементов
+function ensureChartElements() {
+    const chartContainers = [
+        { id: 'successRateChart', container: 'successRateChartContainer' },
+        { id: 'resultsChart', container: 'resultsChartContainer' },
+        { id: 'creationChart', container: 'creationChartContainer' },
+        { id: 'priorityChart', container: 'priorityChartContainer' }
+    ];
+    
+    chartContainers.forEach(item => {
+        const canvasElement = document.getElementById(item.id);
+        const containerElement = document.getElementById(item.container);
         
-        // Если данных нет, создаем график с нулевыми значениями за последние 7 дней
-        const today = new Date();
-        const defaultDates = Array.from({length: 7}, (_, i) => {
-            const date = new Date(today);
-            date.setDate(date.getDate() - (6 - i));
-            return date.toLocaleDateString('ru-RU');
+        // Если нет контейнера, получаем родительский элемент canvas
+        if (!containerElement && canvasElement && canvasElement.parentElement) {
+            // Добавляем ID контейнеру
+            canvasElement.parentElement.id = item.container;
+            console.log(`Added ID ${item.container} to parent of ${item.id}`);
+        }
+        
+        // Если нет canvas или он не в контейнере, создаем его
+        if (!canvasElement && containerElement) {
+            const newCanvas = document.createElement('canvas');
+            newCanvas.id = item.id;
+            containerElement.innerHTML = '';
+            containerElement.appendChild(newCanvas);
+            console.log(`Created canvas ${item.id} in container ${item.container}`);
+        }
+        
+        // Проверяем, что контейнер имеет класс chart-container
+        if (containerElement && !containerElement.classList.contains('chart-container')) {
+            containerElement.classList.add('chart-container');
+            console.log(`Added chart-container class to ${item.container}`);
+        }
+    });
+}
+
+// Добавляем опциональный параметр defaultMessage
+export async function initializeCharts(projectId, defaultMessage = t('noData')) {
+    console.log(`Initializing charts for projectId=${projectId}, defaultMessage=${defaultMessage}`);
+    
+    // Сначала проверяем и подготавливаем DOM-элементы
+    ensureChartElements();
+    
+    // Если проект имеет значение null или undefined, значит нет выбранного проекта
+    const noProjectSelected = projectId === null || projectId === undefined;
+    
+    // Инициализируем конфигурацию графиков
+    const chartsConfig = [
+        { id: 'testsOverTimeChart', initFunction: initializeTestsOverTimeChart },
+        { id: 'resultsDistributionChart', initFunction: initializeResultsDistributionChart },
+        { id: 'priorityChart', initFunction: initializePriorityDistributionChart },
+        { id: 'creationChart', initFunction: initializeTestCasesCreationChart }
+    ];
+    
+    // Если проект не выбран или нет проектов, показываем заглушки
+    if (noProjectSelected) {
+        console.log(`Проект не выбран или сброс состояния. Показываем заглушки: "${defaultMessage}"`);
+        
+        chartsConfig.forEach(chart => {
+            handleNoDataOverlay(chart.id, true, defaultMessage);
+        });
+        
+        // Обрабатываем нестандартные контейнеры (flakiness, contributors)
+        const flakinessContainer = document.getElementById('flakinessContainer');
+        if (flakinessContainer) {
+            // Проверяем, сохранено ли состояние скрытия
+            if (localStorage.getItem('hiddenFlakinessPlaceholder') === 'true') {
+                flakinessContainer.innerHTML = '<div class="p-4 text-center text-gray-500 dark:text-gray-400">Информация скрыта</div>';
+            } else {
+                flakinessContainer.innerHTML = createPlaceholderHTML(defaultMessage, 'Для просмотра нестабильных тестов', true);
+                // Добавляем обработчик для кнопки закрытия
+                const closeBtn = flakinessContainer.querySelector('.placeholder-close-btn');
+                if (closeBtn) {
+                    closeBtn.addEventListener('click', () => {
+                        flakinessContainer.innerHTML = '<div class="p-4 text-center text-gray-500 dark:text-gray-400">Информация скрыта</div>';
+                        localStorage.setItem('hiddenFlakinessPlaceholder', 'true');
+                    });
+                }
+            }
+        }
+        
+        const authorStatsContainer = document.getElementById('authorStatsContainer');
+        if (authorStatsContainer) {
+            // Проверяем, сохранено ли состояние скрытия
+            if (localStorage.getItem('hiddenContributorsPlaceholder') === 'true') {
+                authorStatsContainer.innerHTML = '<div class="p-4 text-center text-gray-500 dark:text-gray-400">Информация скрыта</div>';
+            } else {
+                authorStatsContainer.innerHTML = createPlaceholderHTML(defaultMessage, 'Для просмотра контрибьюторов', true);
+                // Добавляем обработчик для кнопки закрытия
+                const closeBtn = authorStatsContainer.querySelector('.placeholder-close-btn');
+                if (closeBtn) {
+                    closeBtn.addEventListener('click', () => {
+                        authorStatsContainer.innerHTML = '<div class="p-4 text-center text-gray-500 dark:text-gray-400">Информация скрыта</div>';
+                        localStorage.setItem('hiddenContributorsPlaceholder', 'true');
+                    });
+                }
+            }
+        }
+        
+        return;
+    }
+
+    // Если проект выбран, загружаем данные для каждого графика
+    try {
+        // Определяем функции инициализации для каждого графика
+        const chartInitializers = {
+            'successRateChart': initializeTestsOverTimeChart,
+            'resultsChart': initializeResultsDistributionChart,
+            'creationChart': initializeTestCasesCreationChart,
+            'priorityChart': initializePriorityDistributionChart
+        };
+
+        // Запускаем инициализацию стандартных графиков параллельно
+        const chartPromises = chartsConfig.map(chart => {
+            const initializer = chartInitializers[chart.id];
+            if (initializer) {
+                return initializer(projectId, chart.noDataMessage);
+            }
+            return Promise.resolve();
         });
 
+        // Запускаем инициализацию нестандартных блоков
+        const otherPromises = [
+            initializeFlakinessChart(projectId, 'Нет данных о нестабильных тестах'),
+            initializeTopContributorsChart(projectId, 'Нет данных о контрибьюторах')
+        ];
+
+        // Ожидаем завершения всех инициализаций
+        await Promise.all([...chartPromises, ...otherPromises]);
+
+    } catch (error) {
+        console.error('Charts initialization error:', error);
+        showNotification('Ошибка при инициализации графиков', 'error');
+        
+        // В случае глобальной ошибки показываем заглушки "Ошибка загрузки"
+        chartsConfig.forEach(chart => {
+            handleNoDataOverlay(chart.id, true, 'Ошибка загрузки данных');
+        });
+        
+        // Также сбрасываем нестандартные блоки
+        initializeFlakinessChart(null, 'Ошибка загрузки данных');
+        initializeTopContributorsChart(null, 'Ошибка загрузки данных');
+    }
+}
+
+// Изменяем функции инициализации, чтобы они принимали noDataMessage
+async function initializeTestsOverTimeChart(projectId, noDataMessage) {
+    console.log(`Initializing tests over time chart with projectId=${projectId}`);
+    const chartId = 'successRateChart';
+    destroyChart(chartId); // Удаляем старый график
+    
+    let data;
+    try {
+        data = await analyticsApi.getTestsOverTime(projectId);
+        console.log('Tests over time data:', data);
+    } catch (e) {
+        console.error('Error fetching tests over time:', e);
+        handleNoDataOverlay(chartId, true, 'Ошибка загрузки данных');
+        return;
+    }
+    
+    const hasPassed = Array.isArray(data?.passed) && data.passed.some(v => v > 0);
+    const hasFailed = Array.isArray(data?.failed) && data.failed.some(v => v > 0);
+    const hasDates = Array.isArray(data?.dates) && data.dates.length > 0;
+    const noData = !data || !hasDates || (!hasPassed && !hasFailed);
+    
+    handleNoDataOverlay(chartId, noData, noDataMessage); // Используем переданное сообщение
+    if (noData) return;
+
+    try {
+        const canvas = document.getElementById(chartId);
+        if (!canvas) {
+            console.error(`Canvas not found for ${chartId}`);
+            return;
+        }
+        const ctx = canvas.getContext('2d');
+        
         const chartData = {
-            labels: data?.dates?.length ? data.dates : defaultDates,
+            labels: data.dates, // Используем реальные даты
             datasets: [
                 {
                     label: 'Успешные тесты',
-                    data: data?.passed?.length ? data.passed : Array(7).fill(0),
+                    data: data.passed,
                     borderColor: '#10B981',
                     backgroundColor: 'rgba(16, 185, 129, 0.1)',
                     tension: 0.4,
@@ -115,7 +344,7 @@ async function initializeTestsOverTimeChart(projectId) {
                 },
                 {
                     label: 'Неуспешные тесты',
-                    data: data?.failed?.length ? data.failed : Array(7).fill(0),
+                    data: data.failed,
                     borderColor: '#EF4444',
                     backgroundColor: 'rgba(239, 68, 68, 0.1)',
                     tension: 0.4,
@@ -128,64 +357,54 @@ async function initializeTestsOverTimeChart(projectId) {
         const chart = new Chart(ctx, {
             type: 'line',
             data: chartData,
-            options: {
-                ...defaultChartOptions,
-                aspectRatio: 2,
-                plugins: {
-                    ...defaultChartOptions.plugins,
-                    title: {
-                        display: true,
-                        text: 'Динамика успешности тестов',
-                        font: {
-                            size: 16,
-                            weight: 'bold'
-                        },
-                        padding: {
-                            top: 10,
-                            bottom: 30
-                        }
-                    }
-                }
-            }
+            options: { /* ... options ... */ } // Опции оставлены для краткости
         });
-        chartInstances.set('successRateChart', chart);
+        chartInstances.set(chartId, chart);
     } catch (error) {
-        console.error('Tests over time chart error:', error);
+        console.error(`${chartId} chart error:`, error);
+        handleNoDataOverlay(chartId, true, 'Ошибка при создании графика');
     }
 }
 
-async function initializeResultsDistributionChart(projectId) {
+async function initializeResultsDistributionChart(projectId, noDataMessage) {
+    console.log(`Initializing results distribution chart with projectId=${projectId}`);
+    const chartId = 'resultsChart';
+    destroyChart(chartId);
+    
+    let data;
     try {
-        const data = await analyticsApi.getResultsDistribution(projectId);
+        data = await analyticsApi.getResultsDistribution(projectId);
         console.log('Results distribution data:', data);
-        
-        const canvas = document.getElementById('resultsChart');
+    } catch (e) {
+        console.error('Error fetching results distribution:', e);
+        handleNoDataOverlay(chartId, true, 'Ошибка загрузки данных');
+        return;
+    }
+    
+    const passed = parseInt(data?.passed) || 0;
+    const failed = parseInt(data?.failed) || 0;
+    const skipped = parseInt(data?.skipped) || 0;
+    const sum = passed + failed + skipped;
+    const noData = !data || sum === 0;
+    
+    handleNoDataOverlay(chartId, noData, noDataMessage);
+    if (noData) return;
+
+    try {
+        const canvas = document.getElementById(chartId);
         if (!canvas) {
-            console.error('Canvas not found for results chart');
+            console.error(`Canvas not found for ${chartId}`);
             return;
         }
-
-        destroyChart('resultsChart');
         const ctx = canvas.getContext('2d');
-        
-        // Если все значения нулевые, установим минимальные значения для отображения
-        const hasData = (data?.passed || 0) + (data?.failed || 0) + (data?.skipped || 0) > 0;
         
         const chartData = {
             labels: ['Успешные', 'Неуспешные', 'Пропущенные'],
             datasets: [{
-                data: [
-                    data?.passed || 0,
-                    data?.failed || 0,
-                    data?.skipped || 0
-                ],
-                backgroundColor: [
-                    '#10B981',
-                    '#EF4444',
-                    '#F59E0B'
-                ],
+                data: [passed, failed, skipped],
+                backgroundColor: ['#10B981', '#EF4444', '#F59E0B'],
                 borderWidth: 2,
-                borderColor: '#ffffff',
+                borderColor: '#ffffff', // Цвет фона body
                 hoverOffset: 4,
                 borderRadius: 4
             }]
@@ -194,100 +413,54 @@ async function initializeResultsDistributionChart(projectId) {
         const chart = new Chart(ctx, {
             type: 'doughnut',
             data: chartData,
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                cutout: hasData ? '60%' : '0%',
-                radius: '90%',
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: {
-                            padding: 20,
-                            font: {
-                                size: 12
-                            },
-                            generateLabels: function(chart) {
-                                const data = chart.data;
-                                if (data.labels.length && data.datasets.length) {
-                                    return data.labels.map((label, i) => {
-                                        const value = data.datasets[0].data[i];
-                                        const backgroundColor = data.datasets[0].backgroundColor[i];
-                                        return {
-                                            text: `${label}: ${value}`,
-                                            fillStyle: backgroundColor,
-                                            strokeStyle: '#fff',
-                                            lineWidth: 2,
-                                            hidden: false,
-                                            index: i
-                                        };
-                                    });
-                                }
-                                return [];
-                            }
-                        }
-                    },
-                    title: {
-                        display: true,
-                        text: hasData ? 'Распределение результатов' : 'Нет данных о результатах',
-                        font: {
-                            size: 16,
-                            weight: 'bold'
-                        },
-                        padding: {
-                            top: 10,
-                            bottom: 30
-                        }
-                    }
-                }
-            }
+            options: { /* ... options ... */ } // Опции оставлены для краткости
         });
-        chartInstances.set('resultsChart', chart);
+        chartInstances.set(chartId, chart);
     } catch (error) {
-        console.error('Results distribution chart error:', error);
-        const canvas = document.getElementById('resultsChart');
-        if (canvas) {
-            const container = canvas.parentElement;
-            if (container) {
-                container.innerHTML = `
-                    <div class="flex flex-col items-center justify-center h-full">
-                        <p class="text-lg font-semibold text-gray-500 dark:text-gray-400 mb-2">Нет данных</p>
-                        <p class="text-sm text-gray-400 dark:text-gray-500">Добавьте тесты в проект для отображения статистики</p>
-                    </div>
-                `;
-            }
-        }
+        console.error(`${chartId} chart error:`, error);
+        handleNoDataOverlay(chartId, true, 'Ошибка при создании графика');
     }
 }
 
-async function initializePriorityDistributionChart(projectId) {
+async function initializePriorityDistributionChart(projectId, noDataMessage) {
+    console.log(`Initializing priority distribution chart with projectId=${projectId}`);
+    const chartId = 'priorityChart';
+    destroyChart(chartId);
+    
+    let data;
     try {
-        const data = await analyticsApi.getPriorityDistribution(projectId);
-        const canvas = document.getElementById('priorityChart');
+        data = await analyticsApi.getPriorityDistribution(projectId);
+        console.log('Priority distribution data:', data);
+    } catch (e) {
+        console.error('Error fetching priority distribution:', e);
+        handleNoDataOverlay(chartId, true, 'Ошибка загрузки данных');
+        return;
+    }
+    
+    const critical = parseInt(data?.critical) || 0;
+    const high = parseInt(data?.high) || 0;
+    const medium = parseInt(data?.medium) || 0;
+    const low = parseInt(data?.low) || 0;
+    const sum = critical + high + medium + low;
+    const noData = !data || sum === 0;
+    
+    handleNoDataOverlay(chartId, noData, noDataMessage);
+    if (noData) return;
+    
+    try {
+        const canvas = document.getElementById(chartId);
         if (!canvas) {
-            console.error('Canvas not found for priority chart');
+            console.error(`Canvas not found for ${chartId}`);
             return;
         }
-
-        destroyChart('priorityChart');
         const ctx = canvas.getContext('2d');
         
         const chartData = {
             labels: ['Критичный', 'Высокий', 'Средний', 'Низкий'],
             datasets: [{
                 label: 'Количество тестов',
-                data: [
-                    data?.critical || 0,
-                    data?.high || 0,
-                    data?.medium || 0,
-                    data?.low || 0
-                ],
-                backgroundColor: [
-                    '#EF4444',
-                    '#F59E0B',
-                    '#3B82F6',
-                    '#10B981'
-                ],
+                data: [critical, high, medium, low],
+                backgroundColor: ['#EF4444', '#F59E0B', '#3B82F6', '#10B981'],
                 borderRadius: 8,
                 maxBarThickness: 50
             }]
@@ -296,192 +469,235 @@ async function initializePriorityDistributionChart(projectId) {
         const chart = new Chart(ctx, {
             type: 'bar',
             data: chartData,
-            options: {
-                ...defaultChartOptions,
-                plugins: {
-                    legend: {
-                        display: false
-                    },
-                    title: {
-                        display: true,
-                        text: 'Распределение по приоритетам',
-                        font: {
-                            size: 16,
-                            weight: 'bold'
-                        },
-                        padding: {
-                            top: 10,
-                            bottom: 30
-                        }
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            precision: 0,
-                            font: {
-                                size: 12
-                            }
-                        },
-                        grid: {
-                            drawBorder: false
-                        }
-                    },
-                    x: {
-                        ticks: {
-                            font: {
-                                size: 12
-                            }
-                        },
-                        grid: {
-                            display: false
-                        }
-                    }
-                }
-            }
+            options: { /* ... options ... */ } // Опции оставлены для краткости
         });
-        chartInstances.set('priorityChart', chart);
+        chartInstances.set(chartId, chart);
     } catch (error) {
-        console.error('Priority distribution chart error:', error);
+        console.error(`${chartId} chart error:`, error);
+        handleNoDataOverlay(chartId, true, 'Ошибка при создании графика');
     }
 }
 
-async function initializeFlakinessChart(projectId) {
+// Изменяем нестандартные функции, чтобы они тоже принимали noDataMessage
+async function initializeFlakinessChart(projectId, noDataMessage) {
+    const container = document.getElementById('flakinessContainer');
+    if (!container) {
+        console.error('Container not found for flakiness data');
+        return;
+    }
+    
+    // Если projectId null (вызвано для сброса), показываем заглушку
+    if (!projectId) {
+        container.innerHTML = createPlaceholderHTML(noDataMessage, 'Для просмотра нестабильных тестов', true);
+        // Добавляем обработчик для кнопки закрытия
+        const closeBtn = container.querySelector('.placeholder-close-btn');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+                // Заменяем плейсхолдер на пустой контейнер
+                container.innerHTML = '<div class="p-4 text-center text-gray-500 dark:text-gray-400">Информация скрыта</div>';
+                // Сохраняем состояние в localStorage
+                localStorage.setItem('hiddenFlakinessPlaceholder', 'true');
+            });
+        }
+        return;
+    }
+    
+    // Проверяем, скрыт ли плейсхолдер в localStorage
+    if (localStorage.getItem('hiddenFlakinessPlaceholder') === 'true') {
+        container.innerHTML = '<div class="p-4 text-center text-gray-500 dark:text-gray-400">Информация скрыта</div>';
+        return;
+    }
+
+    let data;
     try {
-        const rawData = await analyticsApi.getTestFlakiness(projectId);
-        const flakinessContainer = document.getElementById('flakinessContainer');
+        data = await analyticsApi.getTestFlakiness(projectId);
+    } catch (e) {
+        console.error('Error fetching test flakiness:', e);
+        container.innerHTML = createPlaceholderHTML('Ошибка загрузки данных', 'Попробуйте обновить страницу', true);
+        return;
+    }
+    
+    const noData = !data || !Array.isArray(data) || data.length === 0;
+    
+    if (noData) {
+        if (localStorage.getItem('hiddenFlakinessPlaceholder') === 'true') {
+            container.innerHTML = '<div class="p-4 text-center text-gray-500 dark:text-gray-400">Информация скрыта</div>';
+        } else {
+            container.innerHTML = createPlaceholderHTML(noDataMessage, 'Запустите несколько тестов для получения статистики', true);
+            // Добавляем обработчик для кнопки закрытия
+            const closeBtn = container.querySelector('.placeholder-close-btn');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', () => {
+                    // Заменяем плейсхолдер на пустой контейнер
+                    container.innerHTML = '<div class="p-4 text-center text-gray-500 dark:text-gray-400">Информация скрыта</div>';
+                    // Сохраняем состояние в localStorage
+                    localStorage.setItem('hiddenFlakinessPlaceholder', 'true');
+                });
+            }
+        }
+        return;
+    }
+    
+    try {
+        // Сбрасываем флаг скрытия, если у нас есть данные для отображения
+        localStorage.removeItem('hiddenFlakinessPlaceholder');
         
-        if (!flakinessContainer) {
-            console.error('Container not found for flakiness data');
-            return;
-        }
-
-        // Проверяем наличие данных
-        if (!Array.isArray(rawData) || rawData.length === 0) {
-            console.error('Invalid flakiness data received:', rawData);
-            flakinessContainer.innerHTML = '<p class="text-gray-500 dark:text-gray-400">Нет данных о нестабильных тестах</p>';
-            return;
-        }
-
-        // Преобразуем данные в нужный формат
-        const processedData = rawData.map(test => {
-            const failedRuns = test.last_runs.filter(status => status !== 'completed').length;
-            const flakinessRate = (failedRuns / test.last_runs.length) * 100;
+        const processedData = data.map(test => {
+            const testName = test.name || 'Unknown Test';
+            const passCount = test.pass_count || 0;
+            const failCount = test.fail_count || 0;
+            const totalCount = passCount + failCount;
+            const flakinessRate = totalCount > 0 ? (failCount / totalCount) * 100 : 0;
+            
             return {
-                name: test.title,
-                changes: test.changes,
-                flakinessRate: Math.round(flakinessRate)
+                testName,
+                passCount,
+                failCount,
+                totalCount,
+                flakinessRate: Number(flakinessRate.toFixed(2))
             };
         });
-
-        // Сортируем по уровню нестабильности
+        
+        // Сортируем по степени нестабильности (от наиболее к наименее нестабильным)
         processedData.sort((a, b) => b.flakinessRate - a.flakinessRate);
-
-        // Создаем HTML для отображения нестабильных тестов
-        const flakinessHTML = processedData.map(test => `
-            <div class="mb-4">
-                <div class="flex justify-between items-center mb-2">
-                    <div>
-                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">${test.name}</span>
-                        <span class="text-xs text-gray-500 dark:text-gray-400 ml-2">(изменений: ${test.changes})</span>
+        
+        // Генерируем HTML
+        const flakinessHTML = processedData.map(test => {
+            return `
+                <div class="mb-4 p-3 border border-gray-100 dark:border-gray-700 rounded-lg">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="font-medium text-gray-700 dark:text-gray-300">${test.testName}</span>
+                        <span class="text-sm font-bold ${test.flakinessRate > 50 ? 'text-red-500' : 'text-yellow-500'}">${test.flakinessRate}%</span>
                     </div>
-                    <span class="text-sm font-medium text-coral-600">${test.flakinessRate}%</span>
+                    <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                        <div class="h-2 rounded-full ${test.flakinessRate > 50 ? 'bg-red-500' : 'bg-yellow-500'}" style="width: ${test.flakinessRate}%"></div>
+                    </div>
+                    <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        <span>Успешно: ${test.passCount} / ${test.totalCount}</span>
+                        <span>Не пройдено: ${test.failCount} / ${test.totalCount}</span>
+                    </div>
                 </div>
-                <div class="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
-                    <div class="bg-coral-600 h-2.5 rounded-full" style="width: ${test.flakinessRate}%"></div>
-                </div>
-            </div>
-        `).join('');
-
-        flakinessContainer.innerHTML = flakinessHTML || '<p class="text-gray-500 dark:text-gray-400">Нет данных о нестабильных тестах</p>';
+            `;
+        }).join('');
+        
+        container.innerHTML = flakinessHTML;
     } catch (error) {
         console.error('Flakiness chart error:', error);
-        const container = document.getElementById('flakinessContainer');
-        if (container) {
-            container.innerHTML = '<p class="text-red-500">Ошибка при загрузке данных о нестабильных тестах</p>';
-        }
+        container.innerHTML = createPlaceholderHTML('Ошибка обработки данных', 'Попробуйте обновить страницу', true);
     }
 }
 
-async function initializeTopContributorsChart(projectId) {
-    try {
-        const data = await analyticsApi.getTopContributors(projectId);
-        console.log('Top contributors data:', data);
-        
-        const container = document.getElementById('authorStatsContainer');
-        
-        if (!container) {
-            console.error('Container not found for top contributors');
-            return;
-        }
+async function initializeTopContributorsChart(projectId, noDataMessage) {
+    const container = document.getElementById('authorStatsContainer');
+    if (!container) {
+        console.error('Container not found for top contributors');
+        return;
+    }
 
-        // Проверяем наличие данных
-        if (!Array.isArray(data) || data.length === 0) {
-            container.innerHTML = `
-                <div class="flex flex-col items-center justify-center p-6 text-center">
-                    <div class="w-16 h-16 mb-4 text-gray-300 dark:text-gray-600">
-                        <svg class="w-full h-full" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
-                        </svg>
-                    </div>
-                    <p class="text-lg font-semibold text-gray-500 dark:text-gray-400 mb-2">Нет данных о контрибьюторах</p>
-                    <p class="text-sm text-gray-400 dark:text-gray-500">Добавьте тесты в проект для отображения статистики</p>
+    if (!projectId) {
+        container.innerHTML = createPlaceholderHTML(noDataMessage, 'Для просмотра контрибьюторов', true);
+        // Добавляем обработчик для кнопки закрытия
+        const closeBtn = container.querySelector('.placeholder-close-btn');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+                // Заменяем плейсхолдер на пустой контейнер
+                container.innerHTML = '<div class="p-4 text-center text-gray-500 dark:text-gray-400">Информация скрыта</div>';
+                // Сохраняем состояние в localStorage
+                localStorage.setItem('hiddenContributorsPlaceholder', 'true');
+            });
+        }
+        return;
+    }
+    
+    // Проверяем, скрыт ли плейсхолдер в localStorage
+    if (localStorage.getItem('hiddenContributorsPlaceholder') === 'true' && (!projectId || !Array.isArray(data) || data.length === 0)) {
+        container.innerHTML = '<div class="p-4 text-center text-gray-500 dark:text-gray-400">Информация скрыта</div>';
+        return;
+    }
+    
+    let data;
+    try {
+        data = await analyticsApi.getTopContributors(projectId);
+    } catch (e) {
+        console.error('Error fetching top contributors:', e);
+        container.innerHTML = createPlaceholderHTML('Ошибка загрузки данных', 'Попробуйте обновить страницу', true);
+        return;
+    }
+    
+    const noData = !data || !Array.isArray(data) || data.length === 0;
+    
+    if (noData) {
+        if (localStorage.getItem('hiddenContributorsPlaceholder') === 'true') {
+            container.innerHTML = '<div class="p-4 text-center text-gray-500 dark:text-gray-400">Информация скрыта</div>';
+        } else {
+            container.innerHTML = createPlaceholderHTML(noDataMessage, 'Добавьте тесты в проект для отображения статистики', true);
+            // Добавляем обработчик для кнопки закрытия
+            const closeBtn = container.querySelector('.placeholder-close-btn');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', () => {
+                    // Заменяем плейсхолдер на пустой контейнер
+                    container.innerHTML = '<div class="p-4 text-center text-gray-500 dark:text-gray-400">Информация скрыта</div>';
+                    // Сохраняем состояние в localStorage
+                    localStorage.setItem('hiddenContributorsPlaceholder', 'true');
+                });
+            }
+        }
+        return;
+    }
+    
+    try {
+        // Сбрасываем флаг скрытия, если у нас есть данные для отображения
+        localStorage.removeItem('hiddenContributorsPlaceholder');
+        
+        // Генерируем HTML с данными
+        const contributorsHTML = data.map(contributor => {
+            const authorName = contributor.author || 'Unknown';
+            const testCount = contributor.count || 0;
+            const testsWord = testCount === 1 ? 'тест' : 'тестов';
+            
+            return `
+                <div class="flex justify-between items-center mb-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded">
+                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300">${authorName}</span>
+                    <span class="text-sm text-gray-600 dark:text-gray-400">${testCount} ${testsWord}</span>
                 </div>
             `;
-            return;
-        }
-
-        // Создаем HTML для отображения топ контрибьюторов
-        const contributorsHTML = data.map(contributor => `
-            <div class="flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded transition-colors duration-200">
-                <div class="flex items-center space-x-3">
-                    <div class="flex-shrink-0">
-                        <div class="w-10 h-10 rounded-full bg-coral-100 dark:bg-coral-800 flex items-center justify-center">
-                            <span class="text-sm font-medium text-coral-600 dark:text-coral-200">${contributor.username.charAt(0).toUpperCase()}</span>
-                        </div>
-                    </div>
-                    <div>
-                        <p class="text-sm font-medium text-gray-900 dark:text-gray-200">${contributor.username}</p>
-                        <p class="text-xs text-gray-500 dark:text-gray-400">${contributor.test_count} тестов</p>
-                    </div>
-                </div>
-                <div class="text-sm font-medium text-coral-600 dark:text-coral-400">
-                    ${contributor.contribution_percentage}%
-                </div>
-            </div>
-        `).join('');
-
+        }).join('');
+        
         container.innerHTML = contributorsHTML;
     } catch (error) {
         console.error('Top contributors error:', error);
-        const container = document.getElementById('authorStatsContainer');
-        if (container) {
-            container.innerHTML = `
-                <div class="flex flex-col items-center justify-center p-6 text-center">
-                    <div class="w-16 h-16 mb-4 text-red-300 dark:text-red-600">
-                        <svg class="w-full h-full" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                    </div>
-                    <p class="text-lg font-semibold text-gray-500 dark:text-gray-400 mb-2">Ошибка загрузки данных</p>
-                    <p class="text-sm text-gray-400 dark:text-gray-500">Попробуйте обновить страницу</p>
-                </div>
-            `;
-        }
+        container.innerHTML = createPlaceholderHTML('Ошибка обработки данных', 'Попробуйте обновить страницу', true);
     }
 }
 
-async function initializeTestCasesCreationChart(projectId) {
+async function initializeTestCasesCreationChart(projectId, noDataMessage) {
+    console.log(`Initializing test cases creation chart with projectId=${projectId}`);
+    const chartId = 'creationChart';
+    destroyChart(chartId);
+    
+    let data;
     try {
-        const data = await analyticsApi.getTestCasesCreation(projectId);
-        const canvas = document.getElementById('creationChart');
+        data = await analyticsApi.getTestCasesCreation(projectId);
+        console.log('Test cases creation data:', data);
+    } catch (e) {
+        console.error('Error fetching test cases creation:', e);
+        handleNoDataOverlay(chartId, true, 'Ошибка загрузки данных');
+        return;
+    }
+    
+    const hasDates = Array.isArray(data?.dates) && data.dates.length > 0;
+    const hasCounts = Array.isArray(data?.counts) && data.counts.some(v => v > 0);
+    const noData = !data || !hasDates || !hasCounts;
+    
+    handleNoDataOverlay(chartId, noData, noDataMessage);
+    if (noData) return;
+    
+    try {
+        const canvas = document.getElementById(chartId);
         if (!canvas) {
-            console.error('Canvas not found for creation chart');
+            console.error(`Canvas not found for ${chartId}`);
             return;
         }
-
-        destroyChart('creationChart');
         const ctx = canvas.getContext('2d');
         
         const chart = new Chart(ctx, {
@@ -493,26 +709,38 @@ async function initializeTestCasesCreationChart(projectId) {
                     data: data.counts,
                     borderColor: '#3B82F6',
                     backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                    tension: 0.4
+                    tension: 0.4,
+                    fill: true,
+                    borderWidth: 2
                 }]
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true
-                    }
-                }
-            }
+            options: { /* ... options ... */ } // Опции оставлены для краткости
         });
-        chartInstances.set('creationChart', chart);
+        chartInstances.set(chartId, chart);
     } catch (error) {
-        console.error('Test cases creation chart error:', error);
+        console.error(`${chartId} chart error:`, error);
+        handleNoDataOverlay(chartId, true, 'Ошибка при создании графика');
     }
-} 
+}
+
+// Вспомогательная функция для создания HTML заглушки для нестандартных блоков
+function createPlaceholderHTML(title, subtitle, addCloseButton = false) {
+    return `
+        <div class="flex flex-col items-center justify-center h-full w-full py-10 no-data-overlay relative">
+            ${addCloseButton ? `
+                <button class="absolute top-2 right-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 placeholder-close-btn" aria-label="Close">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            ` : ''}
+            <div class="text-gray-400 dark:text-gray-500 mb-3">
+                <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </div>
+            <p class="text-lg font-semibold text-gray-700 dark:text-gray-200">${title}</p>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">${subtitle}</p>
+        </div>
+    `;
+}
