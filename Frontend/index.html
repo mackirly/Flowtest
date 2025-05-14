@@ -5,9 +5,53 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FlowTest - Dashboard</title>
     
+    <!-- Скрипт для автоматического скрытия надоедливых блоков -->
+    <script>
+        // Сразу устанавливаем localStorage значения для скрытия блоков
+        localStorage.setItem('hiddenContributorsSection', 'true');
+        localStorage.setItem('hiddenFlakinessSection', 'true');
+        
+        // Функция, которая будет вызвана сразу после загрузки DOM
+        document.addEventListener('DOMContentLoaded', function() {
+            // Скрываем блоки, которые могут показывать предупреждения на весь экран
+            const contributorsContainer = document.querySelector('.grid-cols-1.lg\\:grid-cols-3.gap-6 > div:first-child');
+            const flakinessContainer = document.querySelector('.grid-cols-1.lg\\:grid-cols-3.gap-6 > div:last-child');
+            
+            if (contributorsContainer) contributorsContainer.classList.add('hidden');
+            if (flakinessContainer) flakinessContainer.classList.add('hidden');
+            
+            // Кнопка для отображения скрытых блоков удалена
+        });
+    </script>
+    
+    <!-- Сервис-воркер для перехвата запросов к аватарам -->
+    <script src="js/sw-register.js"></script>
+
+    <!-- CORS Headers Cleaner для исправления проблем с CORS -->
+    <script src="js/cors_headers_cleaner.js"></script>
+    
+    <!-- CORS Bypass Helper - дополнительный обходчик CORS-ограничений -->
+    <script src="js/cors-bypass.js"></script>
+    
+    <!-- Direct Avatar Fix - прямое исправление проблемы с аватарами -->
+    <script src="js/direct-avatar-fix.js"></script>
+
+    <!-- URL-fix для исправления проблем с портами -->
+    <script src="js/url-fix.js"></script>
+    
+    <!-- Login Redirect Helper - загружаем после url-fix для приоритетной проверки авторизации -->
+    <script src="js/login-redirect.js"></script>
+    
+    <!-- Theme System -->
+    <script type="module" defer src="js/theme-system.js"></script>
+    <script type="module" defer src="js/theme-compat/theme-preloader.js"></script>
+    
     <!-- Styles -->
     <link href="css/tailwind.min.css" rel="stylesheet">
     <link href="css/styles.css" rel="stylesheet">
+    <link href="css/modal-styles.css" rel="stylesheet">
+    <link href="css/context-menu.css" rel="stylesheet">
+    <link href="css/components/avatar.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.2.0/flowbite.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
@@ -54,9 +98,69 @@
             margin: 0 auto;
         }
 
+        /* Стили для графиков */
         .chart-container {
             position: relative;
-            min-height: 200px;
+            min-height: 250px; 
+            display: block;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        /* Стили для оверлея "Нет данных" */
+        .no-data-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            padding: 24px;
+            background-color: rgba(255, 255, 255, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            animation: fadeIn 0.3s ease-in-out;
+            border: 1px dashed rgba(0,0,0,0.1);
+        }
+        
+        .dark .no-data-overlay {
+            background-color: rgba(31, 41, 55, 0.9);
+            border: 1px dashed rgba(255,255,255,0.1);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        
+        /* Стили для кнопки закрытия плейсхолдера */
+        .placeholder-close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 6px;
+            background-color: rgba(229, 231, 235, 0.8);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .placeholder-close-btn:hover {
+            background-color: rgba(209, 213, 219, 1);
+        }
+        
+        .dark .placeholder-close-btn {
+            background-color: rgba(55, 65, 81, 0.8);
+        }
+        
+        .dark .placeholder-close-btn:hover {
+            background-color: rgba(75, 85, 99, 1);
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
 
         .error-message {
@@ -68,6 +172,19 @@
         .login-container {
             max-width: 400px;
             margin: 0 auto;
+        }
+
+        /* User context menu styles */
+        #userContextMenu {
+            position: fixed;
+            z-index: 9999;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        /* Исправленный размер шрифта для ошибки */
+        .text-3xl {
+            font-size: 1.5rem !important;
+            line-height: 2rem !important;
         }
     </style>
 </head>
@@ -109,15 +226,20 @@
                     <div class="flex items-center space-x-4 ml-auto">
                         <!-- Project Selector -->
                         <div class="flex items-center space-x-2">
-                            <div class="w-48">
+                            <div class="flex items-center space-x-2 w-48">
                                 <select id="projectSelector" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-coral-500 focus:border-coral-500 block w-full p-2 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-coral-500 dark:focus:border-coral-500">
-                                    <option value="" selected data-i18n="allProjects">All Projects</option>
+                                    <option value="" selected data-i18n="allProjects">Все проекты</option>
                                 </select>
+                                <button id="addProjectBtn" type="button" aria-label="Add Project" title="Add Project"
+                                    class="w-10 h-10 aspect-square rounded-full bg-white dark:bg-gray-700 flex items-center justify-center transform transition-all duration-300 hover:scale-110 focus:outline-none active:scale-95 text-gray-600 dark:text-gray-300 hover:text-coral-600 dark:hover:text-coral-400"
+                                    onclick="window.showCreateProjectModal()">
+                                    <i class="ri-add-line text-xl"></i>
+                                </button>
                             </div>
                         </div>
 
                         <!-- Notifications -->
-                        <div id="notifications-wrapper" class="relative">
+                        <div id="notifications-wrapper" class="relative ml-6">
                             <button type="button" onclick="toggleNotifications()"
                                     class="relative p-2 text-gray-600 dark:text-gray-300 hover:text-coral-600 dark:hover:text-coral-400">
                                 <span id="notification-count" class="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-coral-600 rounded-full hidden">0</span>
@@ -132,8 +254,8 @@
                         </div>
 
                         <!-- Calendar Button -->
-                        <button id="calendarButton" aria-label="Schedule new event" class="w-10 h-10 rounded-full bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 flex items-center justify-center transform transition-all duration-300 hover:scale-110 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:focus:ring-gray-600 active:scale-95 group-hover:rotate-3" data-tooltip="Click to add new event">
-                            <svg class="w-6 h-6 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <button id="calendarButton" aria-label="Schedule new event" class="ml-6 w-10 h-10 aspect-square rounded-full bg-white dark:bg-gray-700 flex items-center justify-center transform transition-all duration-300 hover:scale-110 focus:outline-none active:scale-95 text-gray-600 dark:text-gray-300 hover:text-coral-600 dark:hover:text-coral-400" data-tooltip="Click to add new event">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2"></path>
                             </svg>
                         </button>
@@ -141,7 +263,7 @@
                         <!-- User Menu -->
                         <div class="relative">
                             <button id="userMenuButton" class="flex items-center space-x-2" aria-expanded="false">
-                                <div id="user-avatar" class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
+                                <div id="user-avatar" class="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center" style="box-shadow: 0 0 3px rgba(0,0,0,0.2);">
                                     <span class="text-sm font-medium text-gray-600">?</span>
                                 </div>
                                 <span id="userName" class="text-sm text-gray-700 dark:text-gray-200"></span>
@@ -167,22 +289,52 @@
                 
                 <!-- Project selector error container -->
                 <div id="project-selector-error" class="mb-4"></div>
-                
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-                        <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200" data-i18n="totalTests">Total Tests</h3>
+                <div id="globalNoProjectsMessage" class="hidden text-center p-4 rounded-lg bg-gray-50 dark:bg-gray-800 shadow border border-gray-200 dark:border-gray-700">
+                    <div class="flex flex-col items-center justify-center py-6">
+                        <div class="text-gray-400 dark:text-gray-500 mb-3">
+                            <svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-semibold text-gray-700 dark:text-gray-200 mb-2" data-i18n="noProjects">Нет проектов</h3>
+                        <p class="text-md mb-4">
+                            <span class="text-gray-500 dark:text-gray-400" data-i18n="createProjectStart">Для начала работы</span>
+                            <span style="color: #FF7F50; cursor: pointer;" onmouseover="this.style.color='#FF6347'" onmouseout="this.style.color='#FF7F50'" id="createProjectLink" data-i18n="createProjectAction">создайте новый проект</span>
+                        </p>
+                    </div>
+                </div>
+
+                <div id="selectProjectMessage" class="hidden text-center p-4 rounded-lg bg-gray-50 dark:bg-gray-800 shadow border border-gray-200 dark:border-gray-700">
+                    <div class="flex flex-col items-center justify-center py-6">
+                        <div class="text-gray-400 dark:text-gray-500 mb-3">
+                            <svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-semibold text-gray-700 dark:text-gray-200 mb-2" data-i18n="selectProjectPrompt">Выберите проект</h3>
+                        <p class="text-md text-gray-500 dark:text-gray-400">Пожалуйста, выберите проект из списка выше, чтобы увидеть данные панели управления.</p>
+                    </div>
+                </div>
+
+                <div id="dashboardContent"> <!-- Добавлен этот div -->
+                    <!-- Кнопка показа скрытых блоков удалена -->
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                        <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+                            <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200" data-i18n="totalTests">Total Tests</h3>
                         <p id="totalTests" class="text-3xl font-bold text-blue-600 dark:text-blue-400">-</p>
-                        <p class="text-sm text-gray-500 dark:text-gray-400" data-i18n="fromLastMonth">from last month</p>
+                        <p id="testsDescription" class="text-sm text-gray-500 dark:text-gray-400" data-i18n="fromLastMonth">from last month</p>
                     </div>
                     <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
                         <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200" data-i18n="successRate">Success Rate</h3>
                         <p id="successRate" class="text-3xl font-bold text-green-600 dark:text-green-400">-</p>
-                        <p class="text-sm text-gray-500 dark:text-gray-400" data-i18n="fromLastMonth">from last month</p>
+                        <p id="successRateDescription" class="text-sm text-gray-500 dark:text-gray-400" data-i18n="fromLastMonth">from last month</p>
                     </div>
                     <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
                         <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200" data-i18n="avgExecutionTime">Avg. Execution Time</h3>
                         <p id="avgExecutionTime" class="text-3xl font-bold text-purple-600 dark:text-purple-400">-</p>
-                        <p class="text-sm text-gray-500 dark:text-gray-400" data-i18n="fromLastMonth">from last month</p>
+                        <p id="timeDescription" class="text-sm text-gray-500 dark:text-gray-400" data-i18n="fromLastMonth">from last month</p>
                     </div>
                 </div>
 
@@ -190,7 +342,7 @@
                     <!-- Success Rate Over Time -->
                     <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
                         <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4" data-i18n="successRateOverTime">Success Rate Over Time</h3>
-                        <div class="chart-container">
+                        <div class="chart-container relative" id="successRateChartContainer">
                             <canvas id="successRateChart"></canvas>
                         </div>
                     </div>
@@ -198,7 +350,7 @@
                     <!-- Test Results Distribution -->
                     <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
                         <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4" data-i18n="testResultsDistribution">Test Results Distribution</h3>
-                        <div class="chart-container">
+                        <div class="chart-container relative" id="resultsChartContainer">
                             <canvas id="resultsChart"></canvas>
                         </div>
                     </div>
@@ -206,7 +358,7 @@
                     <!-- Test Creation Activity -->
                     <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
                         <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4" data-i18n="testCreationActivity">Test Creation Activity</h3>
-                        <div class="chart-container">
+                        <div class="chart-container relative" id="creationChartContainer">
                             <canvas id="creationChart"></canvas>
                         </div>
                     </div>
@@ -214,71 +366,81 @@
                     <!-- Test Priority Distribution -->
                     <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
                         <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4" data-i18n="testPriorityDistribution">Test Priority Distribution</h3>
-                        <div class="chart-container">
+                        <div class="chart-container relative" id="priorityChartContainer">
                             <canvas id="priorityChart"></canvas>
                         </div>
                     </div>
                 </div>
 
-                <!-- Contributors Section -->
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <!-- Author Stats -->
-                    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-                        <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4" data-i18n="topContributors">Top Contributors</h3>
-                        <div id="authorStatsContainer" class="space-y-2">
-                            <!-- Author stats will be populated here -->
-                        </div>
-                    </div>
-
-                    <!-- Test Flakiness -->
-                    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md lg:col-span-2">
-                        <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4" data-i18n="testFlakiness">Нестабильные тесты</h3>
-                        <div class="chart-container">
-                            <div id="flakinessContainer">
-                                <!-- Здесь будет отображаться список нестабильных тестов -->
-                            </div>
-                        </div>
-                    </div>
+                    <!-- Разделы Top Contributors и Test Flakiness полностью удалены -->
                 </div>
             </main>
         </div>
     </div>
 
     <!-- Scripts -->
+    <!-- Legacy theme compatibility -->
+    <script src="js/theme-compat/theme-manager.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
     <script src="js/config.js"></script>
+    <script type="module" src="js/api-config.js"></script>
     <script src="js/i18n.js"></script>
     <script src="js/translations.js"></script>
-    <script type="module" src="js/api-config.js"></script>
+    <!-- Аватар через iframe - самый надежный способ загрузки аватаров -->
+    <script src="js/iframe-avatars.js"></script>
+    
+    <!-- Simple avatar script - загружаем после всех конфигурационных файлов -->
+    <script src="js/simple-avatar.js"></script>
     <script type="module" src="js/auth.js"></script>
     <script type="module" src="js/api/analytics-api.js"></script>
     <script type="module" src="js/dashboard.js"></script>
     <script type="module" src="js/notifications.js"></script>
-    <script type="module" src="js/user-info.js"></script>
     <script type="module" src="js/dashboard-api.js"></script>
+    <script type="module" src="js/user-context-menu.js"></script>
     <script type="module" src="js/user-menu.js"></script>
+    <script type="module" src="js/project-modal-improved.js"></script>
     <script type="module">
         import { initializeCharts } from './js/dashboard-charts.js';
-        import { updateUserInfo } from './js/user-info.js';
         import { initializeUserMenu } from './js/user-menu.js';
+        import { initializeUserContextMenu } from './js/user-context-menu.js';
         import { logout } from './js/auth.js';
+        
+        // Функция оставлена для обратной совместимости, но функционал скрытия блоков удален
+        function setupCloseButtons() {
+            // Функционал удален, так как секции Contributors и Flakiness удалены из HTML
+            // и кнопка showHiddenBlocksBtn больше не используется
+        }
+        
+        // Функция удалена, так как кнопка "Показать скрытые блоки" больше не используется
         
         // Initialize dashboard after a short delay to ensure all dependencies are loaded
         setTimeout(async () => {
             console.log('Initializing dashboard...');
             try {
-                // Обновляем информацию о пользователе
-                await updateUserInfo();
-                // Инициализируем меню пользователя
+                // Инициализируем только необходимые компоненты
                 initializeUserMenu();
+                // Инициализируем контекстное меню пользователя
+                initializeUserContextMenu();
+                // Настраиваем кнопки закрытия
+                setupCloseButtons();
+                // Добавляем обработчик для кнопки создания проекта из блока "Нет проектов"
+                document.getElementById('noProjectsCreateBtn')?.addEventListener('click', () => {
+                    document.getElementById('createProjectModal').classList.remove('hidden');
+                });
                 // Инициализируем графики с текущим проектом
                 const urlParams = new URLSearchParams(window.location.search);
-                const projectId = urlParams.get('project_id') || localStorage.getItem('currentProjectId');
+                const projectId = urlParams.get('project_id') || localStorage.getItem('currentProjectId') || localStorage.getItem('selectedProject');
                 if (projectId) {
                     await initializeCharts(projectId);
+                } else {
+                    // Если проект не выбран, инициализируем плейсхолдеры
+                    await initializeCharts(null);
                 }
             } catch (error) {
                 console.error('Failed to initialize:', error);
+                // В случае ошибки показываем плейсхолдеры
+                await initializeCharts(null);
             }
         }, 1000);
 
@@ -288,52 +450,110 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.2.0/flowbite.min.js"></script>
 
     <!-- Create Project Modal -->
-    <div id="createProjectModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50" role="dialog" aria-modal="true">
-        <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-lg bg-white dark:bg-gray-800">
-            <div class="flex flex-col">
-                <div class="flex justify-between items-center pb-4">
-                    <h3 class="text-xl font-semibold text-gray-900 dark:text-gray-100" data-i18n="createNewProject">Create New Project</h3>
-                    <button onclick="document.getElementById('createProjectModal').classList.add('hidden')" class="text-gray-400 hover:text-gray-500 dark:text-gray-300 dark:hover:text-gray-200">
-                        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                        </svg>
-                    </button>
+    <div id="createProjectModal" class="hidden fixed inset-0 z-50" role="dialog" aria-modal="true">
+        <!-- Затемнение фона -->
+        <div class="fixed inset-0 bg-black bg-opacity-75 transition-opacity"></div>
+        
+        <!-- Модальное окно -->
+        <div class="fixed inset-0 z-50 overflow-y-auto">
+            <div class="flex min-h-full items-center justify-center p-6">
+                <div style="filter: drop-shadow(0 10px 15px rgba(0,0,0,0.5));" class="relative w-full max-w-md bg-white dark:bg-gray-800 rounded-xl text-left transition-all border-2 border-[#FF7F50]">
+                    <!-- Заголовок -->
+                    <div class="p-6 pb-4 border-b border-gray-200 dark:border-gray-700">
+                        <div class="flex items-center justify-between">
+                            <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Новый проект</h2>
+                            <button id="closeModalButton" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors">
+                                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        <p class="text-gray-600 dark:text-gray-300 mt-2">
+                            Создайте новый проект для организации ваших тестов.
+                        </p>
+                    </div>
+
+                    <div class="px-6 py-4">
+                        <form id="projectForm" class="space-y-5">
+                            <div class="space-y-2">
+                                <label for="projectName" class="block font-medium text-gray-700 dark:text-gray-300" data-i18n="projectName">Название проекта</label>
+                                <div class="relative">
+                                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none icon-container">
+                                        <i class="ri-file-line modal-icon"></i>
+                                    </div>
+                                    <input type="text" id="projectName" name="projectName" required
+                                        class="modal-input block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm py-3 text-base"
+                                        placeholder="Введите название проекта" data-i18n-placeholder="projectNamePlaceholder">
+                                </div>
+                                <div id="projectNameError" class="text-red-500 text-sm mt-1 hidden"></div>
+                            </div>
+
+                            <div class="space-y-2">
+                                <label for="description" class="block font-medium text-gray-700 dark:text-gray-300" data-i18n="projectDescription">Описание</label>
+                                <div class="relative">
+                                    <div class="absolute top-3 left-4 flex items-start pointer-events-none icon-container">
+                                        <i class="ri-file-text-line modal-icon"></i>
+                                    </div>
+                                    <textarea id="description" name="description" rows="4"
+                                        class="modal-input block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm py-3 text-base"
+                                        placeholder="Введите описание проекта" data-i18n-placeholder="projectDescriptionPlaceholder"></textarea>
+                                </div>
+                                <div id="descriptionError" class="text-red-500 text-sm mt-1 hidden"></div>
+                            </div>
+
+                            <!-- User Selection Field -->
+                            <div class="space-y-2">
+                                <label for="projectUsers" class="block font-medium text-gray-700 dark:text-gray-300" data-i18n="projectUsersLabel">Пользователи проекта</label>
+                                <div class="relative">
+                                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none icon-container">
+                                        <i class="ri-user-search-line modal-icon"></i>
+                                    </div>
+                                    <input type="text" id="userSearchInput" name="userSearch"
+                                        class="modal-input block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm py-3 text-base"
+                                        placeholder="Поиск пользователей..." data-i18n-placeholder="searchUsersPlaceholder">
+                                </div>
+                                <div id="userListContainer" class="mt-2 max-h-40 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-gray-50 dark:bg-gray-700">
+                                    <!-- User list will be populated here by JS -->
+                                    <p id="noUsersFoundMessage" class="text-gray-500 dark:text-gray-400 text-sm hidden" data-i18n="noUsersFound">Пользователи не найдены</p>
+                                    <div id="userListSpinner" class="flex justify-center items-center p-4 hidden">
+                                        <svg class="animate-spin h-5 w-5 text-gray-500 dark:text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                    </div>
+                                </div>
+                                <div id="selectedUsersContainer" class="mt-2 flex flex-wrap gap-1">
+                                    <!-- Selected user badges will appear here -->
+                                </div>
+                                <div id="projectUsersError" class="text-red-500 text-sm mt-1 hidden"></div>
+                            </div>
+                            <!-- End User Selection Field -->
+
+                            <div class="mt-5">
+                                <div id="formErrorMessage" class="text-red-500 text-sm mb-3 p-2 bg-red-100 dark:bg-red-900/30 rounded-md hidden"></div>
+                                <div id="formSuccessMessage" class="text-green-500 text-sm mb-3 p-2 bg-green-100 dark:bg-green-900/30 rounded-md hidden"></div>
+                                
+                                <div class="flex justify-between items-center pt-2">
+                                    <button id="cancelModalButton" type="button" 
+                                        class="flex items-center px-5 py-2.5 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-300 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-300 dark:hover:bg-gray-600 focus:outline-none transition-colors">
+                                        <span>Отмена</span>
+                                    </button>
+                                    
+                                    <button type="submit" 
+                                        class="coral-button flex items-center px-8 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-800 shadow-md transition-all">
+                                        <span>Создать</span>
+                                        <div id="submitSpinner" class="ml-2 hidden">
+                                            <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                        </div>
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
                 </div>
-
-                <form class="space-y-4">
-                    <div>
-                        <label for="projectName" class="block text-sm font-medium text-gray-700 dark:text-gray-300" data-i18n="projectName">Project Name</label>
-                        <input type="text" id="projectName" name="projectName" required 
-                               class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 
-                                      shadow-sm focus:border-coral-500 focus:ring-coral-500 
-                                      dark:bg-gray-700 dark:text-white sm:text-sm" 
-                               data-i18n-placeholder="enterProjectName">
-                    </div>
-
-                    <div>
-                        <label for="description" class="block text-sm font-medium text-gray-700 dark:text-gray-300" data-i18n="description">Description</label>
-                        <textarea id="description" name="description" rows="3" required 
-                                  class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 
-                                         shadow-sm focus:border-coral-500 focus:ring-coral-500 
-                                         dark:bg-gray-700 dark:text-white sm:text-sm"
-                                  data-i18n-placeholder="enterProjectDescription"></textarea>
-                    </div>
-
-                    <div class="flex justify-end space-x-3 pt-4">
-                        <button type="button" 
-                                onclick="document.getElementById('createProjectModal').classList.add('hidden')" 
-                                class="px-4 py-2 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 
-                                       border border-gray-300 dark:border-gray-600 rounded-md 
-                                       hover:bg-gray-50 dark:hover:bg-gray-600 
-                                       focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-coral-500" 
-                                data-i18n="cancel">Cancel</button>
-                        <button type="submit" 
-                                class="px-4 py-2 bg-coral-600 text-white rounded-md 
-                                       hover:bg-coral-700 focus:outline-none focus:ring-2 
-                                       focus:ring-offset-2 focus:ring-coral-500" 
-                                data-i18n="create">Create</button>
-                    </div>
-                </form>
             </div>
         </div>
     </div>
