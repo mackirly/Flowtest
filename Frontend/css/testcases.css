@@ -23,13 +23,6 @@
     transform: translateX(4px);
 }
 
-/* Smooth transitions for all interactive elements */
-.transition-all {
-    transition-property: all;
-    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-    transition-duration: 300ms;
-}
-
 /* Context menu animations */
 #contextMenu {
     animation: fadeIn 0.2s ease-out;
@@ -309,43 +302,7 @@ select option:hover {
 }
 
 /* Test Case Content */
-.test-case-content {
-    padding: 20px;
-}
-
-.test-case-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-}
-
-.test-case-title {
-    margin: 0;
-    font-size: 24px;
-}
-
-.test-case-actions {
-    display: flex;
-    gap: 10px;
-}
-
-.test-case-info {
-    margin-bottom: 20px;
-}
-
-.info-row {
-    margin-bottom: 10px;
-}
-
-.info-row .label {
-    font-weight: bold;
-    margin-right: 10px;
-}
-
-.test-code-container {
-    margin-top: 20px;
-}
+/* .test-case-content, .test-case-header, .test-case-title, .test-case-actions, .test-case-info, .info-row, .info-row .label, .test-code-container are removed as they can be handled by Tailwind utility classes */
 
 .test-code-container pre {
     margin: 0;
@@ -387,33 +344,7 @@ select option:hover {
 }
 
 /* Button styles */
-.btn {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.5rem 1rem;
-    border-radius: 0.5rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.btn-primary {
-    background-color: #FF7F50;
-    color: white;
-}
-
-.btn-primary:hover {
-    background-color: #FF6347;
-}
-
-.btn-secondary {
-    background-color: #E5E7EB;
-    color: #374151;
-}
-
-.btn-secondary:hover {
-    background-color: #D1D5DB;
-}
+/* .btn, .btn-primary, .btn-secondary are removed as they are covered by Tailwind components in styles.css */
 
 .btn-danger {
     background-color: #FEE2E2;

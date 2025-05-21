@@ -274,14 +274,14 @@ async function loadUserData() {
         
         // Update avatar
         const avatarElement = document.getElementById('avatar-preview');
-        console.log('Avatar URL from API:', data.avatar_url);
-        if (data.avatar_url) {
-            console.log('Setting avatar URL:', data.avatar_url);
+        console.log('Avatar URL from API:', data.avatar);
+        if (data.avatar) {
+            console.log('Setting avatar URL:', data.avatar);
             avatarElement.onerror = () => {
-                console.error('Failed to load avatar from URL:', data.avatar_url);
+                console.error('Failed to load avatar from URL:', data.avatar);
                 avatarElement.src = generateDefaultAvatar(data.username || data.first_name || '');
             };
-            avatarElement.src = data.avatar_url;
+            avatarElement.src = data.avatar;
         } else {
             console.log('No avatar URL, using default avatar');
             avatarElement.src = generateDefaultAvatar(data.username || data.first_name || '');

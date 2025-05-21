@@ -768,71 +768,135 @@ class ProjectViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'])
     def folders_and_test_cases(self, request, pk=None):
         project = self.get_object()
-        folders = project.folders.all() # Пока загружаем все папки
-        folder_data = []
+        
+        # --- Test Case Filtering Logic ---
+        test_cases_queryset = TestCase.objects.filter(project=project)
 
-        # --- Фильтрация тест-кейсов ---
-        test_cases_queryset = project.test_cases.all()
-
-        # Фильтр по поисковому запросу (название, описание)
         search_query = request.query_params.get('search', None)
         if search_query:
             test_cases_queryset = test_cases_queryset.filter(
                 Q(title__icontains=search_query) | Q(description__icontains=search_query)
             )
 
-        # Фильтр по приоритету
-        priority = request.query_params.get('priority', None)
-        if priority:
-            test_cases_queryset = test_cases_queryset.filter(priority=priority)
+        priority_filter = request.query_params.get('priority', None) 
+        if priority_filter: # Renamed to avoid conflict with model field name if used directly
+            test_cases_queryset = test_cases_queryset.filter(priority=priority_filter)
 
-        # Фильтр по тегам (предполагаем, что теги передаются через запятую)
-        tags_query = request.query_params.get('tags', None)
+        tags_query = request.query_params.get('tags', None) 
         if tags_query:
             tags_list = [tag.strip() for tag in tags_query.split(',') if tag.strip()]
             if tags_list:
-                # Фильтр по содержанию хотя бы одного из тегов
-                # test_cases_queryset = test_cases_queryset.filter(tags__overlap=tags_list) # Если tags - ArrayField PostgreSQL
-                # Или если tags - JSONField или TextField со списком строк:
                 query = Q()
                 for tag in tags_list:
-                    query |= Q(tags__icontains=tag) # Простая проверка на вхождение строки
+                    query |= Q(tags__icontains=tag) 
                 test_cases_queryset = test_cases_queryset.filter(query)
 
-        # Фильтр по статусу последнего запуска (если нужно)
-        # status = request.query_params.get('status', None)
-        # if status:
-        #     # Это потребует более сложного запроса с подзапросами или аннотациями
-        #     # для получения статуса последнего TestRun для каждого TestCase
-        #     pass # Реализация зависит от требований
+        # New Filters
+        date_filter = request.query_params.get('date_filter', None)
+        if date_filter:
+            today = timezone.now().date()
+            if date_filter == 'today':
+                test_cases_queryset = test_cases_queryset.filter(created_at__date=today)
+            elif date_filter == 'week':
+                # start_of_week = today - timedelta(days=today.weekday()) # For calendar week
+                test_cases_queryset = test_cases_queryset.filter(created_at__date__gte=today - timedelta(days=7))
+            elif date_filter == 'month':
+                test_cases_queryset = test_cases_queryset.filter(created_at__date__gte=today - timedelta(days=30))
 
-        # --- Группировка отфильтрованных тест-кейсов по папкам ---
-        test_cases_by_folder = {}
-        for test_case in test_cases_queryset:
-            folder_id = test_case.folder_id if test_case.folder else None
-            if folder_id not in test_cases_by_folder:
-                test_cases_by_folder[folder_id] = []
-            test_cases_by_folder[folder_id].append(test_case)
-        for folder in folders:
-            folder_serializer = FolderSerializer(folder)
-            folder_test_cases = test_cases_by_folder.get(folder.id, [])
-            test_case_serializer = TestCaseSerializer(folder_test_cases, many=True)
-            folder_info = folder_serializer.data
-            folder_info['test_cases'] = test_case_serializer.data
-            # Добавляем папку, только если она не пуста после фильтрации тест-кейсов
-            if folder_info['test_cases']:
-                folder_data.append(folder_info)
+        author_filter = request.query_params.get('author_filter', None)
+        if author_filter:
+            if author_filter == 'me' and request.user.is_authenticated:
+                test_cases_queryset = test_cases_queryset.filter(author=request.user)
+            elif author_filter.isdigit():
+                test_cases_queryset = test_cases_queryset.filter(author_id=int(author_filter))
+        
+        status_filter = request.query_params.get('status_filter', None)
+        # Assuming status_filter could map to 'test_type' or 'priority' if no direct 'status' field
+        if status_filter:
+             if status_filter in ['manual', 'automated']: # Assuming 'active' means 'automated' or similar logic
+                 test_cases_queryset = test_cases_queryset.filter(test_type=status_filter)
+             # Example: if 'archived' status means 'low' priority or a specific tag
+             # elif status_filter == 'archived':
+             #    test_cases_queryset = test_cases_queryset.filter(priority='low') 
 
-        # Обработка тест-кейсов без папки (если они прошли фильтр)
-        unassigned_test_cases = test_cases_by_folder.get(None, [])
+
+        folder_type_filter = request.query_params.get('folder_type_filter', None)
+        if folder_type_filter:
+            if folder_type_filter == 'root_folders':
+                test_cases_queryset = test_cases_queryset.filter(folder__parent_folder__isnull=True)
+            elif folder_type_filter == 'subfolders':
+                test_cases_queryset = test_cases_queryset.filter(folder__parent_folder__isnull=False)
+            # 'empty_folders' and 'with_tests' are more complex for TC query, skipping as per instructions.
+
+
+        # --- Sorting Logic for Test Cases ---
+        sort_by = request.query_params.get('sort_by', None)
+        sort_order = request.query_params.get('sort_order', 'asc')
+        
+        if sort_by:
+            sort_field_map = {
+                'name': 'title',
+                'date': 'created_at',
+                'priority': 'priority', 
+                'status': 'test_type' # Assuming status sort refers to test_type
+            }
+            sort_field = sort_field_map.get(sort_by)
+
+            if sort_field:
+                # For priority, alphabetical sort: 'High', 'Low', 'Medium'
+                # For a logical sort (High > Medium > Low), a more complex Case/When is needed.
+                # Sticking to alphabetical for now as per simplified approach.
+                if sort_order == 'desc':
+                    sort_field = '-' + sort_field
+                test_cases_queryset = test_cases_queryset.order_by(sort_field)
+        else:
+            test_cases_queryset = test_cases_queryset.order_by('title') # Default sort
+
+        # --- Folder Grouping ---
+        all_project_folders = list(Folder.objects.filter(project=project))
+        
+        test_cases_by_folder_id = {}
+        for tc in test_cases_queryset: # Operate on the already filtered & sorted queryset
+            folder_id = tc.folder_id if tc.folder_id else None
+            if folder_id not in test_cases_by_folder_id:
+                test_cases_by_folder_id[folder_id] = []
+            test_cases_by_folder_id[folder_id].append(tc)
+
+        folder_data = []
+        
+        # Determine if any test case specific filters are active
+        tc_specific_filters_active = bool(search_query or priority_filter or tags_query or date_filter or author_filter or status_filter)
+
+        for folder in all_project_folders:
+            current_folder_test_cases = test_cases_by_folder_id.get(folder.id, [])
+            
+            # Logic for including folders:
+            # - If TC-specific filters are active, only include folder if it has matching TCs.
+            # - If NO TC-specific filters are active, include all folders (empty or not).
+            if current_folder_test_cases or not tc_specific_filters_active:
+                 folder_serializer = FolderSerializer(folder)
+                 folder_item = folder_serializer.data
+                 folder_item['test_cases'] = TestCaseSerializer(current_folder_test_cases, many=True).data
+                 folder_data.append(folder_item)
+
+        # Handle test cases without a folder (these are already filtered and sorted)
+        unassigned_test_cases = test_cases_by_folder_id.get(None, [])
         if unassigned_test_cases:
             folder_data.append({
-                'id': None, # Используем null или специальный идентификатор
-                'name': 'Тест-кейсы без папки', # Или локализованное название
-                'description': 'Test cases without folder',
-                'project': project.id,
-                'test_cases': TestCaseSerializer(unassigned_test_cases, many=True).data
+                'id': None,
+                'name': 'Тест-кейсы без папки',
+                'description': 'Test cases not assigned to any folder.',
+                'project': project.id, # Ensure project ID is included
+                'test_cases': TestCaseSerializer(unassigned_test_cases, many=True).data,
+                # Match other fields from FolderSerializer for consistency if needed by frontend
+                'subfolders': [], 
+                'parent_folder': None,
+                'author': None, 
+                'created_at': None, 
+                'updated_at': None,
+                'status': None # If your FolderSerializer has a status
             })
+            
         return Response(folder_data)
 
 # ViewSet для Folder

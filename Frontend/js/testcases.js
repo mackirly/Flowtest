@@ -90,6 +90,8 @@ const testCaseManager = {
             this.initializeProjectAndButtonHandlers();
             // Устанавливаем обработчики для фильтров
             this.initializeFilterHandlers();
+            // Устанавливаем обработчики для сортировки
+            this.initializeSortingHandlers();
 
             // Теперь, когда селектор заполнен, устанавливаем выбранное значение
             if (selectedProjectId) {
@@ -164,46 +166,79 @@ const testCaseManager = {
 
     // Инициализация обработчиков фильтров
     initializeFilterHandlers() {
-        const searchInput = document.getElementById('filterSearchInput'); // Предполагаемый ID
-        const prioritySelect = document.getElementById('filterPrioritySelect'); // Предполагаемый ID
-        const tagsInput = document.getElementById('filterTagsInput'); // Предполагаемый ID
+        const searchInput = document.getElementById('searchInput');
+        const applyFiltersButton = document.getElementById('applyFilters');
+        // Select elements for filters - no immediate fetch on change
+        // const dateFilter = document.getElementById('dateFilter');
+        // const folderTypeFilter = document.getElementById('folderTypeFilter');
+        // const authorFilter = document.getElementById('authorFilter');
+        // const statusFilter = document.getElementById('statusFilter');
 
-        const triggerFetch = () => {
-            // Небольшая задержка для полей ввода, чтобы не слать запрос на каждую букву
+        const triggerFetchDebounced = () => {
             clearTimeout(this.filterTimeout);
             this.filterTimeout = setTimeout(() => {
                 this.fetchFoldersAndTestCases();
-            }, 300); // 300ms задержка
+            }, 300);
         };
 
         if (searchInput) {
-            searchInput.addEventListener('input', triggerFetch);
+            searchInput.addEventListener('input', triggerFetchDebounced);
         }
-        if (prioritySelect) {
-            prioritySelect.addEventListener('change', () => this.fetchFoldersAndTestCases());
-        }
-        if (tagsInput) {
-            // Для тегов может быть другое событие, например, 'change' или кастомное
-            tagsInput.addEventListener('change', () => this.fetchFoldersAndTestCases());
+
+        if (applyFiltersButton) {
+            applyFiltersButton.addEventListener('click', () => {
+                this.fetchFoldersAndTestCases(); // Fetch when Apply is clicked
+            });
         }
     },
 
     // Получение текущих значений фильтров
     getFilterParameters() {
         const params = new URLSearchParams();
-        const searchInput = document.getElementById('filterSearchInput');
-        const prioritySelect = document.getElementById('filterPrioritySelect');
-        const tagsInput = document.getElementById('filterTagsInput'); // Или другой элемент для тегов
+        const searchInput = document.getElementById('searchInput');
+        const dateFilter = document.getElementById('dateFilter');
+        const folderTypeFilter = document.getElementById('folderTypeFilter');
+        const authorFilter = document.getElementById('authorFilter');
+        const statusFilter = document.getElementById('statusFilter');
 
         if (searchInput && searchInput.value) {
-            params.append('search', searchInput.value);
+            params.append('search', searchInput.value.trim());
         }
-        if (prioritySelect && prioritySelect.value) {
-            params.append('priority', prioritySelect.value);
+        if (dateFilter && dateFilter.value && dateFilter.value !== 'all') {
+            params.append('date_filter', dateFilter.value);
         }
-        if (tagsInput && tagsInput.value) {
-            // Предполагаем, что теги вводятся через запятую
-            params.append('tags', tagsInput.value);
+        if (folderTypeFilter && folderTypeFilter.value && folderTypeFilter.value !== 'all') {
+            params.append('folder_type_filter', folderTypeFilter.value);
+        }
+        if (authorFilter && authorFilter.value && authorFilter.value !== 'all') {
+            params.append('author_filter', authorFilter.value);
+        }
+        if (statusFilter && statusFilter.value && statusFilter.value !== 'all') {
+            params.append('status_filter', statusFilter.value);
+        }
+        
+        return params.toString();
+    },
+
+    initializeSortingHandlers() {
+        const applySortingButton = document.getElementById('applySorting');
+        if (applySortingButton) {
+            applySortingButton.addEventListener('click', () => {
+                this.fetchFoldersAndTestCases();
+            });
+        }
+    },
+
+    getSortingParameters() {
+        const params = new URLSearchParams();
+        const sortField = document.getElementById('sortField');
+        const sortOrder = document.getElementById('sortOrder');
+
+        if (sortField && sortField.value) {
+            params.append('sort_by', sortField.value);
+        }
+        if (sortOrder && sortOrder.value) {
+            params.append('sort_order', sortOrder.value);
         }
         return params.toString();
     },
@@ -238,13 +273,27 @@ const testCaseManager = {
         }
 
         try {
-            // Получаем параметры фильтров
-            const filterParams = this.getFilterParameters();
-            const queryString = filterParams ? `?${filterParams}` : '';
+            // Получаем параметры фильтров и сортировки
+            const filterParamsString = this.getFilterParameters();
+            const sortingParamsString = this.getSortingParameters();
 
-            // Формируем URL с параметрами фильтра
+            const allParams = new URLSearchParams();
+
+            if (filterParamsString) {
+                new URLSearchParams(filterParamsString).forEach((value, key) => {
+                    allParams.append(key, value);
+                });
+            }
+            if (sortingParamsString) {
+                new URLSearchParams(sortingParamsString).forEach((value, key) => {
+                    allParams.append(key, value);
+                });
+            }
+            
+            const queryString = allParams.toString() ? `?${allParams.toString()}` : '';
+            
             const url = `${i18nConfig.API_PREFIX}/projects/${this.currentProject}/folders_and_test_cases/${queryString}`;
-            console.log('Запрос данных с URL:', url);
+            console.log('Запрос данных с URL (включая сортировку):', url);
 
             const response = await apiUtils.fetchWithAuth(url);
 
