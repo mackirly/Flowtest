@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1a1f2e">
+    <title>FlowTest - Profile</title>
+    
+    <!-- StylesheetFix - load early to prevent CORS issues with external stylesheets -->
+    <script src="js/stylesheet-fix-loader.js"></script>
+    
+    <!-- Загрузка Tailwind CSS для быстрого прототипирования -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link rel="stylesheet" href="css/tailwind-base.css">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="js/lib/cropper.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@6.6.6/css/flag-icons.min.css"/>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.2.0/flowbite.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="js/lib/cropper.min.css" />
+    <script type="module" src="js/utils/theme.js"></script>
+    <script src="js/lib/cropper.min.js"></script>
+    
+    <script>
+    // Настройка Tailwind для работы с темной темой
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        fontFamily: {
+          sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
+        },
+        extend: {
+          colors: {
+            coral: {
+              50: '#FFF5F2',
+              100: '#FFE6DF',
+              200: '#FFD2C5',
+              300: '#FFB8A5',
+              400: '#FF9B80',
+              500: '#FF7F50',
+              600: '#FF5C2B',
+              700: '#FF2D00',
+              800: '#CC2400',
+              900: '#8C1800',
+            },
+          },
+        },
+      },
+    }
+    </script>
+    
+    <style>
+        /* Custom styles for profile page */
+        .profile-nav-item {
+            border-left: 3px solid transparent;
+            transition: all 0.3s ease;
+        }
+        
+        .profile-nav-item.active {
+            border-left-color: #FF7F50;
+            background-color: rgba(255, 127, 80, 0.1);
+            color: #FF7F50;
+        }
+        
+        .profile-nav-item:hover:not(.active) {
+            border-left-color: #d1d5db;
+            background-color: rgba(209, 213, 219, 0.1);
+        }
+        
+        .dark .profile-nav-item:hover:not(.active) {
+            border-left-color: #4B5563;
+            background-color: rgba(75, 85, 99, 0.1);
+        }
+        
+        .profile-section {
+            display: none;
+        }
+        
+        .profile-section.active {
+            display: block;
+            animation: fadeIn 0.5s;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .timeline-item {
+            position: relative;
+            padding-bottom: 1.5rem;
+            padding-left: 1.5rem;
+            border-left: 2px solid #e5e7eb;
+        }
+        
+        .dark .timeline-item {
+            border-left-color: #374151;
+        }
+        
+        .timeline-item:last-child {
+            padding-bottom: 0;
+        }
+        
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -0.4375rem;
+            top: 0;
+            width: 0.875rem;
+            height: 0.875rem;
+            border-radius: 50%;
+            background-color: #FF7F50;
+            border: 2px solid #fff;
+        }
+        
+        .dark .timeline-item::before {
+            border-color: #1F2937;
+        }
+        
+        .tab-button {
+            position: relative;
+            transition: all 0.2s ease;
+        }
+        
+        .tab-button:after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            height: 2px;
+            width: 0;
+            background-color: var(--color-coral-500);
+            transition: width 0.2s ease;
+        }
+        
+        .tab-button.active:after {
+            width: 100%;
+        }
+        
+        /* Toggle switch */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 48px;
+            height: 24px;
+        }
+        
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
+        }
+        
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .slider {
+            background-color: var(--color-coral-500);
+        }
+        
+        input:focus + .slider {
+            box-shadow: 0 0 1px var(--color-coral-500);
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(24px);
+        }
+    </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900">
+    <div class="min-h-screen flex flex-col">
+        <div class="flex flex-1">
+            <!-- Sidebar -->
+            <aside class="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 hidden md:block h-screen sticky top-0">
+                <div class="p-4 sticky top-0">
+                    <img src="images/FlowTest.png" alt="Company Logo" class="h-12 w-auto mb-8" data-i18n="companyLogo">
+                    <nav class="space-y-2">
+                        <a href="index.html" class="flex items-center p-2 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-coral-50 dark:hover:bg-gray-700 hover:text-coral-600 dark:hover:text-coral-400 group">
+                            <i class="ri-dashboard-line text-xl mr-3"></i>
+                            <span data-i18n="dashboard">Панель управления</span>
+                        </a>
+
+                        <a href="test-cases.html" class="flex items-center p-2 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-coral-50 dark:hover:bg-gray-700 hover:text-coral-600 dark:hover:text-coral-400 group">
+                            <i class="ri-file-list-line text-xl mr-3"></i>
+                            <span data-i18n="testCases">Тест-кейсы</span>
+                        </a>
+
+                        <a href="reports.html" class="flex items-center p-2 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-coral-50 dark:hover:bg-gray-700 hover:text-coral-600 dark:hover:text-coral-400 group">
+                            <i class="ri-file-chart-line text-xl mr-3"></i>
+                            <span data-i18n="reports">Отчеты</span>
+                        </a>
+
+                        <a href="automation-projects.html" class="flex items-center p-2 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-coral-50 dark:hover:bg-gray-700 hover:text-coral-600 dark:hover:text-coral-400 group">
+                            <i class="ri-code-box-line text-xl mr-3"></i>
+                            <span data-i18n="automation">Автоматизация</span>
+                        </a>
+                    </nav>
+                </div>
+            </aside>
+
+            <div class="flex-1 bg-gray-50 dark:bg-gray-900 flex flex-col">
+            <!-- Header -->
+            <header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between p-4">
+                    <h1 class="text-2xl font-semibold text-gray-800 dark:text-gray-200" data-i18n="profile">Профиль</h1>
+                    <div class="flex items-center space-x-4 ml-auto">
+                
+                        <!-- Notifications -->
+                        <div id="notifications-wrapper" class="relative">
+                            <button type="button" id="notifications-button"
+                                    class="relative p-2 text-gray-600 dark:text-gray-300 hover:text-coral-600 dark:hover:text-coral-400">
+                                <span id="notification-count" class="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-coral-600 rounded-full hidden">0</span>
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                                </svg>
+                                <span class="sr-only" data-i18n="notifications">Уведомления</span>
+                            </button>
+                            <div id="notificationList" class="hidden absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg z-50">
+                                <!-- Notifications will be loaded here -->
+                                <div class="p-4 text-center text-gray-500 dark:text-gray-400">
+                                    <p data-i18n="noNotifications">Нет новых уведомлений</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- User Menu -->
+                        <div class="relative">
+                            <button id="user-menu-button" class="flex items-center space-x-2 focus:outline-none">
+                                <div id="user-avatar" class="user-avatar w-10 h-10 rounded-full bg-coral-500 flex items-center justify-center text-white overflow-hidden">
+                                    <span id="user-initials" class="text-white">U</span>
+                                    <img class="hidden w-full h-full object-cover" alt="User avatar">
+                                </div>
+                                <span id="user-name" class="inline-block text-sm text-gray-700 dark:text-gray-200" data-i18n="userPlaceholder">User</span>
+                                <i class="ri-arrow-down-s-line text-gray-500 dark:text-gray-400"></i>
+                            </button>
+                            <div id="user-dropdown" class="hidden absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg py-1 z-50">
+                                <a href="profile.html" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                    <i class="ri-user-line mr-2"></i> <span data-i18n="profile">Профиль</span>
+                                </a>
+                                <a href="settings.html" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                    <i class="ri-settings-line mr-2"></i> <span data-i18n="settings">Настройки</span>
+                                </a>
+                                <a href="admin-panel.html" id="adminPanelLink" class="hidden block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">
+                                    <i class="ri-admin-line mr-2"></i> <span data-i18n="adminPanel">Панель администратора</span>
+                                </a>
+                                <div class="border-t border-gray-200 dark:border-gray-700"></div>
+                                <button id="logout-button" class="w-full text-left block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                    <i class="ri-logout-box-line mr-2"></i> <span data-i18n="logout">Выйти</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+            
+            <!-- Main content -->
+            <main class="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900 p-4">
+                <!-- Profile content -->
+                <div class="max-w-7xl mx-auto mb-8">
+                    <!-- Profile content -->
+                    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                        <!-- Left sidebar - User info -->
+                        <div class="lg:col-span-1">
+                            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-6 transition-all duration-300 hover:shadow-lg">
+                                <div class="flex flex-col items-center">
+                                <!-- Аватар пользователя -->
+                                <div class="relative mb-5">
+                                    <div class="w-24 h-24 overflow-hidden rounded-full bg-coral-500 border-4 border-white dark:border-gray-700 shadow-lg flex items-center justify-center text-white mx-auto">
+                                        <span id="user-avatar-text" class="text-3xl font-bold">U</span>
+                                        <img id="user-avatar-image" src="" alt="User avatar" class="hidden w-full h-full object-cover">
+                                    </div>
+                                    <label for="avatar-upload" class="absolute bottom-0 right-0 bg-coral-500 hover:bg-coral-600 text-white rounded-full w-8 h-8 flex items-center justify-center cursor-pointer shadow-md transition-all duration-300">
+                                        <i class="ri-camera-line"></i>
+                                        <input type="file" id="avatar-upload" accept="image/*" class="hidden">
+                                    </label>
+                                </div>
+                                
+                                <!-- Информация о пользователе -->
+                                <h3 id="user-full-name" class="text-xl font-bold text-gray-800 dark:text-white text-center mb-1" data-i18n="userFullName">User Name</h3>
+                                <p id="user-email" class="text-sm text-gray-500 dark:text-gray-400 text-center mb-4" data-i18n="userEmail">user@example.com</p>
+                                
+                                <!-- Статус/роль пользователя -->
+                                <div class="flex justify-center mb-6">
+                                    <span id="user-role" class="px-3 py-1 bg-coral-100 text-coral-800 dark:bg-coral-900 dark:text-coral-200 rounded-full text-xs font-medium shadow-sm" data-i18n="administrator">
+                                        Administrator
+                                    </span>
+                                </div>
+                                
+                                <!-- Дополнительная информация -->
+                                <div class="border-t border-gray-200 dark:border-gray-700 pt-4 space-y-2">
+                                    <div class="flex justify-between items-center">
+                                        <p class="text-sm font-medium text-gray-700 dark:text-gray-300" data-i18n="lastActive">Last active:</p>
+                                        <p id="last-active-time" class="text-sm text-gray-500 dark:text-gray-400"><span data-i18n="rightNow">Сейчас</span></p>
+                                    </div>
+                                    <div class="flex justify-between items-center">
+                                        <p class="text-sm font-medium text-gray-700 dark:text-gray-300" data-i18n="memberSince">Member since:</p>
+                                        <p id="member-since-date" class="text-sm text-gray-500 dark:text-gray-400">Jan 15, 2025</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Меню навигации -->
+                        <div class="mt-6 bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden transition-all duration-300 hover:shadow-lg">
+                            <nav>
+                                <ul class="divide-y divide-gray-100 dark:divide-gray-700">
+                                    <li>
+                                        <a href="#personal-info" class="profile-nav-item active flex items-center text-gray-800 dark:text-gray-200 py-4 px-4 hover:bg-coral-50 dark:hover:bg-gray-700 transition-all border-l-4 border-coral-500">
+                                            <i class="ri-user-line mr-3 text-coral-500"></i>
+                                            <span data-i18n="personalInfo" class="font-medium">Personal Information</span>
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a href="#security" class="profile-nav-item flex items-center text-gray-800 dark:text-gray-200 py-4 px-4 hover:bg-coral-50 dark:hover:bg-gray-700 transition-all border-l-4 border-transparent">
+                                            <i class="ri-lock-line mr-3 text-gray-400 dark:text-gray-500"></i>
+                                            <span data-i18n="security" class="font-medium">Security</span>
+                                        </a>
+                                    </li>
+                                </ul>
+                            </nav>
+                        </div>
+                    </div>
+                    
+                    <!-- Right content area - Settings Forms -->
+                    <div class="lg:col-span-3">
+                        <!-- Personal Information Section -->
+                        <div id="personal-info" class="profile-section active bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-6 mb-6 transition-all duration-300 hover:shadow-lg">
+                            <h2 class="text-xl font-semibold mb-6 flex items-center text-gray-800 dark:text-white">
+                                <i class="ri-user-line mr-3 text-coral-500 text-2xl"></i>
+                                <span data-i18n="personalInfo">Personal Information</span>
+                            </h2>
+                    
+                            <form id="personal-info-form">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <label for="first-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2" data-i18n="firstName">First Name</label>
+                                        <div class="relative">
+                                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-500 dark:text-gray-400">
+                                                <i class="ri-user-line"></i>
+                                            </span>
+                                            <input type="text" id="first-name" name="first-name" class="w-full pl-10 px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-coral-500 focus:border-coral-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm transition-all duration-300">
+                                        </div>
+                                    </div>
+                                    
+                                    <div>
+                                        <label for="nickname" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2" data-i18n="nickname">Nickname</label>
+                                        <div class="relative">
+                                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-500 dark:text-gray-400">
+                                                <i class="ri-at-line"></i>
+                                            </span>
+                                            <input type="text" id="nickname" name="nickname" class="w-full pl-10 px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-coral-500 focus:border-coral-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm transition-all duration-300">
+                                        </div>
+                                    </div>
+                                    
+                                    <div>
+                                        <label for="last-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2" data-i18n="lastName">Last Name</label>
+                                        <div class="relative">
+                                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-500 dark:text-gray-400">
+                                                <i class="ri-user-line"></i>
+                                            </span>
+                                            <input type="text" id="last-name" name="last-name" class="w-full pl-10 px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-coral-500 focus:border-coral-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm transition-all duration-300">
+                                        </div>
+                                    </div>
+                                </div>
+                        
+                                <div class="mb-6 mt-6">
+                                    <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2" data-i18n="emailAddress">Email Address</label>
+                                    <div class="relative">
+                                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-500 dark:text-gray-400">
+                                            <i class="ri-mail-line"></i>
+                                        </span>
+                                        <input type="email" id="email" name="email" class="w-full pl-10 px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-coral-500 focus:border-coral-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm transition-all duration-300">
+                                    </div>
+                                    <p class="mt-2 text-xs text-gray-500 dark:text-gray-400" data-i18n="emailChangeInfo"><i class="ri-information-line"></i> Changing your email requires verification from your current email.</p>
+                                </div>
+                        
+                                <!-- Избыточные поля (должность, отдел, компания, часовой пояс) были удалены для упрощения интерфейса -->
+                                
+                                <div class="mb-6">
+                                    <label for="bio" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2" data-i18n="bio">Bio</label>
+                                    <div class="relative">
+                                        <span class="absolute top-3 left-3 pointer-events-none text-gray-500 dark:text-gray-400">
+                                            <i class="ri-profile-line"></i>
+                                        </span>
+                                        <textarea id="bio" name="bio" rows="4" class="w-full pl-10 pr-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-coral-500 focus:border-coral-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm transition-all duration-300" data-i18n-placeholder="bioPlaceholder" placeholder="Tell us a little about yourself..."></textarea>
+                                    </div>
+                                </div>
+                                <p class="mt-2 text-xs text-gray-500 dark:text-gray-400" data-i18n="bioDescription"><i class="ri-information-line"></i> A short biography about yourself that will be visible on your public profile.</p>
+                                
+                                <div class="flex justify-end mt-6">
+                                    <button type="submit" class="bg-coral-500 hover:bg-coral-600 text-white font-medium px-6 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-coral-500 focus:ring-offset-2 transition-all duration-300 flex items-center">
+                                        <i class="ri-save-line mr-2"></i>
+                                        <span data-i18n="saveChanges">Save Changes</span>
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                        
+                        <!-- Security Section -->
+                        <div id="security" class="profile-section bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-6 mb-6 transition-all duration-300 hover:shadow-lg hidden">
+                            <h2 class="text-xl font-semibold mb-6 flex items-center text-gray-800 dark:text-white">
+                                <i class="ri-lock-line mr-3 text-coral-500 text-2xl"></i>
+                                <span data-i18n="security">Security</span>
+                            </h2>
+                    
+                            <!-- Change Password -->
+                            <div class="mb-8">
+                                <h3 class="text-lg font-medium mb-4 text-gray-800 dark:text-white" data-i18n="changePassword">Change Password</h3>
+                                <form id="password-form">
+                                    <div class="mb-4">
+                                        <label for="current-password" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2" data-i18n="currentPassword">Current Password</label>
+                                        <div class="relative">
+                                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-500 dark:text-gray-400">
+                                                <i class="ri-lock-line"></i>
+                                            </span>
+                                            <input type="password" id="current-password" name="current_password" class="w-full pl-10 px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-coral-500 focus:border-coral-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm transition-all duration-300">
+                                            <button type="button" class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 dark:text-gray-400 password-toggle">
+                                                <i class="ri-eye-off-line"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                            
+                            <div class="mb-4">
+                                        <label for="new-password" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2" data-i18n="newPassword">New Password</label>
+                                        <div class="relative">
+                                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-500 dark:text-gray-400">
+                                                <i class="ri-lock-line"></i>
+                                            </span>
+                                            <input type="password" id="new-password" name="new_password" class="w-full pl-10 px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-coral-500 focus:border-coral-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm transition-all duration-300">
+                                            <button type="button" class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 dark:text-gray-400 password-toggle">
+                                                <i class="ri-eye-off-line"></i>
+                                            </button>
+                                        </div>
+                                        <div class="mt-1">
+                                            <div class="password-strength-meter flex mt-2">
+                                                <div class="h-1 w-1/4 rounded-l-full bg-gray-200 dark:bg-gray-600 strength-weak"></div>
+                                                <div class="h-1 w-1/4 bg-gray-200 dark:bg-gray-600 strength-medium"></div>
+                                                <div class="h-1 w-1/4 bg-gray-200 dark:bg-gray-600 strength-good"></div>
+                                                <div class="h-1 w-1/4 rounded-r-full bg-gray-200 dark:bg-gray-600 strength-excellent"></div>
+                                            </div>
+                                            <p class="text-xs mt-1 text-gray-500 dark:text-gray-400 password-strength-text"></p>
+                                        </div>
+                                    </div>
+                            
+                                    <div class="mb-4">
+                                        <label for="confirm-password" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2" data-i18n="confirmPassword">Confirm Password</label>
+                                        <div class="relative">
+                                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-500 dark:text-gray-400">
+                                                <i class="ri-lock-line"></i>
+                                            </span>
+                                            <input type="password" id="confirm-password" name="confirm_password" class="w-full pl-10 px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-coral-500 focus:border-coral-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm transition-all duration-300">
+                                            <button type="button" class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 dark:text-gray-400 password-toggle">
+                                                <i class="ri-eye-off-line"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mt-6 mb-6 bg-gray-50 dark:bg-gray-700 p-4 rounded-lg border border-gray-200 dark:border-gray-600">
+                                        <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3" data-i18n="passwordRequirements"><i class="ri-shield-check-line mr-1 text-coral-500"></i> Password requirements:</p>
+                                        <ul class="text-xs text-gray-600 dark:text-gray-400 space-y-2">
+                                            <li class="flex items-center"><i class="ri-checkbox-circle-line text-green-500 mr-2"></i> <span data-i18n="passwordReq1">At least 8 characters</span></li>
+                                            <li class="flex items-center"><i class="ri-checkbox-circle-line text-green-500 mr-2"></i> <span data-i18n="passwordReq2">At least one uppercase letter</span></li>
+                                            <li class="flex items-center"><i class="ri-checkbox-circle-line text-green-500 mr-2"></i> <span data-i18n="passwordReq3">At least one number</span></li>
+                                            <li class="flex items-center"><i class="ri-checkbox-circle-line text-green-500 mr-2"></i> <span data-i18n="passwordReq4">At least one special character</span></li>
+                                        </ul>
+                                    </div>
+                                    
+                                    <div class="flex justify-end">
+                                        <button type="submit" class="bg-coral-500 hover:bg-coral-600 text-white font-medium px-6 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-coral-500 focus:ring-offset-2 transition-all duration-300 flex items-center">
+                                            <i class="ri-save-line mr-2"></i> <span data-i18n="updatePassword">Update Password</span>
+                                        </button>
+                                    </div>
+                        </form>
+                    </div>
+                    
+                    <!-- Notifications Section -->
+                    <div id="notifications" class="profile-section bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-6 mb-6 transition-all duration-300 hover:shadow-lg hidden">
+                        <h2 class="text-xl font-semibold mb-6 flex items-center text-gray-800 dark:text-white">
+                            <i class="ri-notification-line mr-3 text-coral-500 text-2xl"></i>
+                            <span data-i18n="notifications">Notifications</span>
+                        </h2>
+                    
+                        <form id="notification-preferences-form">
+                            <!-- Email Notifications -->
+                            <div class="mb-6">
+                                <h3 class="text-lg font-medium mb-4 text-gray-700 dark:text-gray-300" data-i18n="emailNotifications">Email Notifications</h3>
+                            
+                                <div class="space-y-4">
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <p class="font-medium text-gray-800 dark:text-white" data-i18n="testCaseUpdates">Test Case Updates</p>
+                                            <p class="text-sm text-gray-500 dark:text-gray-400" data-i18n="testCaseUpdatesDesc">Receive notifications when test cases are created, updated, or deleted</p>
+                                        </div>
+                                        <label class="inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" class="sr-only peer" name="test_case_updates_email" checked>
+                                            <div class="relative w-11 h-6 bg-gray-300 dark:bg-gray-600 rounded-full peer peer-checked:bg-coral-500 peer-focus:ring-2 peer-focus:ring-coral-300 dark:peer-focus:ring-gray-700 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"></div>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                        <!-- Notifications Section -->
+                        <div id="notifications" class="profile-section bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-6 mb-6 transition-all duration-300 hover:shadow-lg hidden">
+                            <h2 class="text-xl font-semibold mb-6 flex items-center text-gray-800 dark:text-white">
+                                <i class="ri-notification-line mr-3 text-coral-500 text-2xl"></i>
+                                <span data-i18n="notifications">Notifications</span>
+                            </h2>
+                    
+                            <form id="notification-preferences-form">
+                                <!-- Email Notifications -->
+                                <div class="mb-6">
+                                    <h3 class="text-lg font-medium mb-4 text-gray-700 dark:text-gray-300" data-i18n="emailNotifications">Email Notifications</h3>
+                            
+                                    <div class="space-y-4">
+                                        <div class="flex items-center justify-between">
+                                            <div>
+                                                <p class="font-medium text-gray-800 dark:text-white" data-i18n="testCaseUpdates">Test Case Updates</p>
+                                                <p class="text-sm text-gray-500 dark:text-gray-400" data-i18n="testCaseUpdatesDesc">Receive notifications when test cases are created, updated, or deleted</p>
+                                            </div>
+                                            <label class="inline-flex items-center cursor-pointer">
+                                                <input type="checkbox" class="sr-only peer" name="test_case_updates_email" checked>
+                                                <div class="relative w-11 h-6 bg-gray-300 dark:bg-gray-600 rounded-full peer peer-checked:bg-coral-500 peer-focus:ring-2 peer-focus:ring-coral-300 dark:peer-focus:ring-gray-700 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"></div>
+                                            </label>
+                                        </div>
+                                
+                                        <div class="flex items-center justify-between">
+                                            <div>
+                                                <p class="font-medium text-gray-800 dark:text-white" data-i18n="testExecutionResults">Test Execution Results</p>
+                                                <p class="text-sm text-gray-500 dark:text-gray-400" data-i18n="testExecutionResultsDesc">Receive notifications when tests are executed and results are available</p>
+                                            </div>
+                                            <label class="inline-flex items-center cursor-pointer">
+                                                <input type="checkbox" class="sr-only peer" name="test_execution_results_email" checked>
+                                                <div class="relative w-11 h-6 bg-gray-300 dark:bg-gray-600 rounded-full peer peer-checked:bg-coral-500 peer-focus:ring-2 peer-focus:ring-coral-300 dark:peer-focus:ring-gray-700 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"></div>
+                                            </label>
+                                        </div>
+                                
+                                        <div class="flex items-center justify-between">
+                                            <div>
+                                                <p class="font-medium text-gray-800 dark:text-white" data-i18n="reportGeneration">Report Generation</p>
+                                                <p class="text-sm text-gray-500 dark:text-gray-400" data-i18n="reportGenerationDesc">Receive notifications when reports are generated</p>
+                                            </div>
+                                            <label class="inline-flex items-center cursor-pointer">
+                                                <input type="checkbox" class="sr-only peer" name="report_generation_email" checked>
+                                                <div class="relative w-11 h-6 bg-gray-300 dark:bg-gray-600 rounded-full peer peer-checked:bg-coral-500 peer-focus:ring-2 peer-focus:ring-coral-300 dark:peer-focus:ring-gray-700 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"></div>
+                                            </label>
+                                        </div>
+                                
+                                        <div class="flex items-center justify-between">
+                                            <div>
+                                                <p class="font-medium text-gray-800 dark:text-white" data-i18n="teamUpdates">Team Updates</p>
+                                                <p class="text-sm text-gray-500 dark:text-gray-400" data-i18n="teamUpdatesDesc">Receive notifications about team members joining or leaving</p>
+                                            </div>
+                                            <label class="inline-flex items-center cursor-pointer">
+                                                <input type="checkbox" class="sr-only peer" name="team_updates_email">
+                                                <div class="relative w-11 h-6 bg-gray-300 dark:bg-gray-600 rounded-full peer peer-checked:bg-coral-500 peer-focus:ring-2 peer-focus:ring-coral-300 dark:peer-focus:ring-gray-700 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"></div>
+                                            </label>
+                                        </div>
+                                
+                                        <div class="flex items-center justify-between">
+                                            <div>
+                                                <p class="font-medium text-gray-800 dark:text-white" data-i18n="systemUpdates">System Updates</p>
+                                                <p class="text-sm text-gray-500 dark:text-gray-400" data-i18n="systemUpdatesDesc">Receive notifications about system updates and maintenance</p>
+                                            </div>
+                                            <label class="inline-flex items-center cursor-pointer">
+                                                <input type="checkbox" class="sr-only peer" name="system_updates_email" checked>
+                                                <div class="relative w-11 h-6 bg-gray-300 dark:bg-gray-600 rounded-full peer peer-checked:bg-coral-500 peer-focus:ring-2 peer-focus:ring-coral-300 dark:peer-focus:ring-gray-700 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"></div>
+                                            </label>
+                                        </div>
+                                        
+                                        <div class="flex items-center justify-between">
+                                            <div>
+                                                <p class="font-medium text-gray-800 dark:text-white" data-i18n="marketingEmails">Marketing Emails</p>
+                                                <p class="text-sm text-gray-500 dark:text-gray-400" data-i18n="marketingEmailsDesc">Receive promotional emails about new features and offers</p>
+                                            </div>
+                                            <label class="inline-flex items-center cursor-pointer">
+                                                <input type="checkbox" class="sr-only peer" name="marketing_emails">
+                                                <div class="relative w-11 h-6 bg-gray-300 dark:bg-gray-600 rounded-full peer peer-checked:bg-coral-500 peer-focus:ring-2 peer-focus:ring-coral-300 dark:peer-focus:ring-gray-700 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"></div>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="flex justify-end mt-6">
+                                        <button type="submit" class="bg-coral-500 hover:bg-coral-600 text-white font-medium px-6 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-coral-500 focus:ring-offset-2 transition-all duration-300 flex items-center">
+                                            <i class="ri-save-line mr-2"></i> <span data-i18n="saveChanges">Save Changes</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        
+                        <!-- In-App Notifications -->
+                        <div id="in-app-notifications" class="mt-6 mb-6">
+                            <h3 class="text-lg font-medium mb-4 text-gray-700 dark:text-gray-300 pb-2 border-b border-gray-200 dark:border-gray-700" data-i18n="inAppNotifications">In-App Notifications</h3>
+                            
+                            <form id="in-app-notification-form">
+                                <div class="space-y-4">
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <p class="font-medium text-gray-800 dark:text-white" data-i18n="testCaseUpdates">Test Case Updates</p>
+                                            <p class="text-sm text-gray-500 dark:text-gray-400" data-i18n="testCaseUpdatesDesc">Receive notifications when test cases are created, updated, or deleted</p>
+                                        </div>
+                                        <label class="inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" class="sr-only peer" name="test_case_updates_app" checked>
+                                            <div class="relative w-11 h-6 bg-gray-300 dark:bg-gray-600 rounded-full peer peer-checked:bg-coral-500 peer-focus:ring-2 peer-focus:ring-coral-300 dark:peer-focus:ring-gray-700 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"></div>
+                                        </label>
+                                    </div>
+                                
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <p class="font-medium text-gray-800 dark:text-white" data-i18n="testExecutionResults">Test Execution Results</p>
+                                            <p class="text-sm text-gray-500 dark:text-gray-400" data-i18n="testExecutionResultsDesc">Receive notifications when tests are executed and results are available</p>
+                                        </div>
+                                        <label class="inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" class="sr-only peer" name="test_execution_results_app" checked>
+                                            <div class="relative w-11 h-6 bg-gray-300 dark:bg-gray-600 rounded-full peer peer-checked:bg-coral-500 peer-focus:ring-2 peer-focus:ring-coral-300 dark:peer-focus:ring-gray-700 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"></div>
+                                        </label>
+                                    </div>
+                                
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <p class="font-medium text-gray-800 dark:text-white" data-i18n="reportGeneration">Report Generation</p>
+                                            <p class="text-sm text-gray-500 dark:text-gray-400" data-i18n="reportGenerationDesc">Receive notifications when reports are generated</p>
+                                        </div>
+                                        <label class="inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" class="sr-only peer" name="report_generation_app" checked>
+                                            <div class="relative w-11 h-6 bg-gray-300 dark:bg-gray-600 rounded-full peer peer-checked:bg-coral-500 peer-focus:ring-2 peer-focus:ring-coral-300 dark:peer-focus:ring-gray-700 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"></div>
+                                        </label>
+                                    </div>
+                                
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <p class="font-medium text-gray-800 dark:text-white" data-i18n="teamUpdates">Team Updates</p>
+                                            <p class="text-sm text-gray-500 dark:text-gray-400" data-i18n="teamUpdatesDesc">Receive notifications about team members joining or leaving</p>
+                                        </div>
+                                         <label class="inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" class="sr-only peer" name="team_updates_app" checked>
+                                            <div class="relative w-11 h-6 bg-gray-300 dark:bg-gray-600 rounded-full peer peer-checked:bg-coral-500 peer-focus:ring-2 peer-focus:ring-coral-300 dark:peer-focus:ring-gray-700 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"></div>
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <div class="flex justify-end mt-6">
+                                    <button type="submit" class="bg-coral-500 hover:bg-coral-600 text-white font-medium px-6 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-coral-500 focus:ring-offset-2 transition-all duration-300 flex items-center">
+                                        <i class="ri-save-line mr-2"></i> <span data-i18n="saveChanges">Save Changes</span>
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    
+                    <!-- Notification Schedule -->
+                    <div id="notification-schedule" class="profile-section bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-6 mb-6 transition-all duration-300 hover:shadow-lg hidden">
+                        <h2 class="text-xl font-semibold mb-6 flex items-center text-gray-800 dark:text-white">
+                            <i class="ri-time-line mr-3 text-coral-500 text-2xl"></i>
+                            <span data-i18n="notificationSchedule">Notification Schedule</span>
+                        </h2>
+                        
+                        <form id="notification-schedule-form">
+                            <div class="mb-4">
+                                <label for="notification-time" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2" data-i18n="digestEmails">Digest Emails</label>
+                                <div class="relative">
+                                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-500 dark:text-gray-400">
+                                        <i class="ri-mail-line"></i>
+                                    </span>
+                                    <select id="notification-time" name="notification_schedule" class="w-full pl-10 px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-coral-500 focus:border-coral-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm transition-all duration-300">
+                                        <option value="immediately" data-i18n="immediately">Send Immediately</option>
+                                        <option value="daily" selected data-i18n="dailyDigest">Daily Digest</option>
+                                        <option value="weekly" data-i18n="weeklyDigest">Weekly Digest</option>
+                                        <option value="never" data-i18n="never">Never</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div id="digest-time-container" class="mb-6">
+                                <label for="digest-time" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2" data-i18n="digestTime">Digest Time</label>
+                                <div class="relative">
+                                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-500 dark:text-gray-400">
+                                        <i class="ri-time-line"></i>
+                                    </span>
+                                    <select id="digest-time" name="digest_time" class="w-full pl-10 px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-coral-500 focus:border-coral-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm transition-all duration-300">
+                                        <option value="00:00">12:00 AM</option>
+                                        <option value="06:00">6:00 AM</option>
+                                        <option value="08:00" selected>8:00 AM</option>
+                                        <option value="12:00">12:00 PM</option>
+                                        <option value="18:00">6:00 PM</option>
+                                        <option value="20:00">8:00 PM</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="flex justify-end mt-6">
+                                <button type="submit" class="bg-coral-500 hover:bg-coral-600 text-white font-medium px-6 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-coral-500 focus:ring-offset-2 transition-all duration-300 flex items-center">
+                                    <i class="ri-save-line mr-2"></i> <span data-i18n="saveChanges">Save Changes</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <div class="flex justify-end hidden">
+                            <button type="submit" class="px-4 py-2 bg-coral-500 text-white rounded-lg hover:bg-coral-600 focus:outline-none focus:ring-4 focus:ring-coral-300">
+                                <span data-i18n="savePreferences">Save Preferences</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                
+                <!-- API Keys Section -->
+                <div id="api-keys" class="profile-section bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-6 mb-6 transition-all hover:shadow-lg hidden">
+                    <h2 class="text-xl font-semibold mb-6 flex items-center">
+                        <i class="ri-key-line mr-2 text-coral-500"></i>
+                        <span data-i18n="apiKeys">API Keys</span>
+                    </h2>
+                    
+                    <div class="mb-6">
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4" data-i18n="apiKeysDesc">
+                            API keys allow you to authenticate with the FlowTest API programmatically. Be careful with these keys as they grant access to your account.
+                        </p>
+                        
+                        <button id="create-api-key-button" class="mb-6 px-4 py-2 bg-coral-500 text-white rounded-lg hover:bg-coral-600 focus:outline-none focus:ring-4 focus:ring-coral-300">
+                            <i class="ri-add-line mr-1"></i>
+                            <span data-i18n="createNewKey">Create New Key</span>
+                        </button>
+                        
+                        <!-- API Keys List -->
+                        <div id="api-keys-list" class="space-y-4">
+                            <div class="p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+                                <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-3">
+                                    <div class="mb-2 md:mb-0">
+                                        <p class="font-medium">Test Automation Key</p>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">Created on May 12, 2025</p>
+                                    </div>
+                                    <div class="flex space-x-2">
+                                        <span class="px-3 py-1 bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded-full text-xs">
+                                            <span data-i18n="active">Active</span>
+                                        </span>
+                                        <button class="text-red-500 hover:text-red-600 dark:hover:text-red-400">
+                                            <i class="ri-close-circle-line"></i> <span data-i18n="revoke">Revoke</span>
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="api-key-container bg-gray-100 dark:bg-gray-700 rounded p-2 flex items-center justify-between">
+                                    <code class="api-key-value text-xs md:text-sm break-all">••••••••••••••••••••••••••••••</code>
+                                    <button class="ml-2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300" title="Copy API Key">
+                                        <i class="ri-clipboard-line"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+                                <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-3">
+                                    <div class="mb-2 md:mb-0">
+                                        <p class="font-medium">Jenkins Integration</p>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">Created on May 05, 2025</p>
+                                    </div>
+                                    <div class="flex space-x-2">
+                                        <span class="px-3 py-1 bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded-full text-xs">
+                                            <span data-i18n="active">Active</span>
+                                        </span>
+                                        <button class="text-red-500 hover:text-red-600 dark:hover:text-red-400">
+                                            <i class="ri-close-circle-line"></i> <span data-i18n="revoke">Revoke</span>
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="api-key-container bg-gray-100 dark:bg-gray-700 rounded p-2 flex items-center justify-between">
+                                    <code class="api-key-value text-xs md:text-sm break-all">••••••••••••••••••••••••••••••</code>
+                                    <button class="ml-2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300" title="Copy API Key">
+                                        <i class="ri-clipboard-line"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- API Documentation -->
+                    <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                        <h3 class="text-lg font-medium mb-4" data-i18n="apiDocumentation">API Documentation</h3>
+                        
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4" data-i18n="apiDocDesc">
+                            Learn how to use the FlowTest API to automate your testing workflow and integrate with your development tools.
+                        </p>
+                        
+                        <div class="flex space-x-2">
+                            <a href="#" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-4 focus:ring-gray-300">
+                                <i class="ri-book-open-line mr-1"></i>
+                                <span data-i18n="viewDocumentation">View Documentation</span>
+                            </a>
+                            
+                            <a href="#" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-4 focus:ring-gray-300">
+                                <i class="ri-code-box-line mr-1"></i>
+                                <span data-i18n="apiReference">API Reference</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Activity Section -->
+                <div id="activity" class="profile-section bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-6 mb-6 transition-all hover:shadow-lg hidden">
+                    <h2 class="text-xl font-semibold mb-6 flex items-center">
+                        <i class="ri-history-line mr-2 text-coral-500"></i>
+                        <span data-i18n="activity">Activity</span>
+                    </h2>
+                    
+                    <!-- Activity Filters -->
+                    <div class="flex flex-wrap items-center mb-6 gap-2">
+                        <div class="flex-grow">
+                            <input type="text" id="activity-search" placeholder="Search activity..." data-i18n-placeholder="searchActivity" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-gray-50 dark:bg-gray-700">
+                        </div>
+                        
+                        <div>
+                            <select id="activity-filter" class="px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-gray-50 dark:bg-gray-700">
+                                <option value="all" data-i18n="allActivity">All Activity</option>
+                                <option value="test_cases" data-i18n="testCases">Test Cases</option>
+                                <option value="reports" data-i18n="reports">Reports</option>
+                                <option value="auth" data-i18n="authentication">Authentication</option>
+                                <option value="settings" data-i18n="settings">Settings</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <button id="clear-activity-filter" class="px-3 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-300">
+                                <i class="ri-refresh-line"></i>
+                                <span class="sr-only" data-i18n="reset">Reset</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Activity Timeline -->
+                    <div id="activity-timeline" class="space-y-6">
+                        <div class="timeline-item">
+                            <div class="mb-1 flex items-center">
+                                <span class="font-medium" data-i18n="testCaseUpdated">Test Case Updated</span>
+                                <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">2 hours ago</span>
+                            </div>
+                            <p class="text-sm">Updated test case <a href="#" class="text-coral-500 hover:underline">TC-1024: Login Validation</a></p>
+                        </div>
+                        
+                        <div class="timeline-item">
+                            <div class="mb-1 flex items-center">
+                                <span class="font-medium" data-i18n="reportGenerated">Report Generated</span>
+                                <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">Yesterday at 3:45 PM</span>
+                            </div>
+                            <p class="text-sm">Generated <a href="#" class="text-coral-500 hover:underline">Test Execution Report</a> for project <a href="#" class="text-coral-500 hover:underline">E-Commerce Website</a></p>
+                        </div>
+                        
+                        <div class="timeline-item">
+                            <div class="mb-1 flex items-center">
+                                <span class="font-medium" data-i18n="testCaseCreated">Test Case Created</span>
+                                <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">Yesterday at 2:30 PM</span>
+                            </div>
+                            <p class="text-sm">Created new test case <a href="#" class="text-coral-500 hover:underline">TC-1025: Payment Processing</a></p>
+                        </div>
+                        
+                        <div class="timeline-item">
+                            <div class="mb-1 flex items-center">
+                                <span class="font-medium" data-i18n="testExecuted">Test Executed</span>
+                                <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">May 14, 2025</span>
+                            </div>
+                            <p class="text-sm">Executed test case <a href="#" class="text-coral-500 hover:underline">TC-1020: User Registration</a> with result <span class="text-green-500 font-medium">Passed</span></p>
+                        </div>
+                        
+                        <div class="timeline-item">
+                            <div class="mb-1 flex items-center">
+                                <span class="font-medium" data-i18n="passwordChanged">Password Changed</span>
+                                <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">May 10, 2025</span>
+                            </div>
+                            <p class="text-sm" data-i18n="passwordChangedDesc">Your account password was changed successfully</p>
+                        </div>
+                        
+                        <div class="timeline-item">
+                            <div class="mb-1 flex items-center">
+                                <span class="font-medium" data-i18n="loginSuccessful">Login Successful</span>
+                                <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">May 10, 2025</span>
+                            </div>
+                            <p class="text-sm">Login from <span class="font-medium">192.168.1.1</span> using <span class="font-medium">Chrome on Windows</span></p>
+                        </div>
+                    </div>
+                    
+                    <!-- Load More Button -->
+                    <div class="mt-6 text-center">
+                        <button id="load-more-activity" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-4 focus:ring-gray-300">
+                            <span data-i18n="loadMore">Load More</span>
+                            <i class="ri-arrow-down-line ml-1"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- Footer -->
+    <footer class="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 py-4 mt-auto">
+        <div class="container mx-auto px-4">
+            <div class="flex flex-col md:flex-row items-center justify-between">
+                <p class="text-gray-600 dark:text-gray-400 text-sm">&copy; 2025 FlowTest 2.0. All rights reserved.</p>
+                <div class="flex space-x-4 mt-4 md:mt-0">
+                    <a href="#" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 text-sm" data-i18n="privacyPolicy">Privacy Policy</a>
+                    <a href="#" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 text-sm" data-i18n="termsOfService">Terms of Service</a>
+                    <a href="#" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 text-sm" data-i18n="contact">Contact</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+            </div>
+        </div>
+    
+    <!-- Create API Key Modal -->
+    <div id="create-api-key-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 items-center justify-center">
+        <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow max-w-md w-full">
+            <div class="p-6">
+                <button id="close-api-key-modal" class="absolute top-3 right-3 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
+                    <i class="ri-close-line text-2xl"></i>
+                </button>
+                <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-6" data-i18n="createNewApiKey">Create New API Key</h3>
+                
+                <form id="create-api-key-form">
+                    <div class="mb-4">
+                        <label for="api-key-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" data-i18n="keyName">Key Name</label>
+                        <input type="text" id="api-key-name" name="name" required placeholder="e.g. Test Automation" data-i18n-placeholder="keyNamePlaceholder"
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700">
+                    </div>
+                    
+                    <div class="mb-6">
+                        <label for="api-key-expiry" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" data-i18n="expiration">Expiration</label>
+                        <select id="api-key-expiry" name="expiry" 
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700">
+                            <option value="30" data-i18n="30days">30 days</option>
+                            <option value="60" data-i18n="60days">60 days</option>
+                            <option value="90" data-i18n="90days">90 days</option>
+                            <option value="never" data-i18n="noExpiration">No expiration</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-6">
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-2" data-i18n="apiKeyWarning">API keys grant full access to your account. Keep them secure and don't share them with anyone.</p>
+                    </div>
+                    
+                    <div class="flex justify-end space-x-3">
+                        <button type="button" id="cancel-api-key-button" 
+                            class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-4 focus:ring-gray-300" 
+                            data-i18n="cancel">Cancel</button>
+                        <button type="submit" 
+                            class="px-4 py-2 bg-coral-500 text-white rounded-lg hover:bg-coral-600 focus:outline-none focus:ring-4 focus:ring-coral-300" 
+                            data-i18n="create">Create</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- New API Key Modal -->
+    <div id="new-api-key-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 items-center justify-center">
+        <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow max-w-md w-full">
+            <div class="p-6">
+                <button id="close-new-api-key-modal" class="absolute top-3 right-3 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
+                    <i class="ri-close-line text-2xl"></i>
+                </button>
+                <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-6" data-i18n="apiKeyCreated">API Key Created</h3>
+                
+                <div class="mb-6">
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4" data-i18n="apiKeyCreatedDesc">
+                        Your new API key has been created. Please copy and store it securely. For security reasons, you won't be able to view it again.
+                    </p>
+                    
+                    <div class="api-key-container bg-gray-100 dark:bg-gray-700 rounded p-3 flex items-center justify-between">
+                        <code id="new-api-key-value" class="text-xs md:text-sm break-all">API_KEY_VALUE_HERE</code>
+                        <button id="copy-api-key-button" class="ml-2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300" title="Copy API Key">
+                            <i class="ri-clipboard-line"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="flex justify-end">
+                    <button id="done-api-key-button" 
+                        class="px-4 py-2 bg-coral-500 text-white rounded-lg hover:bg-coral-600 focus:outline-none focus:ring-4 focus:ring-coral-300" 
+                        data-i18n="done">Done</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Avatar Crop Modal -->
+    <div id="avatar-crop-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center hidden">
+        <style>
+            .cropper-container {
+                direction: ltr;
+                font-size: 0;
+                line-height: 0;
+                position: relative;
+                touch-action: none;
+                user-select: none;
+                max-width: 100%;
+                max-height: 80vh;
+            }
+            .cropper-container img {
+                display: block;
+                height: 100%;
+                max-width: 100%;
+                max-height: 80vh;
+                image-orientation: 0deg;
+            }
+            .cropper-wrap-box {
+                overflow: hidden;
+            }
+            .cropper-canvas {
+                overflow: hidden;
+            }
+            .cropper-view-box {
+                display: block;
+                height: 100%;
+                outline: 1px solid #39f;
+                outline-color: rgb(255, 127, 80);
+                overflow: hidden;
+                width: 100%;
+            }
+            .cropper-face {
+                background-color: #fff;
+                left: 0;
+                opacity: 0.1;
+                position: absolute;
+                top: 0;
+            }
+            .cropper-line {
+                background-color: rgb(255, 127, 80);
+                display: block;
+                height: 100%;
+                opacity: 0.1;
+                position: absolute;
+                width: 100%;
+            }
+            .cropper-view-box {
+                box-shadow: 0 0 0 1px rgb(255, 127, 80);
+            }
+        </style>
+        <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow max-w-2xl w-full mx-4">
+            <div class="p-6">
+                <button id="close-avatar-crop-modal" class="absolute top-3 right-3 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
+                    <i class="ri-close-line text-2xl"></i>
+                </button>
+                <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-6">Выберите область для аватара</h3>
+                
+                <div class="mb-6">
+                    <div class="overflow-hidden max-h-[60vh]">
+                        <img id="avatar-to-crop" src="" alt="Выбранное изображение" class="max-w-full max-h-[60vh] object-contain">
+                    </div>
+                </div>
+                
+                <div class="flex justify-between">
+                    <button id="cancel-avatar-crop-button" 
+                        class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-4 focus:ring-gray-300">Отмена</button>
+                    <button id="save-avatar-crop-button" 
+                        class="px-4 py-2 bg-coral-500 text-white rounded-lg hover:bg-coral-600 focus:outline-none focus:ring-4 focus:ring-coral-300">Сохранить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <!-- Загружаем Cropper.js перед нашими модулями -->
+    <script src="js/lib/cropper.min.js"></script>
+    
+    <!-- Загружаем наши модули -->
+    <script type="module" src="js/utils/toast.js"></script>
+    <script type="module" src="js/i18n/translations.js"></script>
+    <script type="module" src="js/i18n/i18n.js"></script>
+    <script type="module" src="js/pages/profile.js" onerror="alert('Error loading profile.js')"></script>
+    <script>
+        console.log('Cropper.js is loaded:', typeof Cropper !== 'undefined');
+        window.addEventListener('error', function(e) {
+            console.error('Script error:', e.message, e);
+        });
+    </script>
+
+
+</body>
+</html>

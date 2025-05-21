@@ -1,0 +1,25 @@
+{
+  "name": "flowtest-frontend",
+  "version": "2.0.0",
+  "description": "Frontend for FlowTest 2.0",
+  "scripts": {
+    "dev": "tailwindcss -i ./css/tailwind.css -o ./css/output.css --watch",
+    "build": "tailwindcss -i ./css/tailwind.css -o ./css/output.css --minify",
+    "serve": "npx serve -s .",
+    "test:avatar": "mocha test_avatar_upload.js --timeout 30000"
+  },
+  "dependencies": {
+    "chart.js": "^4.4.1",
+    "highlight.js": "^11.9.0",
+    "marked": "^9.1.5"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.16",
+    "postcss": "^8.4.31",
+    "postcss-cli": "^10.1.0",
+    "serve": "^14.2.1",
+    "tailwindcss": "^3.3.5",
+    "mocha": "^10.2.0",
+    "puppeteer": "^21.5.2"
+  }
+}

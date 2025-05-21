@@ -1,0 +1,1206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#ffffff" class="light-theme">
+    <meta name="theme-color" content="#1a1f2e" class="dark-theme" disabled>
+    <title>FlowTest - Settings</title>
+    <!-- StylesheetFix - load early to prevent CORS issues with external stylesheets -->
+    <script src="js/stylesheet-fix-loader.js"></script>
+    
+    <!-- Загрузка Tailwind CSS для быстрого прототипирования -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link rel="stylesheet" href="css/tailwind-base.css">
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@6.6.6/css/flag-icons.min.css"/>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.2.0/flowbite.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/settings-light-override.css">
+    <link rel="stylesheet" href="css/settings-nav-fix.css">
+    <script type="module" src="js/utils/theme.js"></script>
+    <style>
+        /* Tab styling */
+        .tab-button {
+            position: relative;
+            transition: all 0.2s ease;
+        }
+        
+        .tab-button:after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            height: 2px;
+            width: 0;
+            background-color: var(--color-coral-500);
+            transition: width 0.2s ease;
+        }
+        
+        .tab-button.active:after {
+            width: 100%;
+        }
+        
+        /* Toggle switch */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 48px;
+            height: 24px;
+        }
+        
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
+        }
+        
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .slider {
+            background-color: var(--color-coral-500);
+        }
+        
+        input:focus + .slider {
+            box-shadow: 0 0 1px var(--color-coral-500);
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(24px);
+        }
+        
+        /* Repository card */
+        .repository-card {
+            transition: all 0.3s ease;
+        }
+        
+        .repository-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* Repository connection log */
+        .connection-log {
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.8rem;
+            background-color: #0f172a;
+            color: #e2e8f0;
+            padding: 10px;
+            border-radius: 0.375rem;
+        }
+        
+        .log-message {
+            margin-bottom: 4px;
+            padding-left: 20px;
+            position: relative;
+        }
+        
+        .log-message:before {
+            content: ">";
+            position: absolute;
+            left: 5px;
+            color: #64748b;
+        }
+        
+        .log-info {
+            color: #93c5fd;
+        }
+        
+        .log-success {
+            color: #86efac;
+        }
+        
+        .log-warning {
+            color: #fde047;
+        }
+        
+        .log-error {
+            color: #fca5a5;
+        }
+        
+        /* Badge styles */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            font-size: 0.75rem;
+            font-weight: 500;
+            border-radius: 9999px;
+            padding: 0.125rem 0.5rem;
+        }
+        
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.3s ease forwards;
+        }
+        
+        /* Settings sections */
+        .settings-section {
+            transition: all 0.3s ease;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 light-mode">
+    <script>
+        // Force light mode by default on page load
+        document.documentElement.classList.remove('dark');
+        // Set data attribute for Flowbite
+        document.documentElement.removeAttribute('data-flowbite-dark');
+        
+        // Используем MutationObserver для отслеживания изменений в DOM
+        document.addEventListener('DOMContentLoaded', function() {
+            // Целевой элемент для наблюдения - контейнер с навигацией
+            const targetNode = document.querySelector('.lg\\:col-span-1');
+            if (!targetNode) return;
+            
+            // Конфигурация observer - наблюдаем за изменениями атрибутов и дочерних элементов
+            const config = { 
+                attributes: true, 
+                childList: true, 
+                subtree: true,
+                attributeFilter: ['class'] 
+            };
+            
+            // Функция обратного вызова, которая выполняется при обнаружении изменений
+            const callback = function(mutationsList, observer) {
+                for (const mutation of mutationsList) {
+                    // Если изменились классы
+                    if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                        const element = mutation.target;
+                        if (element.classList.contains('active') && element.classList.contains('settings-nav-link')) {
+                            // Если элемент - не текущий активный, удаляем класс active
+                            const currentHash = window.location.hash.substring(1) || 'general';
+                            const linkHash = element.getAttribute('href')?.substring(1);
+                            
+                            if (linkHash !== currentHash) {
+                                element.classList.remove('active');
+                                element.style.backgroundColor = '';
+                                element.style.color = '';
+                            }
+                        }
+                    }
+                }
+            };
+            
+            // Создаем экземпляр MutationObserver с обратным вызовом
+            const observer = new MutationObserver(callback);
+            
+            // Начинаем наблюдение за целевым элементом с заданной конфигурацией
+            observer.observe(targetNode, config);
+            
+            // Также сохраняем периодический таймер как запасной вариант
+            setInterval(() => {
+                const currentHash = window.location.hash.substring(1) || 'general';
+                
+                document.querySelectorAll('.settings-nav-link').forEach(link => {
+                    const linkHash = link.getAttribute('href')?.substring(1);
+                    if (linkHash !== currentHash) {
+                        link.classList.remove('active');
+                        link.style.backgroundColor = '';
+                        link.style.color = '';
+                    }
+                });
+            }, 100);
+        });
+        
+        // Add inline style to override any hover styles
+        const style = document.createElement('style');
+        style.textContent = `
+            /* Полностью отключаем стили для класса active в навигации */
+            .settings-nav-link.active {
+                background-color: transparent !important;
+                color: inherit !important;
+            }
+            
+            /* Явное указание стилей для активного элемента навигации по хэшу */
+            .settings-nav-link[href="#${window.location.hash.substring(1) || 'general'}"] {
+                background-color: #fff5f2 !important;
+                color: #ff6347 !important;
+            }
+            
+            /* Стили для наведения на неактивные элементы */
+            .settings-nav-link:not([href="#${window.location.hash.substring(1) || 'general'}"]):hover {
+                background-color: #f3f4f6 !important;
+                color: #111827 !important;
+            }
+            
+            /* Сброс всех стилей для элементов с классом active */
+            aside a.active, 
+            .settings-nav-link.active {
+                background-color: transparent !important;
+                color: inherit !important;
+            }
+            
+            /* Исправляем фокусное состояние для форм */
+            input:focus, 
+            select:focus, 
+            textarea:focus {
+                border-color: #3b82f6 !important;
+                box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+                outline: none !important;
+            }
+        `;
+        document.head.appendChild(style);
+        
+        // Добавляем обработчик изменения хэша URL
+        window.addEventListener('hashchange', function() {
+            // Получаем новый хэш и создаем новые стили
+            const currentHash = window.location.hash.substring(1) || 'general';
+            const newStyle = document.createElement('style');
+            newStyle.textContent = `
+                .settings-nav-link.active {
+                    background-color: transparent !important;
+                    color: inherit !important;
+                }
+                
+                .settings-nav-link[href="#${currentHash}"] {
+                    background-color: #fff5f2 !important;
+                    color: #ff6347 !important;
+                }
+                
+                .settings-nav-link:not([href="#${currentHash}"]):hover {
+                    background-color: #f3f4f6 !important;
+                    color: #111827 !important;
+                }
+            `;
+            document.head.appendChild(newStyle);
+        });
+    </script>
+    <div class="min-h-screen flex flex-col">
+        <div class="flex flex-1">
+            <!-- Sidebar -->
+            <aside class="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 hidden md:block">
+            <div class="p-4 sticky top-0">
+                <img src="images/FlowTest.png" alt="Company Logo" class="h-12 w-auto mb-8" data-i18n="companyLogo">
+                <nav class="space-y-2">
+                    <a href="index.html" class="flex items-center p-2 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-coral-50 dark:hover:bg-gray-700 hover:text-coral-600 dark:hover:text-coral-400 group">
+                        <i class="ri-dashboard-line text-xl mr-3"></i>
+                        <span data-i18n="dashboard">Панель управления</span>
+                    </a>
+
+                    <a href="test-cases.html" class="flex items-center p-2 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-coral-50 dark:hover:bg-gray-700 hover:text-coral-600 dark:hover:text-coral-400 group">
+                        <i class="ri-file-list-line text-xl mr-3"></i>
+                        <span data-i18n="testCases">Тест-кейсы</span>
+                    </a>
+
+                    <a href="reports.html" class="flex items-center p-2 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-coral-50 dark:hover:bg-gray-700 hover:text-coral-600 dark:hover:text-coral-400 group">
+                        <i class="ri-file-chart-line text-xl mr-3"></i>
+                        <span data-i18n="reports">Отчеты</span>
+                    </a>
+
+                    <a href="automation-projects.html" class="flex items-center p-2 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-coral-50 dark:hover:bg-gray-700 hover:text-coral-600 dark:hover:text-coral-400 group">
+                        <i class="ri-code-box-line text-xl mr-3"></i>
+                        <span data-i18n="automation">Автоматизация</span>
+                    </a>
+                    
+                    <a href="settings.html" class="flex items-center p-2 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-coral-50 dark:hover:bg-gray-700 hover:text-coral-600 dark:hover:text-coral-400 group bg-coral-50 dark:bg-gray-700 text-coral-600 dark:text-coral-400">
+                        <i class="ri-settings-line text-xl mr-3"></i>
+                        <span data-i18n="settings">Настройки</span>
+                    </a>
+                </nav>
+            </div>
+        </aside>
+
+        <div class="flex-1 bg-gray-50 dark:bg-gray-900">
+            <!-- Header -->
+            <header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between p-4">
+                    <h1 class="text-2xl font-semibold text-gray-800 dark:text-gray-200" data-i18n="systemSettings">Системные настройки</h1>
+                    <div class="flex items-center space-x-4 ml-auto">
+                        <!-- Notifications -->
+                        <div id="notifications-wrapper" class="relative">
+                            <button type="button" id="notifications-button"
+                                    class="relative p-2 text-gray-600 dark:text-gray-300 hover:text-coral-600 dark:hover:text-coral-400">
+                                <span id="notification-count" class="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-coral-600 rounded-full hidden">0</span>
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                                </svg>
+                                <span class="sr-only" data-i18n="notifications">Уведомления</span>
+                            </button>
+                        </div>
+
+                        <!-- User Menu -->
+                        <div class="relative" id="user-dropdown-wrapper">
+                            <button type="button" id="user-menu-button" class="flex items-center space-x-2">
+                                <div id="user-avatar" class="w-10 h-10 rounded-full overflow-hidden bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
+                                    <span id="user-initials" class="text-xl font-medium text-gray-700 dark:text-gray-300">JD</span>
+                                </div>
+                                <span id="user-name" class="hidden sm:block text-sm font-medium text-gray-700 dark:text-gray-300">John Doe</span>
+                                <svg class="-mr-1 h-5 w-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </header>
+    
+    <!-- Main content -->
+    <div class="flex-grow">
+    <main class="container mx-auto px-4 py-6 pb-20">
+        
+        <!-- Settings content -->
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <!-- Left sidebar - Settings menu -->
+            <div class="lg:col-span-1">
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                    <nav class="space-y-1">
+                        <a href="#general" class="settings-nav-link flex items-center text-gray-800 dark:text-gray-200 py-3 px-4 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i class="ri-settings-line mr-3 text-coral-500"></i>
+                            <span data-i18n="general">Общие</span>
+                        </a>
+                        <a href="#users" class="settings-nav-link flex items-center text-gray-800 dark:text-gray-200 py-3 px-4 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i class="ri-user-settings-line mr-3 text-coral-500"></i>
+                            <span data-i18n="userManagement">Управление пользователями</span>
+                        </a>
+                        <a href="#repositories" class="settings-nav-link flex items-center text-gray-800 dark:text-gray-200 py-3 px-4 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <i class="ri-git-repository-line mr-3 text-coral-500"></i>
+                            <span data-i18n="repositories">Репозитории</span>
+                        </a>
+                    </nav>
+                </div>
+            </div>
+            
+            <!-- Right content area - Settings Forms -->
+            <div class="lg:col-span-3">
+                <!-- General Settings Section -->
+                <div id="general" class="settings-section bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6 block text-gray-800 dark:text-white">
+                    <h2 class="text-xl font-semibold mb-6 flex items-center">
+                        <i class="ri-settings-line mr-2 text-coral-500"></i>
+                        <span data-i18n="general">General</span>
+                    </h2>
+                    
+                    <form id="general-settings-form">
+                        <!-- System Name -->
+                        <div class="mb-4">
+                            <label for="system-name" class="block text-sm font-medium mb-1" data-i18n="systemName">System Name</label>
+                            <input type="text" id="system-name" name="system_name" value="FlowTest" 
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-white">
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400" data-i18n="systemNameDesc">This name will be displayed in the application title and emails.</p>
+                        </div>
+                        
+                        <!-- Default Languages -->
+                        <div class="mb-4">
+                            <label for="default-language" class="block text-sm font-medium mb-1" data-i18n="defaultLanguage">Default Language</label>
+                            <select id="default-language" name="default_language" 
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-white">
+                                <option value="en" selected>English</option>
+                                <option value="ru">Русский</option>
+                                <option value="de">Deutsch</option>
+                            </select>
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400" data-i18n="defaultLanguageDesc">This language will be used for new users and anonymous sessions.</p>
+                        </div>
+                        
+                        <!-- Default Theme -->
+                        <div class="mb-4">
+                            <label for="default-theme" class="block text-sm font-medium mb-1" data-i18n="defaultTheme">Default Theme</label>
+                            <select id="default-theme" name="default_theme" 
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-white">
+                                <option value="light" selected data-i18n="light">Light</option>
+                                <option value="dark" data-i18n="dark">Dark</option>
+                                <option value="system" data-i18n="system">System</option>
+                            </select>
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400" data-i18n="defaultThemeDesc">This theme will be used for new users and anonymous sessions.</p>
+                        </div>
+                        
+                        <!-- Date and Time Format -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label for="date-format" class="block text-sm font-medium mb-1" data-i18n="dateFormat">Date Format</label>
+                                <select id="date-format" name="date_format" 
+                                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-white">
+                                    <option value="MM/DD/YYYY" selected>MM/DD/YYYY</option>
+                                    <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                                    <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                                </select>
+                            </div>
+                            
+                            <div>
+                                <label for="time-format" class="block text-sm font-medium mb-1" data-i18n="timeFormat">Time Format</label>
+                                <select id="time-format" name="time_format" 
+                                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-white">
+                                    <option value="12" selected>12-hour (AM/PM)</option>
+                                    <option value="24">24-hour</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <!-- Default Timezone -->
+                        <div class="mb-4">
+                            <label for="default-timezone" class="block text-sm font-medium mb-1" data-i18n="defaultTimezone">Default Timezone</label>
+                            <select id="default-timezone" name="default_timezone" 
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-white">
+                                <option value="UTC-12:00">(UTC-12:00) International Date Line West</option>
+                                <option value="UTC-11:00">(UTC-11:00) Coordinated Universal Time-11</option>
+                                <option value="UTC-10:00">(UTC-10:00) Hawaii</option>
+                                <option value="UTC-09:00">(UTC-09:00) Alaska</option>
+                                <option value="UTC-08:00">(UTC-08:00) Pacific Time (US & Canada)</option>
+                                <option value="UTC-07:00">(UTC-07:00) Mountain Time (US & Canada)</option>
+                                <option value="UTC-06:00">(UTC-06:00) Central Time (US & Canada)</option>
+                                <option value="UTC-05:00">(UTC-05:00) Eastern Time (US & Canada)</option>
+                                <option value="UTC-04:00">(UTC-04:00) Atlantic Time (Canada)</option>
+                                <option value="UTC-03:00">(UTC-03:00) Brasilia</option>
+                                <option value="UTC+00:00" selected>(UTC+00:00) London, Edinburgh, Dublin, Lisbon</option>
+                                <option value="UTC+01:00">(UTC+01:00) Berlin, Brussels, Copenhagen, Madrid, Paris</option>
+                                <option value="UTC+02:00">(UTC+02:00) Athens, Bucharest, Istanbul</option>
+                                <option value="UTC+03:00">(UTC+03:00) Moscow, St. Petersburg, Volgograd</option>
+                                <option value="UTC+05:30">(UTC+05:30) Chennai, Kolkata, Mumbai, New Delhi</option>
+                                <option value="UTC+08:00">(UTC+08:00) Beijing, Hong Kong, Singapore, Taipei</option>
+                                <option value="UTC+09:00">(UTC+09:00) Osaka, Sapporo, Tokyo</option>
+                                <option value="UTC+10:00">(UTC+10:00) Canberra, Melbourne, Sydney</option>
+                                <option value="UTC+12:00">(UTC+12:00) Auckland, Wellington</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Пользовательский интерфейс для новой секции "Управление пользователями" будет добавлен в соответствующем разделе -->
+                        
+                        <div class="flex justify-end">
+                            <button type="submit" class="px-4 py-2 bg-coral-500 text-white rounded-lg hover:bg-coral-600 focus:outline-none focus:ring-4 focus:ring-coral-300">
+                                <span data-i18n="saveSettings">Save Settings</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                
+                <!-- Repositories Section -->
+                <div id="repositories" class="settings-section bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6 hidden">
+                    <h2 class="text-xl font-semibold mb-6 flex items-center">
+                        <i class="ri-git-repository-line mr-2 text-coral-500"></i>
+                        <span data-i18n="repositories">Repositories</span>
+                    </h2>
+                    
+                    <div class="mb-6">
+                        <p class="text-sm text-gray-600 dark:text-gray-400" data-i18n="repositoriesDesc">
+                            Connect to your test automation repositories to enable running automated tests directly from test cases.
+                        </p>
+                    </div>
+                    
+                    <!-- Connected Repositories -->
+                    <div class="mb-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-medium" data-i18n="connectedRepositories">Connected Repositories</h3>
+                            <button id="add-repository-button" class="px-3 py-2 bg-coral-500 text-white rounded-lg hover:bg-coral-600 focus:outline-none focus:ring-4 focus:ring-coral-300">
+                                <i class="ri-add-line mr-1"></i>
+                                <span data-i18n="addRepository">Add Repository</span>
+                            </button>
+                        </div>
+                        
+                        <div id="repositories-list" class="space-y-4">
+                            <!-- Repository 1 -->
+                            <div class="repository-card bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                                <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-4">
+                                    <div class="flex items-center mb-2 sm:mb-0">
+                                        <div class="mr-3 text-blue-500 dark:text-blue-400">
+                                            <i class="ri-github-fill text-2xl"></i>
+                                        </div>
+                                        <div>
+                                            <p class="font-medium">E-Commerce Test Suite</p>
+                                            <p class="text-xs text-gray-500 dark:text-gray-400">github.com/example/ecommerce-tests</p>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <span class="badge bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                            <span data-i18n="connected">Connected</span>
+                                        </span>
+                                    </div>
+                                </div>
+                                
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                    <div>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400" data-i18n="branch">Branch</p>
+                                        <p class="text-sm">main</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400" data-i18n="lastSync">Last Sync</p>
+                                        <p class="text-sm">May 15, 2025 13:45</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400" data-i18n="testCount">Test Count</p>
+                                        <p class="text-sm">126 tests</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400" data-i18n="framework">Framework</p>
+                                        <p class="text-sm">Pytest</p>
+                                    </div>
+                                </div>
+                                
+                                <div class="border-t border-gray-200 dark:border-gray-700 pt-4 flex items-center justify-end space-x-2">
+                                    <button class="px-3 py-1.5 bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600">
+                                        <i class="ri-refresh-line mr-1"></i>
+                                        <span data-i18n="sync">Sync</span>
+                                    </button>
+                                    <button class="px-3 py-1.5 bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600">
+                                        <i class="ri-settings-line mr-1"></i>
+                                        <span data-i18n="settings">Settings</span>
+                                    </button>
+                                    <button class="px-3 py-1.5 bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300 rounded hover:bg-red-200 dark:hover:bg-red-800">
+                                        <i class="ri-delete-bin-line mr-1"></i>
+                                        <span data-i18n="disconnect">Disconnect</span>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Repository 2 -->
+                            <div class="repository-card bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                                <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-4">
+                                    <div class="flex items-center mb-2 sm:mb-0">
+                                        <div class="mr-3 text-indigo-500 dark:text-indigo-400">
+                                            <i class="ri-gitlab-fill text-2xl"></i>
+                                        </div>
+                                        <div>
+                                            <p class="font-medium">API Integration Tests</p>
+                                            <p class="text-xs text-gray-500 dark:text-gray-400">gitlab.com/company/api-tests</p>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <span class="badge bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                            <span data-i18n="connected">Connected</span>
+                                        </span>
+                                    </div>
+                                </div>
+                                
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                    <div>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400" data-i18n="branch">Branch</p>
+                                        <p class="text-sm">develop</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400" data-i18n="lastSync">Last Sync</p>
+                                        <p class="text-sm">May 14, 2025 09:12</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400" data-i18n="testCount">Test Count</p>
+                                        <p class="text-sm">83 tests</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400" data-i18n="framework">Framework</p>
+                                        <p class="text-sm">Jest</p>
+                                    </div>
+                                </div>
+                                
+                                <div class="border-t border-gray-200 dark:border-gray-700 pt-4 flex items-center justify-end space-x-2">
+                                    <button class="px-3 py-1.5 bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600">
+                                        <i class="ri-refresh-line mr-1"></i>
+                                        <span data-i18n="sync">Sync</span>
+                                    </button>
+                                    <button class="px-3 py-1.5 bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600">
+                                        <i class="ri-settings-line mr-1"></i>
+                                        <span data-i18n="settings">Settings</span>
+                                    </button>
+                                    <button class="px-3 py-1.5 bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300 rounded hover:bg-red-200 dark:hover:bg-red-800">
+                                        <i class="ri-delete-bin-line mr-1"></i>
+                                        <span data-i18n="disconnect">Disconnect</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Repository Settings -->
+                    <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                        <h3 class="text-lg font-medium mb-4" data-i18n="repositorySettings">Repository Settings</h3>
+                        
+                        <form id="repository-settings-form">
+                            <div class="space-y-4 mb-6">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="font-medium" data-i18n="autoSync">Automatic Synchronization</p>
+                                        <p class="text-sm text-gray-500 dark:text-gray-400" data-i18n="autoSyncDesc">Automatically sync repositories on a schedule</p>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" name="auto_sync" checked>
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                
+                                <div>
+                                    <label for="sync-frequency" class="block text-sm font-medium mb-1" data-i18n="syncFrequency">Sync Frequency</label>
+                                    <select id="sync-frequency" name="sync_frequency" 
+                                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-gray-50 dark:bg-gray-700">
+                                        <option value="15" data-i18n="minutes15">Every 15 minutes</option>
+                                        <option value="30" data-i18n="minutes30">Every 30 minutes</option>
+                                        <option value="60" selected data-i18n="hours1">Every hour</option>
+                                        <option value="360" data-i18n="hours6">Every 6 hours</option>
+                                        <option value="720" data-i18n="hours12">Every 12 hours</option>
+                                        <option value="1440" data-i18n="daily">Daily</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="font-medium" data-i18n="webhookIntegration">Webhook Integration</p>
+                                        <p class="text-sm text-gray-500 dark:text-gray-400" data-i18n="webhookIntegrationDesc">Listen for repository webhook events to trigger synchronization</p>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" name="webhook_integration" checked>
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="font-medium" data-i18n="syncOnConnect">Sync on Connect</p>
+                                        <p class="text-sm text-gray-500 dark:text-gray-400" data-i18n="syncOnConnectDesc">Automatically sync repositories when they are connected</p>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" name="sync_on_connect" checked>
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div class="flex justify-end">
+                                <button type="submit" class="px-4 py-2 bg-coral-500 text-white rounded-lg hover:bg-coral-600 focus:outline-none focus:ring-4 focus:ring-coral-300">
+                                    <span data-i18n="saveSettings">Save Settings</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                
+                <!-- Backups Section -->
+                <div id="backups" class="settings-section bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6 hidden">
+                    <h2 class="text-xl font-semibold mb-6 flex items-center">
+                        <i class="ri-backup-line mr-2 text-coral-500"></i>
+                        <span data-i18n="backups">Backups</span>
+                    </h2>
+                    
+                    <!-- Backup now -->
+                    <div class="mb-6">
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4" data-i18n="backupsDesc">
+                            Manage system backups and restoration. Regular backups help prevent data loss and enable quick recovery in case of system failures.
+                        </p>
+                        
+                        <button id="backup-now-button" class="px-4 py-2 bg-coral-500 text-white rounded-lg hover:bg-coral-600 focus:outline-none focus:ring-4 focus:ring-coral-300">
+                            <i class="ri-download-cloud-line mr-1"></i>
+                            <span data-i18n="backupNow">Backup Now</span>
+                        </button>
+                    </div>
+                    
+                    <!-- Backup settings -->
+                    <div class="mb-6">
+                        <h3 class="text-lg font-medium mb-4" data-i18n="backupSettings">Backup Settings</h3>
+                        
+                        <form id="backup-settings-form">
+                            <div class="space-y-4 mb-6">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="font-medium" data-i18n="automaticBackups">Automatic Backups</p>
+                                        <p class="text-sm text-gray-500 dark:text-gray-400" data-i18n="automaticBackupsDesc">Schedule regular automatic backups</p>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" name="automatic_backups" checked>
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                
+                                <div>
+                                    <label for="backup-frequency" class="block text-sm font-medium mb-1" data-i18n="backupFrequency">Backup Frequency</label>
+                                    <select id="backup-frequency" name="backup_frequency" 
+                                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-gray-50 dark:bg-gray-700">
+                                        <option value="daily" selected data-i18n="daily">Daily</option>
+                                        <option value="weekly" data-i18n="weekly">Weekly</option>
+                                        <option value="biweekly" data-i18n="biweekly">Bi-weekly</option>
+                                        <option value="monthly" data-i18n="monthly">Monthly</option>
+                                    </select>
+                                </div>
+                                
+                                <div>
+                                    <label for="backup-time" class="block text-sm font-medium mb-1" data-i18n="backupTime">Backup Time</label>
+                                    <input type="time" id="backup-time" name="backup_time" value="02:00" 
+                                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-gray-50 dark:bg-gray-700">
+                                </div>
+                                
+                                <div>
+                                    <label for="backup-retention" class="block text-sm font-medium mb-1" data-i18n="backupRetention">Backup Retention</label>
+                                    <select id="backup-retention" name="backup_retention" 
+                                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-gray-50 dark:bg-gray-700">
+                                        <option value="7" data-i18n="days7">7 days</option>
+                                        <option value="14" data-i18n="days14">14 days</option>
+                                        <option value="30" selected data-i18n="days30">30 days</option>
+                                        <option value="90" data-i18n="days90">90 days</option>
+                                        <option value="180" data-i18n="days180">180 days</option>
+                                        <option value="365" data-i18n="year1">1 year</option>
+                                    </select>
+                                </div>
+                                
+                                <div>
+                                    <label for="backup-location" class="block text-sm font-medium mb-1" data-i18n="backupLocation">Backup Location</label>
+                                    <select id="backup-location" name="backup_location" 
+                                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-gray-50 dark:bg-gray-700">
+                                        <option value="local" selected data-i18n="local">Local Storage</option>
+                                        <option value="s3" data-i18n="s3">Amazon S3</option>
+                                        <option value="azure" data-i18n="azure">Azure Blob Storage</option>
+                                        <option value="gcs" data-i18n="gcs">Google Cloud Storage</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="flex justify-end">
+                                <button type="submit" class="px-4 py-2 bg-coral-500 text-white rounded-lg hover:bg-coral-600 focus:outline-none focus:ring-4 focus:ring-coral-300">
+                                    <span data-i18n="saveSettings">Save Settings</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <!-- Backup history -->
+                    <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                        <h3 class="text-lg font-medium mb-4" data-i18n="backupHistory">Backup History</h3>
+                        
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                <thead class="bg-gray-50 dark:bg-gray-800">
+                                    <tr>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider" data-i18n="date">
+                                            Date
+                                        </th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider" data-i18n="size">
+                                            Size
+                                        </th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider" data-i18n="type">
+                                            Type
+                                        </th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider" data-i18n="status">
+                                            Status
+                                        </th>
+                                        <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider" data-i18n="actions">
+                                            Actions
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                                    <tr>
+                                        <td class="px-6 py-4 whitespace-nowrap">May 15, 2025 02:00</td>
+                                        <td class="px-6 py-4 whitespace-nowrap">427 MB</td>
+                                        <td class="px-6 py-4 whitespace-nowrap">Automatic</td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <span class="badge bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                                <span data-i18n="completed">Completed</span>
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-right">
+                                            <button class="text-coral-500 hover:text-coral-600 mr-2">
+                                                <i class="ri-download-line"></i>
+                                            </button>
+                                            <button class="text-coral-500 hover:text-coral-600 mr-2">
+                                                <i class="ri-history-line"></i>
+                                            </button>
+                                            <button class="text-red-500 hover:text-red-600">
+                                                <i class="ri-delete-bin-line"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-6 py-4 whitespace-nowrap">May 14, 2025 02:00</td>
+                                        <td class="px-6 py-4 whitespace-nowrap">425 MB</td>
+                                        <td class="px-6 py-4 whitespace-nowrap">Automatic</td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <span class="badge bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                                <span data-i18n="completed">Completed</span>
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-right">
+                                            <button class="text-coral-500 hover:text-coral-600 mr-2">
+                                                <i class="ri-download-line"></i>
+                                            </button>
+                                            <button class="text-coral-500 hover:text-coral-600 mr-2">
+                                                <i class="ri-history-line"></i>
+                                            </button>
+                                            <button class="text-red-500 hover:text-red-600">
+                                                <i class="ri-delete-bin-line"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-6 py-4 whitespace-nowrap">May 13, 2025 14:22</td>
+                                        <td class="px-6 py-4 whitespace-nowrap">420 MB</td>
+                                        <td class="px-6 py-4 whitespace-nowrap">Manual</td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <span class="badge bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                                <span data-i18n="completed">Completed</span>
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-right">
+                                            <button class="text-coral-500 hover:text-coral-600 mr-2">
+                                                <i class="ri-download-line"></i>
+                                            </button>
+                                            <button class="text-coral-500 hover:text-coral-600 mr-2">
+                                                <i class="ri-history-line"></i>
+                                            </button>
+                                            <button class="text-red-500 hover:text-red-600">
+                                                <i class="ri-delete-bin-line"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Other Sections - Hidden by Default -->
+                <!-- User Management Section -->
+                <div id="users" class="settings-section bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6 hidden">
+                    <h2 class="text-xl font-semibold mb-6 flex items-center">
+                        <i class="ri-user-settings-line mr-2 text-coral-500"></i>
+                        <span data-i18n="userManagement">Управление пользователями</span>
+                    </h2>
+                    
+                    <div class="mb-6">
+                        <p class="text-sm text-gray-600 dark:text-gray-400" data-i18n="userManagementDesc">
+                            Управление пользователями, их ролями и доступом к системе.
+                        </p>
+                    </div>
+                    
+                    <!-- Users list with table -->
+                    <div class="overflow-x-auto mb-6">
+                        <table class="min-w-full bg-white dark:bg-gray-800 rounded-lg overflow-hidden">
+                            <thead class="bg-gray-100 dark:bg-gray-700">
+                                <tr>
+                                    <th class="py-3 px-4 text-left text-sm font-medium text-gray-700 dark:text-gray-300" data-i18n="name">Имя</th>
+                                    <th class="py-3 px-4 text-left text-sm font-medium text-gray-700 dark:text-gray-300" data-i18n="email">Email</th>
+                                    <th class="py-3 px-4 text-left text-sm font-medium text-gray-700 dark:text-gray-300" data-i18n="role">Роль</th>
+                                    <th class="py-3 px-4 text-left text-sm font-medium text-gray-700 dark:text-gray-300" data-i18n="lastActive">Активность</th>
+                                    <th class="py-3 px-4 text-right text-sm font-medium text-gray-700 dark:text-gray-300" data-i18n="actions">Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                                <!-- User 1 - Administrator -->
+                                <tr class="hover:bg-gray-50 dark:hover:bg-gray-750">
+                                    <td class="py-3 px-4">
+                                        <div class="flex items-center">
+                                            <div class="h-10 w-10 rounded-full bg-coral-100 dark:bg-coral-900 flex items-center justify-center text-coral-600 dark:text-coral-300 mr-3">
+                                                <span>ИИ</span>
+                                            </div>
+                                            <div>
+                                                <p class="font-medium">Иван Иванов</p>
+                                                <p class="text-xs text-gray-500 dark:text-gray-400">admin</p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="py-3 px-4">admin@example.com</td>
+                                    <td class="py-3 px-4">
+                                        <span class="px-2 py-1 bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 rounded-full text-xs">Администратор</span>
+                                    </td>
+                                    <td class="py-3 px-4">
+                                        <span data-i18n="rightNow">Сейчас</span>
+                                    </td>
+                                    <td class="py-3 px-4 text-right">
+                                        <button class="text-gray-500 hover:text-coral-500 dark:text-gray-400 dark:hover:text-coral-400 mr-2">
+                                            <i class="ri-edit-line"></i>
+                                        </button>
+                                        <button class="text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400">
+                                            <i class="ri-delete-bin-line"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                
+                                <!-- User 2 - User -->
+                                <tr class="hover:bg-gray-50 dark:hover:bg-gray-750">
+                                    <td class="py-3 px-4">
+                                        <div class="flex items-center">
+                                            <div class="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-blue-600 dark:text-blue-300 mr-3">
+                                                <span>ПП</span>
+                                            </div>
+                                            <div>
+                                                <p class="font-medium">Пётр Петров</p>
+                                                <p class="text-xs text-gray-500 dark:text-gray-400">ppetroff</p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="py-3 px-4">petr@example.com</td>
+                                    <td class="py-3 px-4">
+                                        <span class="px-2 py-1 bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded-full text-xs">Пользователь</span>
+                                    </td>
+                                    <td class="py-3 px-4">2 часа назад</td>
+                                    <td class="py-3 px-4 text-right">
+                                        <button class="text-gray-500 hover:text-coral-500 dark:text-gray-400 dark:hover:text-coral-400 mr-2">
+                                            <i class="ri-edit-line"></i>
+                                        </button>
+                                        <button class="text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400">
+                                            <i class="ri-delete-bin-line"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Add User button -->
+                    <div class="flex justify-end">
+                        <button id="add-user-button" class="px-4 py-2 bg-coral-500 text-white rounded-lg hover:bg-coral-600 focus:outline-none focus:ring-4 focus:ring-coral-300">
+                            <i class="ri-user-add-line mr-1"></i>
+                            <span data-i18n="addUser">Добавить пользователя</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="email" class="settings-section bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6 hidden">
+                    <h2 class="text-xl font-semibold mb-6 flex items-center">
+                        <i class="ri-mail-settings-line mr-2 text-coral-500"></i>
+                        <span data-i18n="emailSettings">Email Settings</span>
+                    </h2>
+                    <!-- Email settings content would go here -->
+                </div>
+                
+                <div id="integrations" class="settings-section bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6 hidden">
+                    <h2 class="text-xl font-semibold mb-6 flex items-center">
+                        <i class="ri-plug-line mr-2 text-coral-500"></i>
+                        <span data-i18n="integrations">Integrations</span>
+                    </h2>
+                    <!-- Integrations content would go here -->
+                </div>
+                
+                <div id="webhooks" class="settings-section bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6 hidden">
+                    <h2 class="text-xl font-semibold mb-6 flex items-center">
+                        <i class="ri-link mr-2 text-coral-500"></i>
+                        <span data-i18n="webhooks">Webhooks</span>
+                    </h2>
+                    <!-- Webhooks content would go here -->
+                </div>
+                
+                <div id="authentication" class="settings-section bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6 hidden">
+                    <h2 class="text-xl font-semibold mb-6 flex items-center">
+                        <i class="ri-lock-line mr-2 text-coral-500"></i>
+                        <span data-i18n="authentication">Authentication</span>
+                    </h2>
+                    <!-- Authentication content would go here -->
+                </div>
+                
+                <div id="permissions" class="settings-section bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6 hidden">
+                    <h2 class="text-xl font-semibold mb-6 flex items-center">
+                        <i class="ri-user-settings-line mr-2 text-coral-500"></i>
+                        <span data-i18n="permissions">Permissions</span>
+                    </h2>
+                    <!-- Permissions content would go here -->
+                </div>
+                
+                <div id="maintenance" class="settings-section bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6 hidden">
+                    <h2 class="text-xl font-semibold mb-6 flex items-center">
+                        <i class="ri-tools-line mr-2 text-coral-500"></i>
+                        <span data-i18n="maintenance">Maintenance</span>
+                    </h2>
+                    <!-- Maintenance content would go here -->
+                </div>
+            </div>
+        </div>
+    </main>
+    </div><!-- Закрывающий div для flex-grow -->
+    
+    <!-- Footer -->
+    <footer class="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 py-4 fixed bottom-0 left-0 right-0 w-full">
+        <div class="container mx-auto px-4">
+            <div class="flex flex-col md:flex-row items-center justify-between">
+                <p class="text-gray-600 dark:text-gray-400 text-sm">&copy; 2025 FlowTest 2.0. All rights reserved.</p>
+                <div class="flex space-x-4 mt-4 md:mt-0">
+                    <a href="#" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 text-sm" data-i18n="privacyPolicy">Privacy Policy</a>
+                    <a href="#" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 text-sm" data-i18n="termsOfService">Terms of Service</a>
+                    <a href="#" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 text-sm" data-i18n="contact">Contact</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+    
+    <!-- Add Repository Modal -->
+    <div id="add-repository-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 items-center justify-center">
+        <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow max-w-2xl w-full">
+            <div class="p-6">
+                <button id="close-repository-modal" class="absolute top-3 right-3 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
+                    <i class="ri-close-line text-2xl"></i>
+                </button>
+                <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-6" data-i18n="addRepository">Add Repository</h3>
+                
+                <div class="mb-6">
+                    <div class="flex space-x-4 mb-4">
+                        <button class="repo-type-btn flex-1 px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 active" data-type="git">
+                            <i class="ri-git-branch-line mr-1"></i>
+                            <span data-i18n="git">Git</span>
+                        </button>
+                        <button class="repo-type-btn flex-1 px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600" data-type="github">
+                            <i class="ri-github-fill mr-1"></i>
+                            <span>GitHub</span>
+                        </button>
+                        <button class="repo-type-btn flex-1 px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600" data-type="gitlab">
+                            <i class="ri-gitlab-fill mr-1"></i>
+                            <span>GitLab</span>
+                        </button>
+                        <button class="repo-type-btn flex-1 px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600" data-type="bitbucket">
+                            <i class="ri-bit-coin-line mr-1"></i>
+                            <span>Bitbucket</span>
+                        </button>
+                    </div>
+                    
+                    <form id="add-repository-form">
+                        <!-- Git Repository Settings -->
+                        <div id="git-repo-settings">
+                            <div class="mb-4">
+                                <label for="git-repo-url" class="block text-sm font-medium mb-1" data-i18n="repositoryUrl">Repository URL</label>
+                                <input type="text" id="git-repo-url" name="git_repo_url" placeholder="https://github.com/username/repository.git" data-i18n-placeholder="repositoryUrlPlaceholder"
+                                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700">
+                            </div>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                <div>
+                                    <label for="git-branch" class="block text-sm font-medium mb-1" data-i18n="branch">Branch</label>
+                                    <input type="text" id="git-branch" name="git_branch" placeholder="main" data-i18n-placeholder="branchPlaceholder"
+                                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700">
+                                </div>
+                                
+                                <div>
+                                    <label for="git-framework" class="block text-sm font-medium mb-1" data-i18n="framework">Test Framework</label>
+                                    <select id="git-framework" name="git_framework" 
+                                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700">
+                                        <option value="pytest" selected>Pytest</option>
+                                        <option value="jest">Jest</option>
+                                        <option value="mocha">Mocha</option>
+                                        <option value="junit">JUnit</option>
+                                        <option value="testng">TestNG</option>
+                                        <option value="selenium">Selenium</option>
+                                        <option value="cypress">Cypress</option>
+                                        <option value="playwright">Playwright</option>
+                                        <option value="other">Other</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label for="git-test-path" class="block text-sm font-medium mb-1" data-i18n="testPath">Tests Directory Path</label>
+                                <input type="text" id="git-test-path" name="git_test_path" placeholder="tests/" data-i18n-placeholder="testPathPlaceholder"
+                                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700">
+                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400" data-i18n="testPathDesc">Relative path to the directory containing test files</p>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label for="git-test-pattern" class="block text-sm font-medium mb-1" data-i18n="testPattern">Test File Pattern</label>
+                                <input type="text" id="git-test-pattern" name="git_test_pattern" placeholder="test_*.py" data-i18n-placeholder="testPatternPlaceholder"
+                                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700">
+                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400" data-i18n="testPatternDesc">Pattern to match test files (e.g., test_*.py, *.test.js)</p>
+                            </div>
+                            
+                            <div class="border-t border-gray-200 dark:border-gray-700 pt-4 mb-4">
+                                <p class="font-medium mb-2" data-i18n="authentication">Authentication</p>
+                                
+                                <div class="mb-4">
+                                    <label class="flex items-center mb-1">
+                                        <input type="radio" name="git_auth_type" value="none" checked class="mr-2">
+                                        <span class="text-sm" data-i18n="noAuth">No Authentication</span>
+                                    </label>
+                                    <label class="flex items-center mb-1">
+                                        <input type="radio" name="git_auth_type" value="ssh" class="mr-2">
+                                        <span class="text-sm" data-i18n="sshKey">SSH Key</span>
+                                    </label>
+                                    <label class="flex items-center">
+                                        <input type="radio" name="git_auth_type" value="basic" class="mr-2">
+                                        <span class="text-sm" data-i18n="usernamePassword">Username & Password</span>
+                                    </label>
+                                </div>
+                                
+                                <div id="ssh-key-auth" class="hidden mb-4">
+                                    <div class="mb-4">
+                                        <label for="git-ssh-key" class="block text-sm font-medium mb-1" data-i18n="sshPrivateKey">SSH Private Key</label>
+                                        <textarea id="git-ssh-key" name="git_ssh_key" rows="3" 
+                                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700"></textarea>
+                                    </div>
+                                    
+                                    <div>
+                                        <label for="git-ssh-passphrase" class="block text-sm font-medium mb-1" data-i18n="sshPassphrase">SSH Passphrase (if any)</label>
+                                        <input type="password" id="git-ssh-passphrase" name="git_ssh_passphrase" 
+                                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700">
+                                    </div>
+                                </div>
+                                
+                                <div id="basic-auth" class="hidden">
+                                    <div class="mb-4">
+                                        <label for="git-username" class="block text-sm font-medium mb-1" data-i18n="username">Username</label>
+                                        <input type="text" id="git-username" name="git_username" 
+                                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700">
+                                    </div>
+                                    
+                                    <div>
+                                        <label for="git-password" class="block text-sm font-medium mb-1" data-i18n="password">Password / Access Token</label>
+                                        <input type="password" id="git-password" name="git_password" 
+                                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Other repository settings (GitHub, GitLab, Bitbucket) would be here, hidden by default -->
+                        
+                        <div class="mb-4">
+                            <label for="repo-name" class="block text-sm font-medium mb-1" data-i18n="displayName">Display Name</label>
+                            <input type="text" id="repo-name" name="repo_name" 
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700">
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400" data-i18n="displayNameDesc">A friendly name to identify this repository</p>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label class="flex items-center">
+                                <input type="checkbox" name="auto_sync" checked class="mr-2">
+                                <span class="text-sm" data-i18n="syncOnConnect">Sync after connecting</span>
+                            </label>
+                        </div>
+                        
+                        <div class="connection-log hidden mb-4">
+                            <p class="text-sm font-medium mb-2" data-i18n="connectionLog">Connection Log</p>
+                            <div id="log-container" class="connection-log">
+                                <!-- Log messages will be added here dynamically -->
+                            </div>
+                        </div>
+                        
+                        <div class="flex justify-end space-x-3">
+                            <button type="button" id="test-connection-button" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-4 focus:ring-gray-300" data-i18n="testConnection">
+                                Test Connection
+                            </button>
+                            <button type="button" id="cancel-repository-button" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-4 focus:ring-gray-300" data-i18n="cancel">
+                                Cancel
+                            </button>
+                            <button type="submit" class="px-4 py-2 bg-coral-500 text-white rounded-lg hover:bg-coral-600 focus:outline-none focus:ring-4 focus:ring-coral-300" data-i18n="connect">
+                                Connect
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script type="module" src="js/utils/toast.js"></script>
+    <script type="module" src="js/i18n/translations.js"></script>
+    <script type="module" src="js/i18n/i18n.js"></script>
+    <script type="module" src="js/api/client.js"></script>
+    <script src="js/settings-fixed.js"></script>
+    <script type="module" src="js/pages/settings.js"></script>
+</body>
+</html>

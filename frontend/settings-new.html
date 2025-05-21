@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#ffffff">
+    <title>FlowTest - Settings</title>
+    
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Base stylesheets -->
+    <link rel="stylesheet" href="css/tailwind-base.css">
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@6.6.6/css/flag-icons.min.css"/>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.2.0/flowbite.min.css" rel="stylesheet">
+    
+    <script>
+    // Configure tailwind theme
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            coral: {
+              50: '#fff5f2',
+              100: '#ffe6e0',
+              200: '#ffc7b8',
+              300: '#ffa590',
+              400: '#ff7f50', 
+              500: '#ff6347',
+              600: '#ed4c2d',
+              700: '#db3c1d',
+              800: '#b32d15',
+              900: '#8f2311',
+              950: '#4b0404',
+            }
+          }
+        }
+      }
+    };
+    </script>
+    
+    <style>
+        /* Tab styling */
+        .tab-button {
+            position: relative;
+            transition: all 0.2s ease;
+        }
+        
+        .tab-button:after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            height: 2px;
+            width: 0;
+            background-color: var(--color-coral-500);
+            transition: width 0.2s ease;
+        }
+        
+        .tab-button.active:after {
+            width: 100%;
+        }
+        
+        /* Toggle switch */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 48px;
+            height: 24px;
+        }
+        
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
+        }
+        
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .slider {
+            background-color: #ff6347;
+        }
+        
+        input:focus + .slider {
+            box-shadow: 0 0 1px #ff6347;
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(24px);
+        }
+        
+        /* Custom navigation handling */
+        #settings-nav a {
+            position: relative;
+            transition: all 0.2s ease;
+        }
+        
+        #settings-nav a.active-nav {
+            background-color: #fff5f2;
+            color: #ff6347;
+        }
+        
+        #settings-nav a:hover:not(.active-nav) {
+            background-color: #f3f4f6;
+        }
+        
+        /* Loading spinner */
+        .loading-spinner {
+            display: inline-block;
+            width: 1.5rem;
+            height: 1.5rem;
+            border: 3px solid rgba(156, 163, 175, 0.25);
+            border-right-color: #ff6347;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="min-h-screen flex flex-col">
+        <div class="flex flex-1">
+            <!-- Sidebar -->
+            <aside class="w-64 bg-white border-r border-gray-200 hidden md:block">
+                <div class="p-4 sticky top-0">
+                    <img src="images/FlowTest.png" alt="Company Logo" class="h-12 w-auto mb-8" data-i18n="companyLogo">
+                    <nav class="space-y-2">
+                        <a href="index.html" class="flex items-center p-2 text-gray-600 rounded-lg hover:bg-coral-50 hover:text-coral-600 group">
+                            <i class="ri-dashboard-line text-xl mr-3"></i>
+                            <span data-i18n="dashboard">Панель управления</span>
+                        </a>
+
+                        <a href="test-cases.html" class="flex items-center p-2 text-gray-600 rounded-lg hover:bg-coral-50 hover:text-coral-600 group">
+                            <i class="ri-file-list-line text-xl mr-3"></i>
+                            <span data-i18n="testCases">Тест-кейсы</span>
+                        </a>
+
+                        <a href="reports.html" class="flex items-center p-2 text-gray-600 rounded-lg hover:bg-coral-50 hover:text-coral-600 group">
+                            <i class="ri-file-chart-line text-xl mr-3"></i>
+                            <span data-i18n="reports">Отчеты</span>
+                        </a>
+
+                        <a href="automation-projects.html" class="flex items-center p-2 text-gray-600 rounded-lg hover:bg-coral-50 hover:text-coral-600 group">
+                            <i class="ri-code-box-line text-xl mr-3"></i>
+                            <span data-i18n="automation">Автоматизация</span>
+                        </a>
+                        
+                        <a href="settings.html" class="flex items-center p-2 text-coral-600 rounded-lg bg-coral-50 group">
+                            <i class="ri-settings-line text-xl mr-3"></i>
+                            <span data-i18n="settings">Настройки</span>
+                        </a>
+                    </nav>
+                </div>
+            </aside>
+
+            <div class="flex-1 bg-gray-50">
+                <!-- Header -->
+                <header class="bg-white border-b border-gray-200">
+                    <div class="flex items-center justify-between p-4">
+                        <h1 class="text-2xl font-semibold text-gray-800" data-i18n="systemSettings">Системные настройки</h1>
+                        <div class="flex items-center space-x-4 ml-auto">
+                            <!-- Notifications -->
+                            <div id="notifications-wrapper" class="relative">
+                                <button type="button" id="notifications-button"
+                                        class="relative p-2 text-gray-600 hover:text-coral-600">
+                                    <span id="notification-count" class="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-coral-600 rounded-full hidden">0</span>
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                                    </svg>
+                                    <span class="sr-only" data-i18n="notifications">Уведомления</span>
+                                </button>
+                            </div>
+
+                            <!-- User Menu -->
+                            <div class="relative" id="user-dropdown-wrapper">
+                                <button type="button" id="user-menu-button" class="flex items-center space-x-2">
+                                    <div id="user-avatar" class="w-10 h-10 rounded-full overflow-hidden bg-gray-300 flex items-center justify-center">
+                                        <span id="user-initials" class="text-xl font-medium text-gray-700">JD</span>
+                                    </div>
+                                    <span id="user-name" class="hidden sm:block text-sm font-medium text-gray-700">John Doe</span>
+                                    <svg class="-mr-1 h-5 w-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </header>
+        
+                <!-- Main content -->
+                <div class="flex-grow">
+                    <main class="container mx-auto px-4 py-6 pb-20">
+                        <!-- Settings content -->
+                        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                            <!-- Left sidebar - Settings menu -->
+                            <div class="lg:col-span-1">
+                                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                                    <nav id="settings-nav" class="space-y-1">
+                                        <a href="#general" data-section="general" class="flex items-center text-gray-800 py-3 px-4 rounded">
+                                            <i class="ri-settings-line mr-3 text-coral-500"></i>
+                                            <span data-i18n="general">Общие</span>
+                                        </a>
+                                        <a href="#users" data-section="users" class="flex items-center text-gray-800 py-3 px-4 rounded">
+                                            <i class="ri-user-settings-line mr-3 text-coral-500"></i>
+                                            <span data-i18n="userManagement">Управление пользователями</span>
+                                        </a>
+                                        <a href="#repositories" data-section="repositories" class="flex items-center text-gray-800 py-3 px-4 rounded">
+                                            <i class="ri-git-repository-line mr-3 text-coral-500"></i>
+                                            <span data-i18n="repositories">Репозитории</span>
+                                        </a>
+                                    </nav>
+                                </div>
+                            </div>
+                            
+                            <!-- Right content area - Settings Forms -->
+                            <div class="lg:col-span-3">
+                                <!-- General Settings Section -->
+                                <div id="general" class="settings-section bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+                                    <h2 class="text-xl font-semibold mb-6 flex items-center">
+                                        <i class="ri-settings-line mr-2 text-coral-500"></i>
+                                        <span data-i18n="general">Общие</span>
+                                    </h2>
+                                    
+                                    <form id="general-settings-form">
+                                        <!-- System Name -->
+                                        <div class="mb-4">
+                                            <label for="system-name" class="block text-sm font-medium mb-1" data-i18n="systemName">Название системы</label>
+                                            <input type="text" id="system-name" name="system_name" value="FlowTest" 
+                                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-gray-50 text-gray-800">
+                                            <p class="mt-1 text-xs text-gray-500" data-i18n="systemNameDesc">Это название будет отображаться в заголовке приложения и письмах.</p>
+                                        </div>
+                                        
+                                        <!-- Default Languages -->
+                                        <div class="mb-4">
+                                            <label for="default-language" class="block text-sm font-medium mb-1" data-i18n="defaultLanguage">Язык по умолчанию</label>
+                                            <select id="default-language" name="default_language" 
+                                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-gray-50 text-gray-800">
+                                                <option value="en" selected>English</option>
+                                                <option value="ru">Русский</option>
+                                                <option value="de">Deutsch</option>
+                                            </select>
+                                            <p class="mt-1 text-xs text-gray-500" data-i18n="defaultLanguageDesc">Этот язык будет использоваться для новых пользователей и анонимных сессий.</p>
+                                        </div>
+                                        
+                                        <!-- Default Theme -->
+                                        <div class="mb-4">
+                                            <label for="default-theme" class="block text-sm font-medium mb-1" data-i18n="defaultTheme">Тема по умолчанию</label>
+                                            <select id="default-theme" name="default_theme" 
+                                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-gray-50 text-gray-800">
+                                                <option value="light" selected data-i18n="light">Светлая</option>
+                                                <option value="dark" data-i18n="dark">Темная</option>
+                                                <option value="system" data-i18n="system">Системная</option>
+                                            </select>
+                                            <p class="mt-1 text-xs text-gray-500" data-i18n="defaultThemeDesc">Эта тема будет использоваться для новых пользователей и анонимных сессий.</p>
+                                        </div>
+                                        
+                                        <!-- Date and Time Format -->
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                            <div>
+                                                <label for="date-format" class="block text-sm font-medium mb-1" data-i18n="dateFormat">Формат даты</label>
+                                                <select id="date-format" name="date_format" 
+                                                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-gray-50 text-gray-800">
+                                                    <option value="MM/DD/YYYY" selected>MM/DD/YYYY</option>
+                                                    <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                                                    <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                                                </select>
+                                            </div>
+                                            
+                                            <div>
+                                                <label for="time-format" class="block text-sm font-medium mb-1" data-i18n="timeFormat">Формат времени</label>
+                                                <select id="time-format" name="time_format" 
+                                                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-gray-50 text-gray-800">
+                                                    <option value="12" selected>12-часовой (AM/PM)</option>
+                                                    <option value="24">24-часовой</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Default Timezone -->
+                                        <div class="mb-4">
+                                            <label for="default-timezone" class="block text-sm font-medium mb-1" data-i18n="defaultTimezone">Часовой пояс по умолчанию</label>
+                                            <select id="default-timezone" name="default_timezone" 
+                                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-gray-50 text-gray-800">
+                                                <option value="UTC-12:00">(UTC-12:00) International Date Line West</option>
+                                                <option value="UTC-11:00">(UTC-11:00) Coordinated Universal Time-11</option>
+                                                <option value="UTC-10:00">(UTC-10:00) Hawaii</option>
+                                                <option value="UTC-09:00">(UTC-09:00) Alaska</option>
+                                                <option value="UTC-08:00">(UTC-08:00) Pacific Time (US & Canada)</option>
+                                                <option value="UTC-07:00">(UTC-07:00) Mountain Time (US & Canada)</option>
+                                                <option value="UTC-06:00">(UTC-06:00) Central Time (US & Canada)</option>
+                                                <option value="UTC-05:00">(UTC-05:00) Eastern Time (US & Canada)</option>
+                                                <option value="UTC-04:00">(UTC-04:00) Atlantic Time (Canada)</option>
+                                                <option value="UTC-03:00">(UTC-03:00) Brasilia</option>
+                                                <option value="UTC+00:00" selected>(UTC+00:00) London, Edinburgh, Dublin, Lisbon</option>
+                                                <option value="UTC+01:00">(UTC+01:00) Berlin, Brussels, Copenhagen, Madrid, Paris</option>
+                                                <option value="UTC+02:00">(UTC+02:00) Athens, Bucharest, Istanbul</option>
+                                                <option value="UTC+03:00">(UTC+03:00) Moscow, St. Petersburg, Volgograd</option>
+                                                <option value="UTC+05:30">(UTC+05:30) Chennai, Kolkata, Mumbai, New Delhi</option>
+                                                <option value="UTC+08:00">(UTC+08:00) Beijing, Hong Kong, Singapore, Taipei</option>
+                                                <option value="UTC+09:00">(UTC+09:00) Osaka, Sapporo, Tokyo</option>
+                                                <option value="UTC+10:00">(UTC+10:00) Canberra, Melbourne, Sydney</option>
+                                                <option value="UTC+12:00">(UTC+12:00) Auckland, Wellington</option>
+                                            </select>
+                                        </div>
+                                        
+                                        <div class="flex justify-end">
+                                            <button type="submit" class="px-4 py-2 bg-coral-500 text-white rounded-lg hover:bg-coral-600 focus:outline-none focus:ring-4 focus:ring-coral-300">
+                                                <span data-i18n="saveSettings">Сохранить настройки</span>
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                                
+                                <!-- User Management Section -->
+                                <div id="users" class="settings-section bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 hidden">
+                                    <h2 class="text-xl font-semibold mb-6 flex items-center">
+                                        <i class="ri-user-settings-line mr-2 text-coral-500"></i>
+                                        <span data-i18n="userManagement">Управление пользователями</span>
+                                    </h2>
+                                    
+                                    <div class="mb-6">
+                                        <p class="text-sm text-gray-600" data-i18n="userManagementDesc">
+                                            Управление пользователями, их ролями и доступом к системе.
+                                        </p>
+                                    </div>
+                                    
+                                    <!-- Users list with table -->
+                                    <div class="overflow-x-auto mb-6">
+                                        <table class="min-w-full bg-white rounded-lg overflow-hidden">
+                                            <thead class="bg-gray-100">
+                                                <tr>
+                                                    <th class="py-3 px-4 text-left text-sm font-medium text-gray-700" data-i18n="name">Имя</th>
+                                                    <th class="py-3 px-4 text-left text-sm font-medium text-gray-700" data-i18n="email">Email</th>
+                                                    <th class="py-3 px-4 text-left text-sm font-medium text-gray-700" data-i18n="role">Роль</th>
+                                                    <th class="py-3 px-4 text-left text-sm font-medium text-gray-700" data-i18n="lastActive">Активность</th>
+                                                    <th class="py-3 px-4 text-right text-sm font-medium text-gray-700" data-i18n="actions">Действия</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody class="divide-y divide-gray-200">
+                                                <!-- User 1 - Administrator -->
+                                                <tr class="hover:bg-gray-50">
+                                                    <td class="py-3 px-4">
+                                                        <div class="flex items-center">
+                                                            <div class="h-10 w-10 rounded-full bg-coral-100 flex items-center justify-center text-coral-600 mr-3">
+                                                                <span>ИИ</span>
+                                                            </div>
+                                                            <div>
+                                                                <p class="font-medium">Иван Иванов</p>
+                                                                <p class="text-xs text-gray-500">admin</p>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td class="py-3 px-4">admin@example.com</td>
+                                                    <td class="py-3 px-4">
+                                                        <span class="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs">Администратор</span>
+                                                    </td>
+                                                    <td class="py-3 px-4">
+                                                        <span data-i18n="rightNow">Сейчас</span>
+                                                    </td>
+                                                    <td class="py-3 px-4 text-right">
+                                                        <button class="text-gray-500 hover:text-coral-500 mr-2">
+                                                            <i class="ri-edit-line"></i>
+                                                        </button>
+                                                        <button class="text-gray-500 hover:text-red-500">
+                                                            <i class="ri-delete-bin-line"></i>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                                
+                                                <!-- User 2 - User -->
+                                                <tr class="hover:bg-gray-50">
+                                                    <td class="py-3 px-4">
+                                                        <div class="flex items-center">
+                                                            <div class="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 mr-3">
+                                                                <span>ПП</span>
+                                                            </div>
+                                                            <div>
+                                                                <p class="font-medium">Пётр Петров</p>
+                                                                <p class="text-xs text-gray-500">ppetroff</p>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td class="py-3 px-4">petr@example.com</td>
+                                                    <td class="py-3 px-4">
+                                                        <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">Пользователь</span>
+                                                    </td>
+                                                    <td class="py-3 px-4">2 часа назад</td>
+                                                    <td class="py-3 px-4 text-right">
+                                                        <button class="text-gray-500 hover:text-coral-500 mr-2">
+                                                            <i class="ri-edit-line"></i>
+                                                        </button>
+                                                        <button class="text-gray-500 hover:text-red-500">
+                                                            <i class="ri-delete-bin-line"></i>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    
+                                    <!-- Add User button -->
+                                    <div class="flex justify-end">
+                                        <button id="add-user-button" class="px-4 py-2 bg-coral-500 text-white rounded-lg hover:bg-coral-600 focus:outline-none focus:ring-4 focus:ring-coral-300">
+                                            <i class="ri-user-add-line mr-1"></i>
+                                            <span data-i18n="addUser">Добавить пользователя</span>
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <!-- Repositories Section -->
+                                <div id="repositories" class="settings-section bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 hidden">
+                                    <h2 class="text-xl font-semibold mb-6 flex items-center">
+                                        <i class="ri-git-repository-line mr-2 text-coral-500"></i>
+                                        <span data-i18n="repositories">Репозитории</span>
+                                    </h2>
+                                    
+                                    <div class="mb-6">
+                                        <p class="text-sm text-gray-600" data-i18n="repositoriesDesc">
+                                            Подключите репозитории с автоматическими тестами, чтобы запускать их напрямую из тест-кейсов.
+                                        </p>
+                                    </div>
+                                    
+                                    <!-- Connected Repositories -->
+                                    <div class="mb-6">
+                                        <div class="flex justify-between items-center mb-4">
+                                            <h3 class="text-lg font-medium" data-i18n="connectedRepositories">Подключенные репозитории</h3>
+                                            <button id="add-repository-button" class="px-3 py-2 bg-coral-500 text-white rounded-lg hover:bg-coral-600 focus:outline-none focus:ring-4 focus:ring-coral-300">
+                                                <i class="ri-add-line mr-1"></i>
+                                                <span data-i18n="addRepository">Добавить репозиторий</span>
+                                            </button>
+                                        </div>
+                                        
+                                        <div id="repositories-list" class="space-y-4">
+                                            <!-- Repository 1 -->
+                                            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                                                <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-4">
+                                                    <div class="flex items-center mb-2 sm:mb-0">
+                                                        <div class="mr-3 text-blue-500">
+                                                            <i class="ri-github-fill text-2xl"></i>
+                                                        </div>
+                                                        <div>
+                                                            <p class="font-medium">E-Commerce Test Suite</p>
+                                                            <p class="text-xs text-gray-500">github.com/example/ecommerce-tests</p>
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                            <span data-i18n="connected">Подключен</span>
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                                    <div>
+                                                        <p class="text-xs text-gray-500" data-i18n="branch">Ветка</p>
+                                                        <p class="text-sm">main</p>
+                                                    </div>
+                                                    <div>
+                                                        <p class="text-xs text-gray-500" data-i18n="lastSync">Последняя синхронизация</p>
+                                                        <p class="text-sm">May 15, 2025 13:45</p>
+                                                    </div>
+                                                    <div>
+                                                        <p class="text-xs text-gray-500" data-i18n="testCount">Количество тестов</p>
+                                                        <p class="text-sm">126 тестов</p>
+                                                    </div>
+                                                    <div>
+                                                        <p class="text-xs text-gray-500" data-i18n="framework">Фреймворк</p>
+                                                        <p class="text-sm">Pytest</p>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div class="border-t border-gray-200 pt-4 flex items-center justify-end space-x-2">
+                                                    <button class="px-3 py-1.5 bg-gray-200 text-gray-800 rounded hover:bg-gray-300">
+                                                        <i class="ri-refresh-line mr-1"></i>
+                                                        <span data-i18n="sync">Синхронизировать</span>
+                                                    </button>
+                                                    <button class="px-3 py-1.5 bg-gray-200 text-gray-800 rounded hover:bg-gray-300">
+                                                        <i class="ri-settings-line mr-1"></i>
+                                                        <span data-i18n="settings">Настройки</span>
+                                                    </button>
+                                                    <button class="px-3 py-1.5 bg-red-100 text-red-700 rounded hover:bg-red-200">
+                                                        <i class="ri-delete-bin-line mr-1"></i>
+                                                        <span data-i18n="disconnect">Отключить</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Repository 2 -->
+                                            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                                                <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-4">
+                                                    <div class="flex items-center mb-2 sm:mb-0">
+                                                        <div class="mr-3 text-indigo-500">
+                                                            <i class="ri-gitlab-fill text-2xl"></i>
+                                                        </div>
+                                                        <div>
+                                                            <p class="font-medium">API Integration Tests</p>
+                                                            <p class="text-xs text-gray-500">gitlab.com/company/api-tests</p>
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                            <span data-i18n="connected">Подключен</span>
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                                    <div>
+                                                        <p class="text-xs text-gray-500" data-i18n="branch">Ветка</p>
+                                                        <p class="text-sm">develop</p>
+                                                    </div>
+                                                    <div>
+                                                        <p class="text-xs text-gray-500" data-i18n="lastSync">Последняя синхронизация</p>
+                                                        <p class="text-sm">May 14, 2025 09:12</p>
+                                                    </div>
+                                                    <div>
+                                                        <p class="text-xs text-gray-500" data-i18n="testCount">Количество тестов</p>
+                                                        <p class="text-sm">83 теста</p>
+                                                    </div>
+                                                    <div>
+                                                        <p class="text-xs text-gray-500" data-i18n="framework">Фреймворк</p>
+                                                        <p class="text-sm">Jest</p>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div class="border-t border-gray-200 pt-4 flex items-center justify-end space-x-2">
+                                                    <button class="px-3 py-1.5 bg-gray-200 text-gray-800 rounded hover:bg-gray-300">
+                                                        <i class="ri-refresh-line mr-1"></i>
+                                                        <span data-i18n="sync">Синхронизировать</span>
+                                                    </button>
+                                                    <button class="px-3 py-1.5 bg-gray-200 text-gray-800 rounded hover:bg-gray-300">
+                                                        <i class="ri-settings-line mr-1"></i>
+                                                        <span data-i18n="settings">Настройки</span>
+                                                    </button>
+                                                    <button class="px-3 py-1.5 bg-red-100 text-red-700 rounded hover:bg-red-200">
+                                                        <i class="ri-delete-bin-line mr-1"></i>
+                                                        <span data-i18n="disconnect">Отключить</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Repository Settings -->
+                                    <div class="border-t border-gray-200 pt-6">
+                                        <h3 class="text-lg font-medium mb-4" data-i18n="repositorySettings">Настройки репозиториев</h3>
+                                        
+                                        <form id="repository-settings-form">
+                                            <div class="space-y-4 mb-6">
+                                                <div class="flex items-center justify-between">
+                                                    <div>
+                                                        <p class="font-medium" data-i18n="autoSync">Автоматическая синхронизация</p>
+                                                        <p class="text-sm text-gray-500" data-i18n="autoSyncDesc">Автоматически синхронизировать репозитории по расписанию</p>
+                                                    </div>
+                                                    <label class="toggle-switch">
+                                                        <input type="checkbox" name="auto_sync" checked>
+                                                        <span class="slider"></span>
+                                                    </label>
+                                                </div>
+                                                
+                                                <div>
+                                                    <label for="sync-frequency" class="block text-sm font-medium mb-1" data-i18n="syncFrequency">Частота синхронизации</label>
+                                                    <select id="sync-frequency" name="sync_frequency" 
+                                                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-gray-50">
+                                                        <option value="15" data-i18n="minutes15">Каждые 15 минут</option>
+                                                        <option value="30" data-i18n="minutes30">Каждые 30 минут</option>
+                                                        <option value="60" selected data-i18n="hours1">Каждый час</option>
+                                                        <option value="360" data-i18n="hours6">Каждые 6 часов</option>
+                                                        <option value="720" data-i18n="hours12">Каждые 12 часов</option>
+                                                        <option value="1440" data-i18n="daily">Ежедневно</option>
+                                                    </select>
+                                                </div>
+                                                
+                                                <div class="flex items-center justify-between">
+                                                    <div>
+                                                        <p class="font-medium" data-i18n="webhookIntegration">Интеграция с вебхуками</p>
+                                                        <p class="text-sm text-gray-500" data-i18n="webhookIntegrationDesc">Отслеживать события вебхуков репозитория для запуска синхронизации</p>
+                                                    </div>
+                                                    <label class="toggle-switch">
+                                                        <input type="checkbox" name="webhook_integration" checked>
+                                                        <span class="slider"></span>
+                                                    </label>
+                                                </div>
+                                                
+                                                <div class="flex items-center justify-between">
+                                                    <div>
+                                                        <p class="font-medium" data-i18n="syncOnConnect">Синхронизация при подключении</p>
+                                                        <p class="text-sm text-gray-500" data-i18n="syncOnConnectDesc">Автоматически синхронизировать репозитории при их подключении</p>
+                                                    </div>
+                                                    <label class="toggle-switch">
+                                                        <input type="checkbox" name="sync_on_connect" checked>
+                                                        <span class="slider"></span>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="flex justify-end">
+                                                <button type="submit" class="px-4 py-2 bg-coral-500 text-white rounded-lg hover:bg-coral-600 focus:outline-none focus:ring-4 focus:ring-coral-300">
+                                                    <span data-i18n="saveSettings">Сохранить настройки</span>
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </main>
+                </div>
+                
+                <!-- Footer -->
+                <footer class="bg-white border-t border-gray-200 py-4 fixed bottom-0 left-0 right-0 w-full">
+                    <div class="container mx-auto px-4">
+                        <div class="flex flex-col md:flex-row items-center justify-between">
+                            <p class="text-gray-600 text-sm">&copy; 2025 FlowTest 2.0. All rights reserved.</p>
+                            <div class="flex space-x-4 mt-4 md:mt-0">
+                                <a href="#" class="text-gray-500 hover:text-gray-700 text-sm" data-i18n="privacyPolicy">Политика конфиденциальности</a>
+                                <a href="#" class="text-gray-500 hover:text-gray-700 text-sm" data-i18n="termsOfService">Условия использования</a>
+                                <a href="#" class="text-gray-500 hover:text-gray-700 text-sm" data-i18n="contact">Контакты</a>
+                            </div>
+                        </div>
+                    </div>
+                </footer>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Repository Modal (hidden by default) -->
+    <div id="add-repository-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 items-center justify-center">
+        <div class="relative bg-white rounded-lg shadow max-w-2xl w-full">
+            <div class="p-6">
+                <button id="close-repository-modal" class="absolute top-3 right-3 text-gray-400 hover:text-gray-500">
+                    <i class="ri-close-line text-2xl"></i>
+                </button>
+                <h3 class="text-xl font-semibold text-gray-900 mb-6" data-i18n="addRepository">Добавить репозиторий</h3>
+                
+                <!-- Modal content here... -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script type="module">
+        // Navigation for settings
+        document.addEventListener('DOMContentLoaded', function() {
+            // Select all navigation links
+            const navLinks = document.querySelectorAll('#settings-nav a');
+            const sections = document.querySelectorAll('.settings-section');
+            
+            // Get the current hash or default to 'general'
+            let currentHash = window.location.hash.substring(1) || 'general';
+            
+            // Function to activate a section
+            function activateSection(sectionId) {
+                // Hide all sections
+                sections.forEach(section => section.classList.add('hidden'));
+                
+                // Show the selected section
+                const activeSection = document.getElementById(sectionId);
+                if (activeSection) {
+                    activeSection.classList.remove('hidden');
+                }
+                
+                // Update navigation links
+                navLinks.forEach(link => {
+                    const linkSection = link.getAttribute('data-section');
+                    
+                    // Remove active class from all links
+                    link.classList.remove('active-nav');
+                    
+                    // Add active class to the current link
+                    if (linkSection === sectionId) {
+                        link.classList.add('active-nav');
+                    }
+                });
+            }
+            
+            // Add click event handlers to navigation links
+            navLinks.forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const section = this.getAttribute('data-section');
+                    if (section) {
+                        window.location.hash = '#' + section;
+                        activateSection(section);
+                    }
+                });
+            });
+            
+            // Handle hash changes
+            window.addEventListener('hashchange', function() {
+                currentHash = window.location.hash.substring(1) || 'general';
+                activateSection(currentHash);
+            });
+            
+            // Activate initial section
+            activateSection(currentHash);
+            
+            // Forms handling
+            const generalSettingsForm = document.getElementById('general-settings-form');
+            if (generalSettingsForm) {
+                generalSettingsForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    
+                    // Show a success message
+                    alert('Настройки успешно сохранены!');
+                });
+            }
+            
+            const repositorySettingsForm = document.getElementById('repository-settings-form');
+            if (repositorySettingsForm) {
+                repositorySettingsForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    
+                    // Show a success message
+                    alert('Настройки репозитория успешно сохранены!');
+                });
+            }
+            
+            // Repository modal handling
+            const addRepositoryButton = document.getElementById('add-repository-button');
+            const addRepositoryModal = document.getElementById('add-repository-modal');
+            const closeRepositoryModal = document.getElementById('close-repository-modal');
+            
+            if (addRepositoryButton && addRepositoryModal) {
+                addRepositoryButton.addEventListener('click', function() {
+                    addRepositoryModal.classList.remove('hidden');
+                    addRepositoryModal.classList.add('flex');
+                });
+            }
+            
+            if (closeRepositoryModal && addRepositoryModal) {
+                closeRepositoryModal.addEventListener('click', function() {
+                    addRepositoryModal.classList.add('hidden');
+                    addRepositoryModal.classList.remove('flex');
+                });
+            }
+        });
+    </script>
+</body>
+</html>

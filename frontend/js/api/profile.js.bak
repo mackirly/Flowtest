@@ -1,0 +1,64 @@
+/**
+ * Profile API functions
+ */
+
+import ToastManager from '../utils/toast.js';
+
+/**
+ * Upload avatar to server
+ * @param {File} file - Avatar file
+ * @returns {Promise} - Promise that resolves when avatar is uploaded
+ */
+export async function uploadAvatar(file) {
+    const API_BASE = '/api/core';
+    try {
+        console.log('Uploading avatar...');
+        let avatarFormData = new FormData();
+        avatarFormData.append('avatar', file);
+
+        const response = await fetch(`${API_BASE}/upload-avatar/`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('flowtest_access_token')}`,
+                'Accept': 'application/json'
+            },
+            body: avatarFormData
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to upload avatar');
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error('Error uploading avatar:', error);
+        throw error;
+    }
+}
+
+/**
+ * Update profile data
+ * @param {Object} profileData - Profile data to update
+ * @returns {Promise} - Promise that resolves when profile is updated
+ */
+export async function updateProfile(profileData) {
+    try {
+        const response = await fetch(`${API_BASE}/profile/`, {
+            method: 'PATCH',
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('flowtest_access_token')}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(profileData)
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to update profile');
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error('Error updating profile:', error);
+        throw error;
+    }
+}

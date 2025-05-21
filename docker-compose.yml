@@ -1,0 +1,174 @@
+version: '3.8'
+
+services:
+  # Backend (Django)
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile.fix
+    container_name: flowtest-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - automation_repos:/app/automation_projects
+      - media_data:/app/media
+      - static_data:/app/static
+    depends_on:
+      - db
+      - redis
+    environment:
+      - DJANGO_SECRET_KEY=dev_secret_key_will_be_changed_in_production
+      - DJANGO_DEBUG=True
+      - DJANGO_ALLOWED_HOSTS=*
+      - POSTGRES_DB=flowtest
+      - POSTGRES_USER=flowtestuser
+      - POSTGRES_PASSWORD=flowtestpass
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+
+  # Celery Worker
+  celery_worker:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile.fix
+    container_name: flowtest-celery-worker
+    restart: unless-stopped
+    entrypoint: /app/docker-entrypoint.sh
+    command: celery -A flowtest worker --loglevel=info
+    volumes:
+      - ./backend:/app
+      - automation_repos:/app/automation_projects
+      - media_data:/app/media
+    depends_on:
+      - backend
+      - redis
+      - db
+    environment:
+      - DJANGO_SECRET_KEY=dev_secret_key_will_be_changed_in_production
+      - DJANGO_DEBUG=True
+      - DJANGO_ALLOWED_HOSTS=*
+      - POSTGRES_DB=flowtest
+      - POSTGRES_USER=flowtestuser
+      - POSTGRES_PASSWORD=flowtestpass
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+
+  # Celery Beat for scheduled tasks
+  celery_beat:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile.fix
+    container_name: flowtest-celery-beat
+    restart: unless-stopped
+    entrypoint: /app/docker-entrypoint.sh
+    command: celery -A flowtest beat --loglevel=info
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - backend
+      - redis
+      - db
+    environment:
+      - DJANGO_SECRET_KEY=dev_secret_key_will_be_changed_in_production
+      - DJANGO_DEBUG=True
+      - DJANGO_ALLOWED_HOSTS=*
+      - POSTGRES_DB=flowtest
+      - POSTGRES_USER=flowtestuser
+      - POSTGRES_PASSWORD=flowtestpass
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+
+  # PostgreSQL
+  db:
+    image: postgres:15-alpine
+    container_name: flowtest-db
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=flowtest
+      - POSTGRES_USER=flowtestuser
+      - POSTGRES_PASSWORD=flowtestpass
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "flowtestuser", "-d", "flowtest"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis
+  redis:
+    image: redis:alpine
+    container_name: flowtest-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Frontend with Nginx
+  frontend:
+    build: 
+      context: ./frontend
+    container_name: flowtest-frontend
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/usr/share/nginx/html
+    environment:
+      - NGINX_ENTRYPOINT_QUIET_LOGS=1
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Nginx Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: flowtest-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+      - frontend
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - media_data:/app/media:ro
+      - static_data:/app/static:ro
+    environment:
+      - NGINX_ENTRYPOINT_QUIET_LOGS=1
+    command: [nginx-debug, '-g', 'daemon off;']
+
+volumes:
+  postgres_data:
+  redis_data:
+  automation_repos:
+  media_data:
+  static_data:

@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1a1f2e">
+    <title>FlowTest - Test Cases</title>
+    <!-- StylesheetFix - load early to prevent CORS issues with external stylesheets -->
+    <script src="js/stylesheet-fix-loader.js"></script>
+    
+    <link rel="stylesheet" href="css/tailwind-base.css">
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@6.6.6/css/flag-icons.min.css"/>
+    <script type="module" src="js/utils/theme.js"></script>
+    <style>
+        /* Test case tree styles */
+        .tree-container {
+            max-height: calc(100vh - 250px);
+            overflow-y: auto;
+        }
+
+        .tree-item {
+            transition: background-color 0.2s;
+        }
+
+        .tree-item:hover {
+            background-color: rgba(255, 127, 80, 0.1);
+        }
+
+        .tree-item.active {
+            background-color: rgba(255, 127, 80, 0.2);
+            border-left: 3px solid var(--color-coral-500);
+        }
+
+        /* Folder toggle animation */
+        .folder-toggle {
+            transition: transform 0.2s;
+        }
+
+        .folder-toggle.open {
+            transform: rotate(90deg);
+        }
+
+        /* Test case status indicators */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            font-size: 0.75rem;
+            font-weight: 500;
+            border-radius: 9999px;
+            padding: 0.125rem 0.5rem;
+        }
+
+        /* Filter indicator dots */
+        .filter-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        /* Tag styles */
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            font-size: 0.75rem;
+            border-radius: 9999px;
+            padding: 0.125rem 0.5rem;
+            margin-right: 0.25rem;
+            margin-bottom: 0.25rem;
+        }
+
+        /* Context menu */
+        .context-menu {
+            position: absolute;
+            z-index: 50;
+            min-width: 10rem;
+            border-radius: 0.375rem;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            animation: fadeIn 0.15s ease forwards;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Code editor */
+        .code-block {
+            font-family: monospace;
+            background-color: #1e293b;
+            color: #e2e8f0;
+            padding: 1rem;
+            border-radius: 0.375rem;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+        <div class="container mx-auto px-4">
+            <div class="flex items-center justify-between h-16">
+                <!-- Logo and navigation -->
+                <div class="flex items-center">
+                    <a href="index.html" class="flex items-center">
+                        <img src="images/logo.svg" alt="FlowTest Logo" class="h-8">
+                    </a>
+                    <nav class="ml-10 flex items-center space-x-4">
+                        <a href="index.html" class="nav-link" data-i18n="dashboard">Dashboard</a>
+                        <a href="test-cases.html" class="nav-link-active" data-i18n="testCases">Test Cases</a>
+                        <a href="reports.html" class="nav-link" data-i18n="reports">Reports</a>
+                        <a href="automation-projects.html" class="nav-link" data-i18n="automation">Automation</a>
+                    </nav>
+                </div>
+                
+                <!-- Theme, language, and user menu -->
+                <div class="flex items-center space-x-4">
+                    <!-- Theme Toggle -->
+                    <button id="theme-toggle" class="p-1 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                        <i class="ri-sun-line dark:hidden text-lg"></i>
+                        <i class="ri-moon-line hidden dark:inline text-lg"></i>
+                    </button>
+                    
+                    <!-- Language Selector -->
+                    <div class="relative">
+                        <button id="language-menu-button" class="flex items-center space-x-1 p-1 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <span id="current-language-flag" class="fi fi-gb"></span>
+                            <i class="ri-arrow-down-s-line"></i>
+                        </button>
+                        
+                        <!-- Language dropdown -->
+                        <div id="language-dropdown" class="hidden absolute right-0 mt-2 w-40 rounded-md shadow-lg py-1 bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 z-50">
+                            <a href="#" data-lang="en" class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                <span class="fi fi-gb mr-2"></span> English
+                            </a>
+                            <a href="#" data-lang="ru" class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                <span class="fi fi-ru mr-2"></span> Русский
+                            </a>
+                            <a href="#" data-lang="de" class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                <span class="fi fi-de mr-2"></span> Deutsch
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <!-- User Menu -->
+                    <div class="relative">
+                        <button id="user-menu-button" class="flex items-center space-x-2 focus:outline-none">
+                            <div class="w-8 h-8 rounded-full bg-coral-500 flex items-center justify-center text-white">
+                                <span id="user-initials">U</span>
+                            </div>
+                            <span id="user-name" class="hidden md:inline-block">User</span>
+                            <i class="ri-arrow-down-s-line"></i>
+                        </button>
+                        
+                        <!-- User dropdown menu -->
+                        <div id="user-dropdown" class="hidden absolute right-0 mt-2 w-48 rounded-md shadow-lg py-1 bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 z-50">
+                            <a href="profile.html" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                <i class="ri-user-line mr-2"></i> <span data-i18n="profile">Profile</span>
+                            </a>
+                            <a href="settings.html" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                <i class="ri-settings-line mr-2"></i> <span data-i18n="settings">Settings</span>
+                            </a>
+                            <div class="border-t border-gray-200 dark:border-gray-700"></div>
+                            <button id="logout-button" class="w-full text-left block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                <i class="ri-logout-box-line mr-2"></i> <span data-i18n="logout">Logout</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+    
+    <!-- Main content -->
+    <main class="container mx-auto px-4 py-6">
+        <!-- Page header section -->
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
+            <div>
+                <h1 class="text-2xl font-bold mb-1" data-i18n="testCases">Test Cases</h1>
+                <p class="text-gray-600 dark:text-gray-400 text-sm" data-i18n="testCasesDescription">Manage and organize your test cases</p>
+            </div>
+            
+            <div class="flex space-x-2 mt-4 sm:mt-0">
+                <div>
+                    <button id="filter-button" class="btn-outline px-3 py-2 flex items-center space-x-1 text-sm">
+                        <i class="ri-filter-3-line"></i>
+                        <span data-i18n="filter">Filter</span>
+                    </button>
+                </div>
+                
+                <div>
+                    <button id="create-testcase-button" class="bg-coral-500 hover:bg-coral-600 text-white px-3 py-2 rounded flex items-center space-x-1 text-sm">
+                        <i class="ri-add-line"></i>
+                        <span data-i18n="createTestCase">Create Test Case</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Project selection and folder controls -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-6">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div>
+                    <label for="project-selector" class="block text-sm font-medium mb-1" data-i18n="selectProject">Select Project</label>
+                    <div class="relative">
+                        <select id="project-selector" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 rounded-md py-2 px-4 appearance-none">
+                            <option value="" disabled selected data-i18n="selectProject">Select Project</option>
+                            <!-- Projects will be loaded dynamically -->
+                        </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700 dark:text-gray-300">
+                            <i class="ri-arrow-down-s-line"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex space-x-2 items-end">
+                    <button id="create-folder-button" class="btn-outline px-3 py-2 flex items-center space-x-1 text-sm">
+                        <i class="ri-folder-add-line"></i>
+                        <span data-i18n="createFolder">Create Folder</span>
+                    </button>
+                    
+                    <button id="import-testcases-button" class="btn-outline px-3 py-2 flex items-center space-x-1 text-sm">
+                        <i class="ri-upload-2-line"></i>
+                        <span data-i18n="import">Import</span>
+                    </button>
+                    
+                    <button id="export-testcases-button" class="btn-outline px-3 py-2 flex items-center space-x-1 text-sm">
+                        <i class="ri-download-2-line"></i>
+                        <span data-i18n="export">Export</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Test cases content -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Folder tree panel -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div class="border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex justify-between items-center">
+                    <h3 class="font-medium" data-i18n="folders">Folders</h3>
+                    <div class="flex space-x-1">
+                        <button class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400" title="Refresh" data-i18n-title="refresh">
+                            <i class="ri-refresh-line"></i>
+                        </button>
+                        <button class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400" title="Collapse All" data-i18n-title="collapseAll">
+                            <i class="ri-contract-up-down-line"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="tree-container p-2">
+                    <!-- Folder tree will be loaded dynamically -->
+                    <div id="folder-tree">
+                        <div class="py-20 text-center text-gray-500 dark:text-gray-400">
+                            <div class="loading-spinner mx-auto mb-4"></div>
+                            <p data-i18n="loadingFolders">Loading folders...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Test cases list panel -->
+            <div class="lg:col-span-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div class="border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex justify-between items-center">
+                    <div class="flex items-center">
+                        <h3 class="font-medium mr-2" data-i18n="testCases">Test Cases</h3>
+                        <span id="test-count" class="text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full py-0.5 px-2">0</span>
+                    </div>
+                    
+                    <div class="flex items-center space-x-3">
+                        <div class="relative">
+                            <input type="text" id="search-testcases" placeholder="Search..." data-i18n-placeholder="search" 
+                                class="text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md py-1 pl-8 pr-4 w-48">
+                            <div class="absolute inset-y-0 left-0 pl-2 flex items-center">
+                                <i class="ri-search-line text-gray-500 dark:text-gray-400"></i>
+                            </div>
+                        </div>
+                        
+                        <div class="relative">
+                            <select id="sort-selector" class="text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md py-1 px-2 appearance-none pr-8">
+                                <option value="name" data-i18n="sortByName">Name</option>
+                                <option value="updated" data-i18n="sortByUpdated">Last Updated</option>
+                                <option value="status" data-i18n="sortByStatus">Status</option>
+                            </select>
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700 dark:text-gray-300">
+                                <i class="ri-arrow-down-s-line"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="test-cases-container" class="min-h-[400px] max-h-[600px] overflow-y-auto">
+                    <!-- Test cases will be loaded dynamically -->
+                    <div id="test-cases-list" class="divide-y divide-gray-200 dark:divide-gray-700">
+                        <div class="py-20 text-center text-gray-500 dark:text-gray-400">
+                            <div class="loading-spinner mx-auto mb-4"></div>
+                            <p data-i18n="selectFolderOrProject">Please select a project and folder to view test cases</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- New Folder Modal -->
+        <div id="new-folder-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 items-center justify-center">
+            <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow max-w-md w-full">
+                <div class="p-6">
+                    <button id="close-folder-modal" class="absolute top-3 right-3 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
+                        <i class="ri-close-line text-2xl"></i>
+                    </button>
+                    <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-6" data-i18n="createFolder">Create Folder</h3>
+                    
+                    <form id="new-folder-form">
+                        <div class="mb-4">
+                            <label for="folder-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" data-i18n="folderName">Folder Name</label>
+                            <input type="text" id="folder-name" name="name" required 
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700">
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label for="folder-description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" data-i18n="description">Description (Optional)</label>
+                            <textarea id="folder-description" name="description" rows="3" 
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700"></textarea>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label for="parent-folder" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" data-i18n="parentFolder">Parent Folder</label>
+                            <select id="parent-folder" name="parent_folder" 
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700">
+                                <option value="" data-i18n="rootFolder">Root Folder</option>
+                                <!-- Parent folders will be loaded dynamically -->
+                            </select>
+                        </div>
+                        
+                        <div class="flex justify-end space-x-3 mt-6">
+                            <button type="button" id="cancel-folder-button" 
+                                class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-4 focus:ring-gray-300" 
+                                data-i18n="cancel">Cancel</button>
+                            <button type="submit" 
+                                class="px-4 py-2 bg-coral-500 text-white rounded-lg hover:bg-coral-600 focus:outline-none focus:ring-4 focus:ring-coral-300" 
+                                data-i18n="create">Create</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- New Test Case Modal -->
+        <div id="new-testcase-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 items-center justify-center">
+            <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                <div class="p-6">
+                    <button id="close-testcase-modal" class="absolute top-3 right-3 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
+                        <i class="ri-close-line text-2xl"></i>
+                    </button>
+                    <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-6" data-i18n="createTestCase">Create Test Case</h3>
+                    
+                    <form id="new-testcase-form">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="testcase-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" data-i18n="testCaseName">Test Case Name</label>
+                                <input type="text" id="testcase-name" name="name" required 
+                                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700">
+                            </div>
+                            
+                            <div>
+                                <label for="testcase-folder" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" data-i18n="folder">Folder</label>
+                                <select id="testcase-folder" name="folder" 
+                                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700">
+                                    <!-- Folders will be loaded dynamically -->
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-4">
+                            <label for="testcase-description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" data-i18n="description">Description</label>
+                            <textarea id="testcase-description" name="description" rows="3" 
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700"></textarea>
+                        </div>
+                        
+                        <div class="mt-4">
+                            <label for="testcase-steps" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" data-i18n="steps">Steps</label>
+                            
+                            <div id="steps-container" class="mb-2 space-y-2">
+                                <!-- Steps will be added dynamically -->
+                            </div>
+                            
+                            <button type="button" id="add-step-button" 
+                                class="inline-flex items-center px-3 py-1 border border-gray-300 dark:border-gray-700 text-sm rounded-md bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600">
+                                <i class="ri-add-line mr-1"></i>
+                                <span data-i18n="addStep">Add Step</span>
+                            </button>
+                        </div>
+                        
+                        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="testcase-priority" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" data-i18n="priority">Priority</label>
+                                <select id="testcase-priority" name="priority" 
+                                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700">
+                                    <option value="high" data-i18n="high">High</option>
+                                    <option value="medium" selected data-i18n="medium">Medium</option>
+                                    <option value="low" data-i18n="low">Low</option>
+                                </select>
+                            </div>
+                            
+                            <div>
+                                <label for="testcase-type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" data-i18n="type">Type</label>
+                                <select id="testcase-type" name="type" 
+                                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700">
+                                    <option value="functional" selected data-i18n="functional">Functional</option>
+                                    <option value="performance" data-i18n="performance">Performance</option>
+                                    <option value="security" data-i18n="security">Security</option>
+                                    <option value="usability" data-i18n="usability">Usability</option>
+                                    <option value="compatibility" data-i18n="compatibility">Compatibility</option>
+                                    <option value="api" data-i18n="api">API</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-4">
+                            <label for="testcase-tags" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" data-i18n="tags">Tags</label>
+                            <input type="text" id="testcase-tags" name="tags" placeholder="Enter tags separated by commas" data-i18n-placeholder="tagsPlaceholder"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700">
+                        </div>
+                        
+                        <div class="flex justify-end space-x-3 mt-6">
+                            <button type="button" id="cancel-testcase-button" 
+                                class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-4 focus:ring-gray-300" 
+                                data-i18n="cancel">Cancel</button>
+                            <button type="submit" 
+                                class="px-4 py-2 bg-coral-500 text-white rounded-lg hover:bg-coral-600 focus:outline-none focus:ring-4 focus:ring-coral-300" 
+                                data-i18n="create">Create</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Test Case Details Modal -->
+        <div id="testcase-details-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 items-center justify-center">
+            <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                <div class="p-6">
+                    <button id="close-details-modal" class="absolute top-3 right-3 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
+                        <i class="ri-close-line text-2xl"></i>
+                    </button>
+                    <h3 id="testcase-details-title" class="text-xl font-semibold text-gray-900 dark:text-white mb-1">Test Case Details</h3>
+                    <p id="testcase-details-path" class="text-sm text-gray-500 dark:text-gray-400 mb-6">/Path/To/Test/Case</p>
+                    
+                    <div class="border-b border-gray-200 dark:border-gray-700 mb-4 pb-4">
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                            <div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400" data-i18n="status">Status</p>
+                                <div id="testcase-details-status" class="font-medium flex items-center mt-1">
+                                    <span class="status-indicator status-pending mr-1"></span>
+                                    <span data-i18n="pending">Pending</span>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400" data-i18n="priority">Priority</p>
+                                <p id="testcase-details-priority" class="font-medium" data-i18n="medium">Medium</p>
+                            </div>
+                            
+                            <div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400" data-i18n="type">Type</p>
+                                <p id="testcase-details-type" class="font-medium" data-i18n="functional">Functional</p>
+                            </div>
+                            
+                            <div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400" data-i18n="lastUpdated">Last Updated</p>
+                                <p id="testcase-details-updated" class="font-medium">2025-05-15</p>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <p class="text-xs text-gray-500 dark:text-gray-400" data-i18n="tags">Tags</p>
+                            <div id="testcase-details-tags" class="mt-1 flex flex-wrap">
+                                <!-- Tags will be loaded dynamically -->
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <p class="text-xs text-gray-500 dark:text-gray-400" data-i18n="description">Description</p>
+                            <p id="testcase-details-description" class="mt-1">Test case description will appear here.</p>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h4 class="text-md font-medium mb-3" data-i18n="steps">Steps</h4>
+                        <div id="testcase-details-steps" class="space-y-4">
+                            <!-- Steps will be loaded dynamically -->
+                        </div>
+                    </div>
+                    
+                    <div class="mt-6 border-t border-gray-200 dark:border-gray-700 pt-4 flex justify-between">
+                        <div>
+                            <button id="delete-testcase-button" class="px-4 py-2 bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-800">
+                                <i class="ri-delete-bin-line mr-1"></i>
+                                <span data-i18n="delete">Delete</span>
+                            </button>
+                        </div>
+                        
+                        <div class="flex space-x-3">
+                            <button id="run-testcase-button" class="px-4 py-2 bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 rounded-lg hover:bg-green-200 dark:hover:bg-green-800">
+                                <i class="ri-play-circle-line mr-1"></i>
+                                <span data-i18n="run">Run</span>
+                            </button>
+                            
+                            <button id="edit-testcase-button" class="px-4 py-2 bg-coral-100 text-coral-700 dark:bg-coral-900 dark:text-coral-300 rounded-lg hover:bg-coral-200 dark:hover:bg-coral-800">
+                                <i class="ri-edit-line mr-1"></i>
+                                <span data-i18n="edit">Edit</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Filter modal -->
+        <div id="filter-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 items-center justify-center">
+            <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow max-w-md w-full">
+                <div class="p-6">
+                    <button id="close-filter-modal" class="absolute top-3 right-3 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
+                        <i class="ri-close-line text-2xl"></i>
+                    </button>
+                    <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-6" data-i18n="filterTestCases">Filter Test Cases</h3>
+                    
+                    <form id="filter-form" class="space-y-4">
+                        <div>
+                            <label for="filter-status" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" data-i18n="status">Status</label>
+                            <select id="filter-status" name="status" 
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700">
+                                <option value="" data-i18n="all">All</option>
+                                <option value="passed" data-i18n="passed">Passed</option>
+                                <option value="failed" data-i18n="failed">Failed</option>
+                                <option value="pending" data-i18n="pending">Pending</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label for="filter-priority" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" data-i18n="priority">Priority</label>
+                            <select id="filter-priority" name="priority" 
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700">
+                                <option value="" data-i18n="all">All</option>
+                                <option value="high" data-i18n="high">High</option>
+                                <option value="medium" data-i18n="medium">Medium</option>
+                                <option value="low" data-i18n="low">Low</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label for="filter-type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" data-i18n="type">Type</label>
+                            <select id="filter-type" name="type" 
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700">
+                                <option value="" data-i18n="all">All</option>
+                                <option value="functional" data-i18n="functional">Functional</option>
+                                <option value="performance" data-i18n="performance">Performance</option>
+                                <option value="security" data-i18n="security">Security</option>
+                                <option value="usability" data-i18n="usability">Usability</option>
+                                <option value="compatibility" data-i18n="compatibility">Compatibility</option>
+                                <option value="api" data-i18n="api">API</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label for="filter-tags" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" data-i18n="tags">Tags</label>
+                            <input type="text" id="filter-tags" name="tags" placeholder="Enter tags to filter by" data-i18n-placeholder="filterTagsPlaceholder"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700">
+                        </div>
+                        
+                        <div class="flex justify-between space-x-3 mt-6">
+                            <button type="button" id="clear-filters-button" 
+                                class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-4 focus:ring-gray-300" 
+                                data-i18n="clearFilters">Clear Filters</button>
+                            <button type="submit" 
+                                class="px-4 py-2 bg-coral-500 text-white rounded-lg hover:bg-coral-600 focus:outline-none focus:ring-4 focus:ring-coral-300" 
+                                data-i18n="applyFilters">Apply Filters</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- Footer -->
+    <footer class="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 py-4 mt-8">
+        <div class="container mx-auto px-4">
+            <div class="flex flex-col md:flex-row items-center justify-between">
+                <p class="text-gray-600 dark:text-gray-400 text-sm">&copy; 2025 FlowTest 2.0. All rights reserved.</p>
+                <div class="flex space-x-4 mt-4 md:mt-0">
+                    <a href="#" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 text-sm" data-i18n="privacyPolicy">Privacy Policy</a>
+                    <a href="#" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 text-sm" data-i18n="termsOfService">Terms of Service</a>
+                    <a href="#" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 text-sm" data-i18n="contact">Contact</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Context menu for right-click operations -->
+    <div id="context-menu" class="context-menu hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+        <!-- Context menu items will be dynamically added based on the selected item -->
+    </div>
+
+    <!-- Scripts -->
+    <script type="module" src="js/utils/toast.js"></script>
+    <script type="module" src="js/i18n/translations.js"></script>
+    <script type="module" src="js/i18n/i18n.js"></script>
+    <script type="module" src="js/api/client.js"></script>
+    <script type="module" src="js/pages/test-cases.js"></script>
+</body>
+</html>

@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1a1f2e">
+    <title>FlowTest - Events</title>
+    
+    <!-- StylesheetFix - load early to prevent CORS issues with external stylesheets -->
+    <script src="js/stylesheet-fix-loader.js"></script>
+    
+    <!-- Загрузка Tailwind CSS для быстрого прототипирования -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link rel="stylesheet" href="css/tailwind-base.css">
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@6.6.6/css/flag-icons.min.css"/>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.2.0/flowbite.min.css" rel="stylesheet">
+    <script type="module" src="js/utils/theme.js"></script>
+
+    <script>
+    // Настройка Tailwind для работы с темной темой
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        fontFamily: {
+          sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
+        },
+        extend: {
+          colors: {
+            coral: {
+              50: '#FFF5F2',
+              100: '#FFE6DF',
+              200: '#FFD2C5',
+              300: '#FFB8A5',
+              400: '#FF9B80',
+              500: '#FF7F50',
+              600: '#FF5C2B',
+              700: '#FF2D00',
+              800: '#CC2400',
+              900: '#8C1800',
+            },
+          },
+        },
+      },
+    }
+    </script>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900">
+    <div class="min-h-screen flex">
+        <!-- Sidebar -->
+        <aside class="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 hidden md:block h-screen sticky top-0">
+            <div class="p-4 sticky top-0">
+                <img src="images/FlowTest.png" alt="Company Logo" class="h-12 w-auto mb-8" data-i18n="companyLogo">
+                <nav class="space-y-2">
+                    <a href="index.html" class="flex items-center p-2 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-coral-50 dark:hover:bg-gray-700 hover:text-coral-600 dark:hover:text-coral-400 group">
+                        <i class="ri-dashboard-line text-xl mr-3"></i>
+                        <span data-i18n="dashboard">Панель управления</span>
+                    </a>
+
+                    <a href="test-cases.html" class="flex items-center p-2 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-coral-50 dark:hover:bg-gray-700 hover:text-coral-600 dark:hover:text-coral-400 group">
+                        <i class="ri-file-list-line text-xl mr-3"></i>
+                        <span data-i18n="testCases">Тест-кейсы</span>
+                    </a>
+
+                    <a href="reports.html" class="flex items-center p-2 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-coral-50 dark:hover:bg-gray-700 hover:text-coral-600 dark:hover:text-coral-400 group">
+                        <i class="ri-file-chart-line text-xl mr-3"></i>
+                        <span data-i18n="reports">Отчеты</span>
+                    </a>
+
+                    <a href="events.html" class="flex items-center p-2 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-coral-50 dark:hover:bg-gray-700 hover:text-coral-600 dark:hover:text-coral-400 group bg-coral-50 dark:bg-gray-700 text-coral-600 dark:text-coral-400">
+                        <i class="ri-calendar-event-line text-xl mr-3"></i>
+                        <span data-i18n="events">События</span>
+                    </a>
+                </nav>
+            </div>
+        </aside>
+
+        <div class="flex-1 bg-gray-50 dark:bg-gray-900">
+            <!-- Header -->
+            <header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between p-4">
+                    <h1 class="text-2xl font-semibold text-gray-800 dark:text-gray-200" data-i18n="events"></h1>
+                    <div class="flex items-center space-x-4 ml-auto">
+                        <!-- Project Selector -->
+                        <div class="flex items-center space-x-2">
+                            <div class="flex items-center space-x-2 w-48">
+                                <select id="projectSelector" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-coral-500 focus:border-coral-500 block w-full p-2 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-coral-500 dark:focus:border-coral-500">
+                                    <option value="" selected data-i18n="allProjects">Все проекты</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Notifications -->
+                        <div id="notifications-wrapper" class="relative">
+                            <button type="button" id="notifications-button"
+                                    class="relative p-2 text-gray-600 dark:text-gray-300 hover:text-coral-600 dark:hover:text-coral-400">
+                                <span id="notification-count" class="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-coral-600 rounded-full hidden">0</span>
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                                </svg>
+                                <span class="sr-only" data-i18n="notifications">Уведомления</span>
+                            </button>
+                            <div id="notificationList" class="hidden absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg z-50">
+                                <!-- Notifications will be loaded here -->
+                                <div class="p-4 text-center text-gray-500 dark:text-gray-400">
+                                    <p data-i18n="noNotifications">Нет новых уведомлений</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- User Menu -->
+                        <div class="relative">
+                            <button id="user-menu-button" class="flex items-center space-x-2 focus:outline-none">
+                                <div id="user-avatar" class="w-10 h-10 rounded-full bg-coral-500 flex items-center justify-center text-white">
+                                    <span id="user-initials">U</span>
+                                </div>
+                                <span id="user-name" class="inline-block text-sm text-gray-700 dark:text-gray-200">User</span>
+                                <i class="ri-arrow-down-s-line text-gray-500 dark:text-gray-400"></i>
+                            </button>
+                            <div id="user-dropdown" class="hidden absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg py-1 z-50">
+                                <a href="profile.html" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                    <i class="ri-user-line mr-2"></i> <span data-i18n="profile">Профиль</span>
+                                </a>
+                                <a href="settings.html" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                    <i class="ri-settings-line mr-2"></i> <span data-i18n="settings">Настройки</span>
+                                </a>
+                                <a href="admin-panel.html" id="adminPanelLink" class="hidden block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">
+                                    <i class="ri-admin-line mr-2"></i> <span data-i18n="adminPanel">Панель администратора</span>
+                                </a>
+                                <div class="border-t border-gray-200 dark:border-gray-700"></div>
+                                <button id="logout-button" class="w-full text-left block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                    <i class="ri-logout-box-line mr-2"></i> <span data-i18n="logout">Выйти</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Main content -->
+            <main class="flex-1 bg-gray-50 dark:bg-gray-900 p-4">
+                <!-- Toolbar -->
+                <div class="mb-6">
+                    <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
+                        <!-- Search and filters -->
+                        <div class="flex flex-1 w-full sm:w-auto gap-4">
+                            <!-- Search -->
+                            <div class="relative flex-1">
+                                <input type="text" id="search-events" placeholder="Поиск событий..." class="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-coral-500">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <i class="ri-search-line text-gray-400"></i>
+                                </div>
+                            </div>
+                            
+                            <!-- Date Filter -->
+                            <div class="relative">
+                                <select id="date-filter" class="pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-coral-500">
+                                    <option value="all">Все даты</option>
+                                    <option value="today">Сегодня</option>
+                                    <option value="week">Эта неделя</option>
+                                    <option value="month">Этот месяц</option>
+                                </select>
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <i class="ri-calendar-line text-gray-400"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Create Event Button -->
+                        <button id="create-event-btn" class="px-4 py-2 bg-coral-500 text-white rounded-lg hover:bg-coral-600 focus:outline-none focus:ring-2 focus:ring-coral-500 focus:ring-offset-2 transition-all duration-300 flex items-center">
+                            <i class="ri-add-line mr-2"></i>
+                            <span>Создать событие</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Events List -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+                    <!-- List Header -->
+                    <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                        <div class="grid grid-cols-12 gap-4">
+                            <div class="col-span-3 font-medium text-gray-700 dark:text-gray-300">Название</div>
+                            <div class="col-span-2 font-medium text-gray-700 dark:text-gray-300">Дата</div>
+                            <div class="col-span-2 font-medium text-gray-700 dark:text-gray-300">Тип</div>
+                            <div class="col-span-3 font-medium text-gray-700 dark:text-gray-300">Участники</div>
+                            <div class="col-span-2 font-medium text-gray-700 dark:text-gray-300">Статус</div>
+                        </div>
+                    </div>
+
+                    <!-- List Content -->
+                    <div id="events-list" class="divide-y divide-gray-200 dark:divide-gray-700">
+                        <!-- Events will be loaded here -->
+                    </div>
+
+                    <!-- Empty State -->
+                    <div id="empty-state" class="hidden text-center py-12">
+                        <div class="mx-auto w-24 h-24 mb-4 text-gray-400 dark:text-gray-600">
+                            <i class="ri-calendar-event-line text-6xl"></i>
+                        </div>
+                        <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Нет событий</h3>
+                        <p class="text-gray-500 dark:text-gray-400 mb-4">Создайте новое событие, чтобы начать.</p>
+                        <button id="create-first-event-btn" class="px-4 py-2 bg-coral-500 text-white rounded-lg hover:bg-coral-600 focus:outline-none focus:ring-2 focus:ring-coral-500 focus:ring-offset-2 transition-all duration-300 inline-flex items-center">
+                            <i class="ri-add-line mr-2"></i>
+                            <span>Создать событие</span>
+                        </button>
+                    </div>
+
+                    <!-- Loading State -->
+                    <div id="loading-state" class="hidden text-center py-12">
+                        <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-coral-500 mx-auto"></div>
+                        <p class="mt-4 text-gray-500 dark:text-gray-400">Загрузка событий...</p>
+                    </div>
+                </div>
+            </main>
+
+            <!-- Footer -->
+            <footer class="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 py-4">
+                <div class="container mx-auto px-4">
+                    <div class="flex flex-col md:flex-row items-center justify-between">
+                        <p class="text-gray-600 dark:text-gray-400 text-sm">&copy; 2025 FlowTest 2.0. All rights reserved.</p>
+                        <div class="flex space-x-4 mt-4 md:mt-0">
+                            <a href="#" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 text-sm" data-i18n="privacyPolicy">Политика конфиденциальности</a>
+                            <a href="#" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 text-sm" data-i18n="termsOfService">Условия использования</a>
+                            <a href="#" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 text-sm" data-i18n="contact">Контакты</a>
+                        </div>
+                    </div>
+                </div>
+            </footer>
+        </div>
+    </div>
+
+    <!-- Create Event Modal -->
+    <div id="create-event-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50">
+        <div class="fixed inset-0 overflow-y-auto">
+            <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+                <div class="relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
+                    <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                        <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">Создать событие</h3>
+                    </div>
+                    <form id="event-form" class="px-6 py-4">
+                        <div class="space-y-4">
+                            <!-- Event Name -->
+                            <div>
+                                <label for="event-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Название события</label>
+                                <input type="text" id="event-name" name="name" required class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-coral-500">
+                            </div>
+
+                            <!-- Event Type -->
+                            <div>
+                                <label for="event-type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Тип события</label>
+                                <select id="event-type" name="type" required class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-coral-500">
+                                    <option value="meeting">Встреча</option>
+                                    <option value="deadline">Дедлайн</option>
+                                    <option value="review">Ревью</option>
+                                    <option value="other">Другое</option>
+                                </select>
+                            </div>
+
+                            <!-- Date and Time -->
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label for="event-date" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Дата</label>
+                                    <input type="date" id="event-date" name="date" required class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-coral-500">
+                                </div>
+                                <div>
+                                    <label for="event-time" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Время</label>
+                                    <input type="time" id="event-time" name="time" required class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-coral-500">
+                                </div>
+                            </div>
+
+                            <!-- Description -->
+                            <div>
+                                <label for="event-description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Описание</label>
+                                <textarea id="event-description" name="description" rows="3" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-coral-500"></textarea>
+                            </div>
+
+                            <!-- Participants -->
+                            <div>
+                                <label for="event-participants" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Участники</label>
+                                <select id="event-participants" name="participants" multiple class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-coral-500">
+                                    <!-- Participants will be loaded here -->
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Buttons -->
+                        <div class="mt-6 flex justify-end space-x-3">
+                            <button type="button" id="cancel-event-btn" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-coral-500">
+                                Отмена
+                            </button>
+                            <button type="submit" class="px-4 py-2 bg-coral-500 text-white rounded-lg hover:bg-coral-600 focus:outline-none focus:ring-2 focus:ring-coral-500 focus:ring-offset-2">
+                                Создать
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script type="module" src="js/utils/toast.js"></script>
+    <script type="module" src="js/i18n/translations.js"></script>
+    <script type="module" src="js/i18n/i18n.js"></script>
+    <script type="module" src="js/pages/events.js"></script>
+</body>
+</html>

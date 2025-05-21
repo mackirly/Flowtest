@@ -1,0 +1,53 @@
+FROM python:3.11-slim
+
+# Установка системных зависимостей
+RUN apt-get update && apt-get install -y \
+    git \
+    build-essential \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Установка рабочей директории
+WORKDIR /app
+
+# Прямое создание requirements.txt с конкретными версиями для избежания конфликтов
+RUN echo "# Core Framework\nDjango==4.2.10\ndjangorestframework==3.14.0\ndjango-cors-headers==4.3.1\ndjangorestframework-simplejwt==5.3.1\ndrf-spectacular==0.27.0\n\n# Database\npsycopg2-binary==2.9.9\n\n# Async & WebSockets\nchannels==4.0.0\ndaphne==4.0.0\nchannels-redis==4.1.0\n\n# Celery\ncelery==5.3.6\nredis==5.0.1\ndjango-celery-beat==2.5.0\ndjango-celery-results==2.5.1\n\n# Git Integration\ngitpython==3.1.41\n\n# Django Extensions\ndjango-filter==23.5\ndj-database-url==2.1.0\n\n# Utils\npython-dotenv==1.0.0\nrequests==2.31.0\nwhitenoise==6.6.0\nPyYAML==6.0.1\n" > requirements.txt
+
+# Создаем необходимые сигнальные файлы для Django приложений
+RUN mkdir -p /app/projects \
+    && mkdir -p /app/testcases \
+    && mkdir -p /app/automation \
+    && mkdir -p /app/reports \
+    && mkdir -p /app/core/utils \
+    && echo "from django.db.models.signals import post_save\nfrom django.dispatch import receiver\n\nfrom .models import Project, Folder\n\n@receiver(post_save, sender=Project)\ndef project_saved(sender, instance, created, **kwargs):\n    \"\"\"\n    Signal handler for when a project is saved.\n    Creates a default root folder if this is a new project.\n    \"\"\"\n    if created:\n        # Create default root folder for the project\n        Folder.objects.create(\n            name=\"Root\",\n            project=instance,\n            parent=None,\n            is_root=True\n        )\n" > /app/projects/signals.py \
+    && echo "from django.db.models.signals import post_save\nfrom django.dispatch import receiver\n\n# Signal handlers for testcases app\n" > /app/testcases/signals.py \
+    && echo "from django.db.models.signals import post_save\nfrom django.dispatch import receiver\n\n# Signal handlers for automation app\n" > /app/automation/signals.py \
+    && echo "from django.db.models.signals import post_save\nfrom django.dispatch import receiver\n\n# Signal handlers for reports app\n" > /app/reports/signals.py \
+    && echo "# Core utility modules" > /app/core/utils/__init__.py \
+    && echo "from rest_framework.pagination import PageNumberPagination\n\n\nclass StandardResultsSetPagination(PageNumberPagination):\n    \"\"\"\n    Standard pagination class for API result sets.\n    \"\"\"\n    page_size = 20\n    page_size_query_param = 'page_size'\n    max_page_size = 100" > /app/core/utils/pagination.py
+
+# Установка Python зависимостей
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Установка дополнительных зависимостей
+RUN pip install pytest==7.4.4 pytest-django==4.7.0 \
+    black==23.11.0 flake8==6.1.0 isort==5.12.0 pylint==3.0.3 \
+    Pillow==10.0.1 pdfkit==1.0.0 openpyxl==3.1.2 
+
+# Копирование entrypoint скрипта
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# Копирование остальных файлов проекта
+COPY . .
+
+# Создание директории для хранения репозиториев
+RUN mkdir -p automation_projects
+
+# Открытие порта
+EXPOSE 8000
+
+# Запуск сервера разработки Django по умолчанию
+ENTRYPOINT ["docker-entrypoint.sh"]
+CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]

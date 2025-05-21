@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1a1f2e">
+    <title>FlowTest - Reports</title>
+    <!-- StylesheetFix - load early to prevent CORS issues with external stylesheets -->
+    <script src="js/stylesheet-fix-loader.js"></script>
+    
+    <!-- Загрузка полного Tailwind CSS с CDN для разработки -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Затем загружаем наши собственные стили -->
+    <link rel="stylesheet" href="css/tailwind-base.css">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/tailwind.css">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@6.6.6/css/flag-icons.min.css"/>
+    <script type="module" src="js/utils/theme.js"></script>
+    <script>
+    // Настройка Tailwind для работы с темной темой
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        fontFamily: {
+          sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
+        },
+        extend: {
+          colors: {
+            brand: {
+              300: '#ff9980', // светлый красно-оранжевый
+              400: '#ff7f5c', // пастельный красно-оранжевый
+              500: '#ff6633', // яркий красно-оранжевый
+              600: '#ff4500', // темный красно-оранжевый (оранжево-красный)
+              700: '#cc3700'  // очень темный красно-оранжевый
+            },
+            coral: {
+              300: '#ff9980',
+              400: '#ff7f5c',
+              500: '#ff6633',
+              600: '#ff4500',
+              700: '#cc3700'
+            }
+          }
+        }
+      }
+    }
+    </script>
+    <style>
+        /* Report card styles */
+        .report-card {
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .report-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* Chart container styles */
+        .chart-container {
+            height: 300px;
+            position: relative;
+        }
+        
+        /* Export button hover effect */
+        .export-button {
+            transition: background-color 0.2s;
+        }
+        
+        .export-button:hover {
+            background-color: rgba(255, 127, 80, 0.1);
+        }
+        
+        /* Report status indicators */
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 6px;
+        }
+        
+        .status-recent {
+            background-color: #10b981; /* green-500 */
+        }
+        
+        .status-scheduled {
+            background-color: #f59e0b; /* amber-500 */
+        }
+        
+        .status-outdated {
+            background-color: #ef4444; /* red-500 */
+        }
+        
+        /* Date range picker styles */
+        .date-range-input {
+            border-radius: 0.375rem;
+            padding: 0.5rem;
+            border: 1px solid #e2e8f0;
+            width: 100%;
+        }
+        
+        /* Filter dropdown styles */
+        .filter-dropdown {
+            position: absolute;
+            z-index: 50;
+            min-width: 12rem;
+            border-radius: 0.375rem;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            animation: fadeIn 0.15s ease forwards;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen">
+    <div class="min-h-screen flex">
+        <!-- Sidebar -->
+        <aside class="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 hidden md:block h-screen sticky top-0">
+            <div class="p-4 sticky top-0">
+                <img src="images/FlowTest.png" alt="Company Logo" class="h-12 w-auto mb-8" data-i18n="companyLogo">
+                <nav class="space-y-2">
+                    <a href="index.html" class="flex items-center p-2 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-coral-50 dark:hover:bg-gray-700 hover:text-coral-600 dark:hover:text-coral-400 group">
+                        <i class="ri-dashboard-line text-xl mr-3"></i>
+                        <span data-i18n="dashboard">Панель управления</span>
+                    </a>
+
+                    <a href="test-cases.html" class="flex items-center p-2 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-coral-50 dark:hover:bg-gray-700 hover:text-coral-600 dark:hover:text-coral-400 group">
+                        <i class="ri-file-list-line text-xl mr-3"></i>
+                        <span data-i18n="testCases">Тест-кейсы</span>
+                    </a>
+
+                    <a href="reports.html" class="flex items-center p-2 text-coral-600 dark:text-coral-400 bg-coral-50 dark:bg-gray-700 rounded-lg group">
+                        <i class="ri-file-chart-line text-xl mr-3"></i>
+                        <span data-i18n="reports">Отчеты</span>
+                    </a>
+
+                    <a href="automation-projects.html" class="flex items-center p-2 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-coral-50 dark:hover:bg-gray-700 hover:text-coral-600 dark:hover:text-coral-400 group">
+                        <i class="ri-code-box-line text-xl mr-3"></i>
+                        <span data-i18n="automation">Автоматизация</span>
+                    </a>
+                </nav>
+            </div>
+        </aside>
+
+        <div class="flex-1 bg-gray-50 dark:bg-gray-900">
+            <!-- Header -->
+            <header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between p-4">
+                    <h1 class="text-2xl font-semibold text-gray-800 dark:text-gray-200" data-i18n="reports">Отчеты</h1>
+                    <div class="flex items-center space-x-4 ml-auto">
+                        <!-- Project Selector -->
+                        <div class="flex items-center space-x-2">
+                            <div class="flex items-center space-x-2 w-48">
+                                <select id="projectSelector" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-coral-500 focus:border-coral-500 block w-full p-2 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-coral-500 dark:focus:border-coral-500">
+                                    <option value="" selected data-i18n="allProjects">Все проекты</option>
+                                </select>
+                                <button id="addProjectBtn" type="button" aria-label="Add Project" title="Add Project"
+                                    class="w-10 h-10 aspect-square rounded-full bg-white dark:bg-gray-700 flex items-center justify-center transform transition-all duration-300 hover:scale-110 focus:outline-none active:scale-95 text-gray-600 dark:text-gray-300 hover:text-coral-600 dark:hover:text-coral-400">
+                                    <i class="ri-add-line text-xl"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Notifications -->
+                        <div id="notifications-wrapper" class="relative">
+                            <button type="button" id="notifications-button"
+                                    class="relative p-2 text-gray-600 dark:text-gray-300 hover:text-coral-600 dark:hover:text-coral-400">
+                                <span id="notification-count" class="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-coral-600 rounded-full hidden">0</span>
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                                </svg>
+                                <span class="sr-only" data-i18n="notifications">Уведомления</span>
+                            </button>
+                        </div>
+                        
+                        <!-- Action buttons -->
+                        <div class="flex space-x-2">
+                            <button id="filter-button" class="btn-outline px-3 py-2 flex items-center space-x-1 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                <i class="ri-filter-3-line mr-1"></i>
+                                <span data-i18n="filter">Фильтр</span>
+                            </button>
+                            
+                            <button id="generate-report-button" class="bg-coral-500 hover:bg-coral-600 text-white px-3 py-2 rounded-md flex items-center space-x-1 text-sm">
+                                <i class="ri-file-chart-line mr-1"></i>
+                                <span data-i18n="generateReport">Создать отчет</span>
+                            </button>
+                        </div>
+                </div>
+            </header>
+            
+            <!-- Main content -->
+            <main class="container mx-auto px-4 py-6">
+                <!-- Dashboard metrics summary -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <p class="text-sm text-gray-500 dark:text-gray-400" data-i18n="totalReports">Total Reports</p>
+                        <h3 id="total-reports-count" class="text-2xl font-bold mt-1">0</h3>
+                    </div>
+                    <div class="p-2 bg-blue-100 dark:bg-blue-900 rounded-md text-blue-600 dark:text-blue-300">
+                        <i class="ri-file-chart-line text-xl"></i>
+                    </div>
+                </div>
+                <p class="text-xs text-gray-500 mt-2" data-i18n="allTime">All time</p>
+            </div>
+            
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <p class="text-sm text-gray-500 dark:text-gray-400" data-i18n="testsExecuted">Tests Executed</p>
+                        <h3 id="tests-executed-count" class="text-2xl font-bold mt-1">0</h3>
+                    </div>
+                    <div class="p-2 bg-green-100 dark:bg-green-900 rounded-md text-green-600 dark:text-green-300">
+                        <i class="ri-checkbox-multiple-line text-xl"></i>
+                    </div>
+                </div>
+                <p class="text-xs text-gray-500 mt-2" data-i18n="lastMonth">Last 30 days</p>
+            </div>
+            
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <p class="text-sm text-gray-500 dark:text-gray-400" data-i18n="passRate">Pass Rate</p>
+                        <h3 id="pass-rate" class="text-2xl font-bold mt-1">0%</h3>
+                    </div>
+                    <div class="p-2 bg-coral-100 dark:bg-coral-900 rounded-md text-coral-600 dark:text-coral-300">
+                        <i class="ri-bar-chart-box-line text-xl"></i>
+                    </div>
+                </div>
+                <p class="text-xs text-gray-500 mt-2" data-i18n="lastMonth">Last 30 days</p>
+            </div>
+            
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <p class="text-sm text-gray-500 dark:text-gray-400" data-i18n="scheduledReports">Scheduled Reports</p>
+                        <h3 id="scheduled-reports-count" class="text-2xl font-bold mt-1">0</h3>
+                    </div>
+                    <div class="p-2 bg-purple-100 dark:bg-purple-900 rounded-md text-purple-600 dark:text-purple-300">
+                        <i class="ri-calendar-check-line text-xl"></i>
+                    </div>
+                </div>
+                <p class="text-xs text-gray-500 mt-2" data-i18n="active">Active</p>
+            </div>
+        </div>
+        
+        <!-- Project selection and date range -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-6">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <div>
+                    <label for="project-selector" class="block text-sm font-medium mb-1" data-i18n="selectProject">Select Project</label>
+                    <div class="relative">
+                        <select id="project-selector" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 rounded-md py-2 px-4 appearance-none">
+                            <option value="" disabled selected data-i18n="selectProject">Select Project</option>
+                            <option value="all" data-i18n="allProjects">All Projects</option>
+                            <!-- Projects will be loaded dynamically -->
+                        </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700 dark:text-gray-300">
+                            <i class="ri-arrow-down-s-line"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <div>
+                    <label for="date-range" class="block text-sm font-medium mb-1" data-i18n="dateRange">Date Range</label>
+                    <div class="flex space-x-2 items-center">
+                        <div class="relative w-full">
+                            <input type="date" id="date-from" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 rounded-md py-2 px-4">
+                        </div>
+                        <span class="text-gray-500">-</span>
+                        <div class="relative w-full">
+                            <input type="date" id="date-to" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 rounded-md py-2 px-4">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex space-x-2 items-end">
+                    <button id="apply-filter-button" class="btn-outline px-3 py-2 flex items-center space-x-1 text-sm">
+                        <i class="ri-filter-3-line"></i>
+                        <span data-i18n="apply">Apply</span>
+                    </button>
+                    
+                    <button id="schedule-report-button" class="btn-outline px-3 py-2 flex items-center space-x-1 text-sm">
+                        <i class="ri-calendar-line"></i>
+                        <span data-i18n="scheduleReport">Schedule Report</span>
+                    </button>
+                    
+                    <button id="refresh-reports-button" class="btn-outline px-3 py-2 flex items-center space-x-1 text-sm">
+                        <i class="ri-refresh-line"></i>
+                        <span data-i18n="refresh">Refresh</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Reports overview chart -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-6">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
+                <h3 class="font-medium" data-i18n="testExecutionTrends">Test Execution Trends</h3>
+                <div class="flex space-x-2 mt-2 sm:mt-0">
+                    <button class="chart-period-button text-xs px-3 py-1 rounded bg-coral-500 text-white" data-period="week" data-i18n="week">Week</button>
+                    <button class="chart-period-button text-xs px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300" data-period="month" data-i18n="month">Month</button>
+                    <button class="chart-period-button text-xs px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300" data-period="quarter" data-i18n="quarter">Quarter</button>
+                    <button class="chart-period-button text-xs px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300" data-period="year" data-i18n="year">Year</button>
+                </div>
+            </div>
+            
+            <div class="chart-container" id="main-chart">
+                <!-- Chart will be rendered here -->
+                <div class="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
+                    <div class="text-center">
+                        <div class="loading-spinner mx-auto mb-4"></div>
+                        <p data-i18n="loadingChart">Loading chart data...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Report types section -->
+        <div class="mb-6">
+            <h3 class="font-medium mb-4" data-i18n="reportTypes">Report Types</h3>
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- Test Execution Report Card -->
+                <div class="report-card bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                    <div class="flex items-center mb-3">
+                        <div class="bg-blue-100 dark:bg-blue-900 p-2 rounded-md mr-3">
+                            <i class="ri-file-chart-line text-blue-600 dark:text-blue-300 text-xl"></i>
+                        </div>
+                        <h4 class="font-medium" data-i18n="testExecutionReport">Test Execution Report</h4>
+                    </div>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4" data-i18n="testExecutionReportDesc">Comprehensive report on test execution results with pass/fail analysis</p>
+                    <div class="flex justify-between items-center mt-2">
+                        <button class="text-coral-500 hover:text-coral-600 dark:text-coral-400 dark:hover:text-coral-300 text-sm font-medium flex items-center" data-report-type="execution">
+                            <span data-i18n="generate">Generate</span>
+                            <i class="ri-arrow-right-line ml-1"></i>
+                        </button>
+                        <span class="text-xs text-gray-500 dark:text-gray-400" data-i18n="mostUsed">Most used</span>
+                    </div>
+                </div>
+                
+                <!-- Test Coverage Report Card -->
+                <div class="report-card bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                    <div class="flex items-center mb-3">
+                        <div class="bg-green-100 dark:bg-green-900 p-2 rounded-md mr-3">
+                            <i class="ri-pie-chart-line text-green-600 dark:text-green-300 text-xl"></i>
+                        </div>
+                        <h4 class="font-medium" data-i18n="testCoverageReport">Test Coverage Report</h4>
+                    </div>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4" data-i18n="testCoverageReportDesc">Analysis of test coverage across features, requirements, and code</p>
+                    <div class="flex justify-between items-center mt-2">
+                        <button class="text-coral-500 hover:text-coral-600 dark:text-coral-400 dark:hover:text-coral-300 text-sm font-medium flex items-center" data-report-type="coverage">
+                            <span data-i18n="generate">Generate</span>
+                            <i class="ri-arrow-right-line ml-1"></i>
+                        </button>
+                        <span class="text-xs text-gray-500 dark:text-gray-400"></span>
+                    </div>
+                </div>
+                
+                <!-- Performance Report Card -->
+                <div class="report-card bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                    <div class="flex items-center mb-3">
+                        <div class="bg-purple-100 dark:bg-purple-900 p-2 rounded-md mr-3">
+                            <i class="ri-speed-line text-purple-600 dark:text-purple-300 text-xl"></i>
+                        </div>
+                        <h4 class="font-medium" data-i18n="performanceReport">Performance Report</h4>
+                    </div>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4" data-i18n="performanceReportDesc">Metrics on test execution times, performance bottlenecks, and optimizations</p>
+                    <div class="flex justify-between items-center mt-2">
+                        <button class="text-coral-500 hover:text-coral-600 dark:text-coral-400 dark:hover:text-coral-300 text-sm font-medium flex items-center" data-report-type="performance">
+                            <span data-i18n="generate">Generate</span>
+                            <i class="ri-arrow-right-line ml-1"></i>
+                        </button>
+                        <span class="text-xs text-gray-500 dark:text-gray-400"></span>
+                    </div>
+                </div>
+                
+                <!-- Trend Analysis Report Card -->
+                <div class="report-card bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                    <div class="flex items-center mb-3">
+                        <div class="bg-yellow-100 dark:bg-yellow-900 p-2 rounded-md mr-3">
+                            <i class="ri-line-chart-line text-yellow-600 dark:text-yellow-300 text-xl"></i>
+                        </div>
+                        <h4 class="font-medium" data-i18n="trendAnalysisReport">Trend Analysis Report</h4>
+                    </div>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4" data-i18n="trendAnalysisReportDesc">Long-term analysis of test success rates, bug patterns, and quality metrics</p>
+                    <div class="flex justify-between items-center mt-2">
+                        <button class="text-coral-500 hover:text-coral-600 dark:text-coral-400 dark:hover:text-coral-300 text-sm font-medium flex items-center" data-report-type="trend">
+                            <span data-i18n="generate">Generate</span>
+                            <i class="ri-arrow-right-line ml-1"></i>
+                        </button>
+                        <span class="text-xs text-gray-500 dark:text-gray-400"></span>
+                    </div>
+                </div>
+                
+                <!-- Defect Analysis Report Card -->
+                <div class="report-card bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                    <div class="flex items-center mb-3">
+                        <div class="bg-red-100 dark:bg-red-900 p-2 rounded-md mr-3">
+                            <i class="ri-bug-line text-red-600 dark:text-red-300 text-xl"></i>
+                        </div>
+                        <h4 class="font-medium" data-i18n="defectAnalysisReport">Defect Analysis Report</h4>
+                    </div>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4" data-i18n="defectAnalysisReportDesc">Detailed analysis of defects found during testing, with severity and priority breakdown</p>
+                    <div class="flex justify-between items-center mt-2">
+                        <button class="text-coral-500 hover:text-coral-600 dark:text-coral-400 dark:hover:text-coral-300 text-sm font-medium flex items-center" data-report-type="defect">
+                            <span data-i18n="generate">Generate</span>
+                            <i class="ri-arrow-right-line ml-1"></i>
+                        </button>
+                        <span class="text-xs text-gray-500 dark:text-gray-400"></span>
+                    </div>
+                </div>
+                
+                <!-- Custom Report Card -->
+                <div class="report-card bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                    <div class="flex items-center mb-3">
+                        <div class="bg-coral-100 dark:bg-coral-900 p-2 rounded-md mr-3">
+                            <i class="ri-file-settings-line text-coral-600 dark:text-coral-300 text-xl"></i>
+                        </div>
+                        <h4 class="font-medium" data-i18n="customReport">Custom Report</h4>
+                    </div>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4" data-i18n="customReportDesc">Create a completely customized report with your chosen metrics and visualizations</p>
+                    <div class="flex justify-between items-center mt-2">
+                        <button class="text-coral-500 hover:text-coral-600 dark:text-coral-400 dark:hover:text-coral-300 text-sm font-medium flex items-center" data-report-type="custom">
+                            <span data-i18n="customize">Customize</span>
+                            <i class="ri-arrow-right-line ml-1"></i>
+                        </button>
+                        <span class="text-xs text-gray-500 dark:text-gray-400"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Recent reports list -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden mb-6">
+            <div class="border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex justify-between items-center">
+                <div class="flex items-center">
+                    <h3 class="font-medium mr-2" data-i18n="recentReports">Recent Reports</h3>
+                    <span id="report-count" class="text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full py-0.5 px-2">0</span>
+                </div>
+                
+                <div class="flex items-center">
+                    <div class="relative mr-2">
+                        <input type="text" id="search-reports" placeholder="Search..." data-i18n-placeholder="search" 
+                            class="text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md py-1 pl-8 pr-4 w-48">
+                        <div class="absolute inset-y-0 left-0 pl-2 flex items-center">
+                            <i class="ri-search-line text-gray-500 dark:text-gray-400"></i>
+                        </div>
+                    </div>
+                    
+                    <div class="relative">
+                        <select id="sort-selector" class="text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md py-1 px-2 appearance-none pr-8">
+                            <option value="date" data-i18n="sortByDate">Date</option>
+                            <option value="name" data-i18n="sortByName">Name</option>
+                            <option value="type" data-i18n="sortByType">Type</option>
+                        </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700 dark:text-gray-300">
+                            <i class="ri-arrow-down-s-line"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead class="bg-gray-50 dark:bg-gray-800">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider" data-i18n="reportName">
+                                Report Name
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider" data-i18n="type">
+                                Type
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider" data-i18n="project">
+                                Project
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider" data-i18n="generatedBy">
+                                Generated By
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider" data-i18n="date">
+                                Date
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider" data-i18n="status">
+                                Status
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider" data-i18n="actions">
+                                Actions
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="reports-list" class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                        <!-- Reports will be loaded dynamically -->
+                        <tr class="animate-pulse">
+                            <td colspan="7" class="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
+                                <div class="loading-spinner mx-auto mb-4"></div>
+                                <p data-i18n="loadingReports">Loading reports...</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <div class="flex items-center">
+                    <span class="text-sm text-gray-700 dark:text-gray-300 mr-2" data-i18n="showingResults">Showing</span>
+                    <select id="page-size-selector" class="text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md py-1 px-2 appearance-none pr-8">
+                        <option value="10">10</option>
+                        <option value="25">25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
+                    <span class="text-sm text-gray-700 dark:text-gray-300 ml-2" data-i18n="resultsPerPage">results per page</span>
+                </div>
+                
+                <div class="flex items-center space-x-2">
+                    <button id="prev-page" class="px-3 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-50">
+                        <i class="ri-arrow-left-s-line"></i>
+                    </button>
+                    <span id="pagination-info" class="text-sm text-gray-700 dark:text-gray-300">Page 1 of 1</span>
+                    <button id="next-page" class="px-3 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-50">
+                        <i class="ri-arrow-right-s-line"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- Footer -->
+    <footer class="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 py-4 mt-8">
+        <div class="container mx-auto px-4">
+            <div class="flex flex-col md:flex-row items-center justify-between">
+                <p class="text-gray-600 dark:text-gray-400 text-sm">&copy; 2025 FlowTest 2.0. All rights reserved.</p>
+                <div class="flex space-x-4 mt-4 md:mt-0">
+                    <a href="#" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 text-sm" data-i18n="privacyPolicy">Privacy Policy</a>
+                    <a href="#" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 text-sm" data-i18n="termsOfService">Terms of Service</a>
+                    <a href="#" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 text-sm" data-i18n="contact">Contact</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+    
+    <!-- Generate Report Modal -->
+    <div id="generate-report-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 items-center justify-center">
+        <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div class="p-6">
+                <button id="close-report-modal" class="absolute top-3 right-3 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
+                    <i class="ri-close-line text-2xl"></i>
+                </button>
+                <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-6" data-i18n="generateNewReport">Generate New Report</h3>
+                
+                <form id="generate-report-form">
+                    <div class="mb-4">
+                        <label for="report-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" data-i18n="reportName">Report Name</label>
+                        <input type="text" id="report-name" name="name" required 
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700">
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="report-type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" data-i18n="reportType">Report Type</label>
+                        <select id="report-type" name="type" required
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700">
+                            <option value="execution" data-i18n="testExecutionReport">Test Execution Report</option>
+                            <option value="coverage" data-i18n="testCoverageReport">Test Coverage Report</option>
+                            <option value="performance" data-i18n="performanceReport">Performance Report</option>
+                            <option value="trend" data-i18n="trendAnalysisReport">Trend Analysis Report</option>
+                            <option value="defect" data-i18n="defectAnalysisReport">Defect Analysis Report</option>
+                            <option value="custom" data-i18n="customReport">Custom Report</option>
+                        </select>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label for="report-project" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" data-i18n="project">Project</label>
+                            <select id="report-project" name="project" required
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700">
+                                <option value="" disabled selected data-i18n="selectProject">Select Project</option>
+                                <option value="all" data-i18n="allProjects">All Projects</option>
+                                <!-- Projects will be loaded dynamically -->
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label for="report-format" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" data-i18n="format">Format</label>
+                            <select id="report-format" name="format" required
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700">
+                                <option value="pdf" selected>PDF</option>
+                                <option value="html">HTML</option>
+                                <option value="excel">Excel</option>
+                                <option value="csv">CSV</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label for="report-date-from" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" data-i18n="dateFrom">Date From</label>
+                            <input type="date" id="report-date-from" name="date_from" required
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700">
+                        </div>
+                        
+                        <div>
+                            <label for="report-date-to" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" data-i18n="dateTo">Date To</label>
+                            <input type="date" id="report-date-to" name="date_to" required
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="report-description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" data-i18n="description">Description (Optional)</label>
+                        <textarea id="report-description" name="description" rows="3" 
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700"></textarea>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <div class="flex items-center">
+                            <input type="checkbox" id="schedule-generation" name="schedule" class="h-4 w-4 text-coral-500 focus:ring-coral-500 border-gray-300 rounded">
+                            <label for="schedule-generation" class="ml-2 block text-sm text-gray-700 dark:text-gray-300" data-i18n="scheduleReportGeneration">Schedule report generation</label>
+                        </div>
+                    </div>
+                    
+                    <div id="schedule-options" class="pl-6 mb-4 hidden">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-2">
+                            <div>
+                                <label for="schedule-frequency" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" data-i18n="frequency">Frequency</label>
+                                <select id="schedule-frequency" name="frequency"
+                                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700">
+                                    <option value="daily" data-i18n="daily">Daily</option>
+                                    <option value="weekly" selected data-i18n="weekly">Weekly</option>
+                                    <option value="monthly" data-i18n="monthly">Monthly</option>
+                                </select>
+                            </div>
+                            
+                            <div id="weekday-selector" class="block">
+                                <label for="schedule-weekday" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" data-i18n="dayOfWeek">Day of Week</label>
+                                <select id="schedule-weekday" name="weekday"
+                                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700">
+                                    <option value="1" data-i18n="monday">Monday</option>
+                                    <option value="2" data-i18n="tuesday">Tuesday</option>
+                                    <option value="3" data-i18n="wednesday">Wednesday</option>
+                                    <option value="4" data-i18n="thursday">Thursday</option>
+                                    <option value="5" data-i18n="friday">Friday</option>
+                                    <option value="6" data-i18n="saturday">Saturday</option>
+                                    <option value="0" data-i18n="sunday">Sunday</option>
+                                </select>
+                            </div>
+                            
+                            <div id="monthday-selector" class="hidden">
+                                <label for="schedule-monthday" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" data-i18n="dayOfMonth">Day of Month</label>
+                                <select id="schedule-monthday" name="monthday"
+                                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700">
+                                    <!-- Days 1-31 will be added dynamically -->
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-2">
+                            <label for="schedule-emails" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" data-i18n="sendToEmails">Send to Emails (Optional)</label>
+                            <input type="text" id="schedule-emails" name="emails" placeholder="Enter email addresses separated by commas" data-i18n-placeholder="emailsPlaceholder"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700">
+                        </div>
+                    </div>
+                    
+                    <div class="flex justify-end space-x-3 mt-6">
+                        <button type="button" id="cancel-report-button" 
+                            class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-4 focus:ring-gray-300" 
+                            data-i18n="cancel">Cancel</button>
+                        <button type="submit" 
+                            class="px-4 py-2 bg-coral-500 text-white rounded-lg hover:bg-coral-600 focus:outline-none focus:ring-4 focus:ring-coral-300" 
+                            data-i18n="generate">Generate</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Report Filter Modal -->
+    <div id="filter-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 items-center justify-center">
+        <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow max-w-md w-full">
+            <div class="p-6">
+                <button id="close-filter-modal" class="absolute top-3 right-3 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
+                    <i class="ri-close-line text-2xl"></i>
+                </button>
+                <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-6" data-i18n="filterReports">Filter Reports</h3>
+                
+                <form id="filter-form" class="space-y-4">
+                    <div>
+                        <label for="filter-type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" data-i18n="reportType">Report Type</label>
+                        <select id="filter-type" name="type" 
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700">
+                            <option value="" data-i18n="all">All</option>
+                            <option value="execution" data-i18n="testExecutionReport">Test Execution Report</option>
+                            <option value="coverage" data-i18n="testCoverageReport">Test Coverage Report</option>
+                            <option value="performance" data-i18n="performanceReport">Performance Report</option>
+                            <option value="trend" data-i18n="trendAnalysisReport">Trend Analysis Report</option>
+                            <option value="defect" data-i18n="defectAnalysisReport">Defect Analysis Report</option>
+                            <option value="custom" data-i18n="customReport">Custom Report</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label for="filter-project" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" data-i18n="project">Project</label>
+                        <select id="filter-project" name="project" 
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700">
+                            <option value="" data-i18n="all">All</option>
+                            <!-- Projects will be loaded dynamically -->
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label for="filter-status" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" data-i18n="status">Status</label>
+                        <select id="filter-status" name="status" 
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700">
+                            <option value="" data-i18n="all">All</option>
+                            <option value="recent" data-i18n="recent">Recent</option>
+                            <option value="scheduled" data-i18n="scheduled">Scheduled</option>
+                            <option value="outdated" data-i18n="outdated">Outdated</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label for="filter-user" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" data-i18n="createdBy">Created By</label>
+                        <select id="filter-user" name="user" 
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700">
+                            <option value="" data-i18n="all">All</option>
+                            <option value="me" data-i18n="me">Me</option>
+                            <!-- Other users will be loaded dynamically -->
+                        </select>
+                    </div>
+                    
+                    <div class="flex justify-between space-x-3 mt-6">
+                        <button type="button" id="clear-filters-button" 
+                            class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-4 focus:ring-gray-300" 
+                            data-i18n="clearFilters">Clear Filters</button>
+                        <button type="submit" 
+                            class="px-4 py-2 bg-coral-500 text-white rounded-lg hover:bg-coral-600 focus:outline-none focus:ring-4 focus:ring-coral-300" 
+                            data-i18n="applyFilters">Apply Filters</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script type="module" src="js/utils/toast.js"></script>
+    <script type="module" src="js/i18n/translations.js"></script>
+    <script type="module" src="js/i18n/i18n.js"></script>
+    <script type="module" src="js/api/client.js"></script>
+    <script type="module" src="js/pages/reports.js"></script>
+</body>
+</html>

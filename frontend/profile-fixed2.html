@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1a1f2e">
+    <title>FlowTest - Profile</title>
+    
+    <!-- StylesheetFix - load early to prevent CORS issues with external stylesheets -->
+    <script src="js/stylesheet-fix-loader.js"></script>
+    
+    <!-- Загрузка Tailwind CSS для быстрого прототипирования -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link rel="stylesheet" href="css/tailwind-base.css">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="js/lib/cropper.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@6.6.6/css/flag-icons.min.css"/>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.2.0/flowbite.min.css" rel="stylesheet">
+    <script type="module" src="js/utils/theme.js"></script>
+    <script src="js/lib/cropper.min.js"></script>
+    
+    <script>
+    // Настройка Tailwind для работы с темной темой
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        fontFamily: {
+          sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
+        },
+        extend: {
+          colors: {
+            coral: {
+              50: '#FFF5F2',
+              100: '#FFE6DF',
+              200: '#FFD2C5',
+              300: '#FFB8A5',
+              400: '#FF9B80',
+              500: '#FF7F50',
+              600: '#FF5C2B',
+              700: '#FF2D00',
+              800: '#CC2400',
+              900: '#8C1800',
+            },
+          },
+        },
+      },
+    }
+    </script>
+    
+    <style>
+        /* Custom styles for profile page */
+        .profile-nav-item {
+            border-left: 3px solid transparent;
+            transition: all 0.3s ease;
+        }
+        
+        .profile-nav-item.active {
+            border-left-color: #FF7F50;
+            background-color: rgba(255, 127, 80, 0.1);
+            color: #FF7F50;
+        }
+        
+        .profile-nav-item:hover:not(.active) {
+            border-left-color: #d1d5db;
+            background-color: rgba(209, 213, 219, 0.1);
+        }
+        
+        .dark .profile-nav-item:hover:not(.active) {
+            border-left-color: #4B5563;
+            background-color: rgba(75, 85, 99, 0.1);
+        }
+        
+        .profile-section {
+            display: none;
+        }
+        
+        .profile-section.active {
+            display: block;
+            animation: fadeIn 0.5s;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        /* Cropper Styles */
+        .cropper-container {
+            direction: ltr;
+            font-size: 0;
+            line-height: 0;
+            position: relative;
+            touch-action: none;
+            user-select: none;
+            max-width: 100%;
+            max-height: 80vh;
+        }
+        .cropper-container img {
+            max-width: none !important;
+            max-height: none !important;
+        }
+        
+        /* Fix Modal Styling */
+        #avatar-crop-modal {
+            z-index: 9999;
+        }
+        
+        #avatar-crop-modal .modal-content {
+            z-index: 10000;
+            max-width: 500px;
+            width: 90%;
+        }
+        
+        /* Modal Image Container */
+        #avatar-crop-container {
+            height: 300px;
+            width: 100%;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        
+        #avatar-to-crop {
+            max-width: 100%;
+            display: block;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900">
+    <div class="min-h-screen flex flex-col">
+        <div class="flex flex-1">
+            <!-- Sidebar -->
+            <aside class="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 hidden md:block h-screen sticky top-0">
+                <div class="p-4 sticky top-0">
+                    <img src="images/FlowTest.png" alt="Company Logo" class="h-12 w-auto mb-8" data-i18n="companyLogo">
+                    <nav class="space-y-2">
+                        <a href="index.html" class="flex items-center p-2 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-coral-50 dark:hover:bg-gray-700 hover:text-coral-600 dark:hover:text-coral-400 group">
+                            <i class="ri-dashboard-line text-xl mr-3"></i>
+                            <span data-i18n="dashboard">Панель управления</span>
+                        </a>
+
+                        <a href="test-cases.html" class="flex items-center p-2 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-coral-50 dark:hover:bg-gray-700 hover:text-coral-600 dark:hover:text-coral-400 group">
+                            <i class="ri-file-list-line text-xl mr-3"></i>
+                            <span data-i18n="testCases">Тест-кейсы</span>
+                        </a>
+
+                        <a href="reports.html" class="flex items-center p-2 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-coral-50 dark:hover:bg-gray-700 hover:text-coral-600 dark:hover:text-coral-400 group">
+                            <i class="ri-file-chart-line text-xl mr-3"></i>
+                            <span data-i18n="reports">Отчеты</span>
+                        </a>
+
+                        <a href="automation-projects.html" class="flex items-center p-2 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-coral-50 dark:hover:bg-gray-700 hover:text-coral-600 dark:hover:text-coral-400 group">
+                            <i class="ri-code-box-line text-xl mr-3"></i>
+                            <span data-i18n="automation">Автоматизация</span>
+                        </a>
+                    </nav>
+                </div>
+            </aside>
+
+            <div class="flex-1 bg-gray-50 dark:bg-gray-900 flex flex-col">
+            <!-- Header -->
+            <header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between p-4">
+                    <h1 class="text-2xl font-semibold text-gray-800 dark:text-gray-200" data-i18n="profile">Профиль</h1>
+                    <div class="flex items-center space-x-4 ml-auto">
+                
+                        <!-- Notifications -->
+                        <div id="notifications-wrapper" class="relative">
+                            <button type="button" id="notifications-button"
+                                    class="relative p-2 text-gray-600 dark:text-gray-300 hover:text-coral-600 dark:hover:text-coral-400">
+                                <span id="notification-count" class="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-coral-600 rounded-full hidden">0</span>
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                                </svg>
+                                <span class="sr-only" data-i18n="notifications">Уведомления</span>
+                            </button>
+                            <div id="notificationList" class="hidden absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg z-50">
+                                <!-- Notifications will be loaded here -->
+                                <div class="p-4 text-center text-gray-500 dark:text-gray-400">
+                                    <p data-i18n="noNotifications">Нет новых уведомлений</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- User Menu -->
+                        <div class="relative">
+                            <button id="user-menu-button" class="flex items-center space-x-2 focus:outline-none">
+                                <div id="user-avatar" class="w-10 h-10 rounded-full bg-coral-500 flex items-center justify-center text-white">
+                                    <span id="user-initials">U</span>
+                                </div>
+                                <span id="user-name" class="inline-block text-sm text-gray-700 dark:text-gray-200" data-i18n="userPlaceholder">User</span>
+                                <i class="ri-arrow-down-s-line text-gray-500 dark:text-gray-400"></i>
+                            </button>
+                            <div id="user-dropdown" class="hidden absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg py-1 z-50">
+                                <a href="profile.html" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                    <i class="ri-user-line mr-2"></i> <span data-i18n="profile">Профиль</span>
+                                </a>
+                                <a href="settings.html" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                    <i class="ri-settings-line mr-2"></i> <span data-i18n="settings">Настройки</span>
+                                </a>
+                                <a href="admin-panel.html" id="adminPanelLink" class="hidden block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">
+                                    <i class="ri-admin-line mr-2"></i> <span data-i18n="adminPanel">Панель администратора</span>
+                                </a>
+                                <div class="border-t border-gray-200 dark:border-gray-700"></div>
+                                <button id="logout-button" class="w-full text-left block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                    <i class="ri-logout-box-line mr-2"></i> <span data-i18n="logout">Выйти</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+            
+            <!-- Main content -->
+            <main class="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900 p-4">
+                <!-- Profile content -->
+                <div class="max-w-7xl mx-auto mb-8">
+                    <!-- Profile content -->
+                    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                        <!-- Left sidebar - User info -->
+                        <div class="lg:col-span-1">
+                            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-6 transition-all duration-300 hover:shadow-lg">
+                                <div class="flex flex-col items-center">
+                                <!-- Аватар пользователя -->
+                                <div class="relative mb-5">
+                                    <div class="w-24 h-24 overflow-hidden rounded-full bg-coral-500 border-4 border-white dark:border-gray-700 shadow-lg flex items-center justify-center text-white mx-auto">
+                                        <span id="user-avatar-text" class="text-3xl font-bold">U</span>
+                                        <img id="user-avatar-image" src="" alt="User avatar" class="hidden w-full h-full object-cover">
+                                    </div>
+                                    <label for="avatar-upload" class="absolute bottom-0 right-0 bg-coral-500 hover:bg-coral-600 text-white rounded-full w-8 h-8 flex items-center justify-center cursor-pointer shadow-md transition-all duration-300">
+                                        <i class="ri-camera-line"></i>
+                                        <input type="file" id="avatar-upload" accept="image/*" class="hidden">
+                                    </label>
+                                </div>
+                                
+                                <!-- Информация о пользователе -->
+                                <h3 id="user-full-name" class="text-xl font-bold text-gray-800 dark:text-white text-center mb-1" data-i18n="userFullName">User Name</h3>
+                                <p id="user-email" class="text-sm text-gray-500 dark:text-gray-400 text-center mb-4" data-i18n="userEmail">user@example.com</p>
+                                
+                                <!-- Статус/роль пользователя -->
+                                <div class="flex justify-center mb-6">
+                                    <span id="user-role" class="px-3 py-1 bg-coral-100 text-coral-800 dark:bg-coral-900 dark:text-coral-200 rounded-full text-xs font-medium shadow-sm" data-i18n="administrator">
+                                        Administrator
+                                    </span>
+                                </div>
+                                
+                                <!-- Дополнительная информация -->
+                                <div class="border-t border-gray-200 dark:border-gray-700 pt-4 space-y-2">
+                                    <div class="flex justify-between items-center">
+                                        <p class="text-sm font-medium text-gray-700 dark:text-gray-300" data-i18n="lastActive">Last active:</p>
+                                        <p id="last-active-time" class="text-sm text-gray-500 dark:text-gray-400"><span data-i18n="rightNow">Сейчас</span></p>
+                                    </div>
+                                    <div class="flex justify-between items-center">
+                                        <p class="text-sm font-medium text-gray-700 dark:text-gray-300" data-i18n="memberSince">Member since:</p>
+                                        <p id="member-since-date" class="text-sm text-gray-500 dark:text-gray-400">Jan 15, 2025</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Меню навигации -->
+                        <div class="mt-6 bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden transition-all duration-300 hover:shadow-lg">
+                            <nav>
+                                <ul class="divide-y divide-gray-100 dark:divide-gray-700">
+                                    <li>
+                                        <a href="#personal-info" class="profile-nav-item active flex items-center text-gray-800 dark:text-gray-200 py-4 px-4 hover:bg-coral-50 dark:hover:bg-gray-700 transition-all border-l-4 border-coral-500">
+                                            <i class="ri-user-line mr-3 text-coral-500"></i>
+                                            <span data-i18n="personalInfo" class="font-medium">Personal Information</span>
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a href="#security" class="profile-nav-item flex items-center text-gray-800 dark:text-gray-200 py-4 px-4 hover:bg-coral-50 dark:hover:bg-gray-700 transition-all border-l-4 border-transparent">
+                                            <i class="ri-lock-line mr-3 text-gray-400 dark:text-gray-500"></i>
+                                            <span data-i18n="security" class="font-medium">Security</span>
+                                        </a>
+                                    </li>
+                                </ul>
+                            </nav>
+                        </div>
+                    </div>
+                    
+                    <!-- Right content area - Settings Forms -->
+                    <div class="lg:col-span-3">
+                        <!-- Personal Information Section -->
+                        <div id="personal-info" class="profile-section active bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-6 mb-6 transition-all duration-300 hover:shadow-lg">
+                            <h2 class="text-xl font-semibold mb-6 flex items-center text-gray-800 dark:text-white">
+                                <i class="ri-user-line mr-3 text-coral-500 text-2xl"></i>
+                                <span data-i18n="personalInfo">Personal Information</span>
+                            </h2>
+                    
+                            <form id="personal-info-form">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <label for="first-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2" data-i18n="firstName">First Name</label>
+                                        <div class="relative">
+                                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-500 dark:text-gray-400">
+                                                <i class="ri-user-line"></i>
+                                            </span>
+                                            <input type="text" id="first-name" name="first-name" class="w-full pl-10 px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-coral-500 focus:border-coral-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm transition-all duration-300">
+                                        </div>
+                                    </div>
+                                    
+                                    <div>
+                                        <label for="nickname" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2" data-i18n="nickname">Nickname</label>
+                                        <div class="relative">
+                                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-500 dark:text-gray-400">
+                                                <i class="ri-at-line"></i>
+                                            </span>
+                                            <input type="text" id="nickname" name="nickname" class="w-full pl-10 px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-coral-500 focus:border-coral-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm transition-all duration-300">
+                                        </div>
+                                    </div>
+                                    
+                                    <div>
+                                        <label for="last-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2" data-i18n="lastName">Last Name</label>
+                                        <div class="relative">
+                                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-500 dark:text-gray-400">
+                                                <i class="ri-user-line"></i>
+                                            </span>
+                                            <input type="text" id="last-name" name="last-name" class="w-full pl-10 px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-coral-500 focus:border-coral-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm transition-all duration-300">
+                                        </div>
+                                    </div>
+                                </div>
+                        
+                                <div class="mb-6 mt-6">
+                                    <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2" data-i18n="emailAddress">Email Address</label>
+                                    <div class="relative">
+                                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-500 dark:text-gray-400">
+                                            <i class="ri-mail-line"></i>
+                                        </span>
+                                        <input type="email" id="email" name="email" class="w-full pl-10 px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-coral-500 focus:border-coral-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm transition-all duration-300">
+                                    </div>
+                                    <p class="mt-2 text-xs text-gray-500 dark:text-gray-400" data-i18n="emailChangeInfo"><i class="ri-information-line"></i> Changing your email requires verification from your current email.</p>
+                                </div>
+                        
+                                <div class="mb-6">
+                                    <label for="bio" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2" data-i18n="bio">Bio</label>
+                                    <div class="relative">
+                                        <span class="absolute top-3 left-3 pointer-events-none text-gray-500 dark:text-gray-400">
+                                            <i class="ri-profile-line"></i>
+                                        </span>
+                                        <textarea id="bio" name="bio" rows="4" class="w-full pl-10 pr-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-coral-500 focus:border-coral-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm transition-all duration-300" data-i18n-placeholder="bioPlaceholder" placeholder="Tell us a little about yourself..."></textarea>
+                                    </div>
+                                </div>
+                                <p class="mt-2 text-xs text-gray-500 dark:text-gray-400" data-i18n="bioDescription"><i class="ri-information-line"></i> A short biography about yourself that will be visible on your public profile.</p>
+                                
+                                <div class="flex justify-end mt-6">
+                                    <button type="submit" class="bg-coral-500 hover:bg-coral-600 text-white font-medium px-6 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-coral-500 focus:ring-offset-2 transition-all duration-300 flex items-center">
+                                        <i class="ri-save-line mr-2"></i>
+                                        <span data-i18n="saveChanges">Save Changes</span>
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </main>
+            
+            <!-- Footer -->
+            <footer class="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 py-4 mt-auto">
+                <div class="container mx-auto px-4">
+                    <div class="flex flex-col md:flex-row items-center justify-between">
+                        <p class="text-gray-600 dark:text-gray-400 text-sm">&copy; 2025 FlowTest 2.0. All rights reserved.</p>
+                        <div class="flex space-x-4 mt-4 md:mt-0">
+                            <a href="#" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 text-sm" data-i18n="privacyPolicy">Privacy Policy</a>
+                            <a href="#" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 text-sm" data-i18n="termsOfService">Terms of Service</a>
+                            <a href="#" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 text-sm" data-i18n="contact">Contact</a>
+                        </div>
+                    </div>
+                </div>
+            </footer>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Avatar Crop Modal - Fixed Version -->
+    <div id="avatar-crop-modal" class="fixed inset-0 bg-black bg-opacity-50 z-[9999] hidden">
+        <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 modal-content bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
+            <div class="p-6">
+                <button id="close-avatar-crop-modal" class="absolute top-3 right-3 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 z-10">
+                    <i class="ri-close-line text-2xl"></i>
+                </button>
+                <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-6">Выберите область для аватара</h3>
+                
+                <div id="avatar-crop-container" class="overflow-hidden bg-gray-100 dark:bg-gray-700 rounded-lg">
+                    <img id="avatar-to-crop" src="" alt="Выбранное изображение" class="max-w-full max-h-full">
+                </div>
+                
+                <div class="flex justify-between mt-4">
+                    <button id="cancel-avatar-crop-button" 
+                        class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-4 focus:ring-gray-300">Отмена</button>
+                    <button id="save-avatar-crop-button" 
+                        class="px-4 py-2 bg-coral-500 text-white rounded-lg hover:bg-coral-600 focus:outline-none focus:ring-4 focus:ring-coral-300">Сохранить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Scripts -->
+    <script src="js/lib/cropper.min.js"></script>
+    
+    <!-- Загружаем наши модули -->
+    <script type="module" src="js/utils/toast.js"></script>
+    <script type="module" src="js/i18n/translations.js"></script>
+    <script type="module" src="js/i18n/i18n.js"></script>
+    <script type="module">
+        import avatarCropper from '../js/utils/avatar-cropper-simple2.js';
+        import '../js/pages/profile.js';
+        
+        // Дополнительные проверки и логирование
+        console.log('profile-fixed2.html loaded');
+        console.log('Cropper.js is loaded:', typeof Cropper !== 'undefined');
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM fully loaded in fixed profile page');
+            
+            // Проверяем наличие всех необходимых элементов
+            const avatarUpload = document.getElementById('avatar-upload');
+            const cropModal = document.getElementById('avatar-crop-modal');
+            const cropImage = document.getElementById('avatar-to-crop');
+            
+            console.log('Required elements found:', {
+                avatarUpload: !!avatarUpload,
+                cropModal: !!cropModal,
+                cropImage: !!cropImage,
+                cropperJsLoaded: typeof Cropper !== 'undefined'
+            });
+            
+            // Проверка стилей модального окна
+            if (cropModal) {
+                const modalStyle = window.getComputedStyle(cropModal);
+                console.log('Modal computed style:', {
+                    display: modalStyle.display,
+                    zIndex: modalStyle.zIndex,
+                    position: modalStyle.position
+                });
+            }
+            
+            // Добавляем проверку загрузки изображения
+            if (avatarUpload) {
+                avatarUpload.addEventListener('change', function(e) {
+                    console.log('Avatar file selected:', e.target.files[0]?.name);
+                    
+                    // Открываем модальное окно вручную (в случае проблем с модулем)
+                    if (cropModal && e.target.files.length > 0) {
+                        const file = e.target.files[0];
+                        const reader = new FileReader();
+                        
+                        reader.onload = function(event) {
+                            if (cropImage) {
+                                cropImage.src = event.target.result;
+                                console.log('Image src set to crop modal');
+                                
+                                // Показываем модальное окно
+                                cropModal.style.display = 'flex';
+                                console.log('Modal displayed manually');
+                                
+                                // Инициализируем Cropper
+                                setTimeout(() => {
+                                    if (typeof Cropper !== 'undefined' && cropImage) {
+                                        console.log('Initializing Cropper manually');
+                                        try {
+                                            const cropper = new Cropper(cropImage, {
+                                                aspectRatio: 1,
+                                                viewMode: 1,
+                                                ready() {
+                                                    console.log('Cropper ready event triggered');
+                                                }
+                                            });
+                                            console.log('Cropper instance created');
+                                            
+                                            // Сохраняем экземпляр для дальнейшего использования
+                                            window.currentCropper = cropper;
+                                        } catch (error) {
+                                            console.error('Error creating Cropper:', error);
+                                        }
+                                    }
+                                }, 200);
+                            }
+                        };
+                        
+                        reader.readAsDataURL(file);
+                    }
+                });
+            }
+            
+            // Настраиваем кнопки модального окна
+            document.getElementById('close-avatar-crop-modal')?.addEventListener('click', closeModal);
+            document.getElementById('cancel-avatar-crop-button')?.addEventListener('click', closeModal);
+            
+            function closeModal() {
+                console.log('Closing modal');
+                if (cropModal) {
+                    cropModal.style.display = 'none';
+                }
+                if (window.currentCropper) {
+                    window.currentCropper.destroy();
+                    window.currentCropper = null;
+                }
+            }
+        });
+    </script>
+</body>
+</html>

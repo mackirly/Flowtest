@@ -1,0 +1,182 @@
+/**
+ * Light mode override for settings page
+ * These styles explicitly override any dark mode styles that might be applied by Flowbite or other libraries
+ */
+
+/* Target specific button hover states to prevent dark hover effects */
+.hover\:bg-gray-100:hover,
+.dark\:hover\:bg-gray-700:hover {
+  background-color: #f3f4f6 !important;
+}
+
+.hover\:bg-coral-50:hover, 
+.dark\:hover\:bg-gray-700:hover {
+  background-color: #fff5f2 !important;
+}
+
+/* Sidebar navigation buttons */
+aside a.hover\:bg-coral-50:hover, 
+aside a.dark\:hover\:bg-gray-700:hover {
+  background-color: #fff5f2 !important;
+  color: #ff6347 !important;
+}
+
+/* Settings navigation link hover states */
+.settings-nav-link:hover {
+  background-color: #f3f4f6 !important;
+  color: #111827 !important;
+}
+
+/* Отключаем выделение для класса active - используем собственную обработку */
+aside a.active, 
+aside a.bg-coral-50, 
+aside a.dark\:bg-gray-700,
+.settings-nav-link.active {
+  background-color: transparent !important;
+  color: inherit !important;
+}
+
+/* Создаем собственный класс для активного элемента навигации */
+.nav-active-custom {
+  background-color: #fff5f2 !important;
+  color: #ff6347 !important;
+}
+
+/* Force light mode background and text colors for the main elements */
+html {
+  color-scheme: light !important;
+}
+
+body {
+  background-color: #f9fafb !important;
+  color: #111827 !important;
+}
+
+/* Force light mode for specific elements that have dark mode classes */
+.dark\:bg-gray-800,
+.dark\:bg-gray-700,
+.dark\:bg-gray-900 {
+  background-color: #ffffff !important;
+}
+
+.dark\:text-gray-200,
+.dark\:text-gray-300,
+.dark\:text-gray-400,
+.dark\:text-white {
+  color: #111827 !important;
+}
+
+.dark\:border-gray-700 {
+  border-color: #e5e7eb !important;
+}
+
+/* Override Flowbite dark mode */
+[data-flowbite-dark] {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+}
+
+/* Other specific overrides */
+input,
+select,
+textarea {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+  border-color: #d1d5db !important;
+}
+
+/* Отменяем оранжевую подсветку для input и select */
+input:focus,
+select:focus,
+textarea:focus,
+.focus\:ring-2:focus,
+.focus\:ring-4:focus,
+.focus\:ring-coral-500:focus,
+.focus\:ring-coral-300:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+  outline: none !important;
+  --tw-ring-color: rgba(59, 130, 246, 0.2) !important;
+  --tw-ring-offset-shadow: none !important;
+  --tw-ring-shadow: none !important;
+}
+
+/* Flowbite overrides */
+[data-flowbite] {
+  --color-primary: #ff6347 !important;
+  --color-secondary: #6b7280 !important;
+  --color-success: #10b981 !important;
+  --color-danger: #ef4444 !important;
+  --color-warning: #f59e0b !important;
+  --color-info: #3b82f6 !important;
+  --color-light: #f3f4f6 !important;
+  --color-dark: #111827 !important;
+  --color-white: #ffffff !important;
+  --color-gray-50: #f9fafb !important;
+  --color-gray-100: #f3f4f6 !important;
+  --color-gray-200: #e5e7eb !important;
+  --color-gray-300: #d1d5db !important;
+  --color-gray-400: #9ca3af !important;
+  --color-gray-500: #6b7280 !important;
+  --color-gray-600: #4b5563 !important;
+  --color-gray-700: #374151 !important;
+  --color-gray-800: #1f2937 !important;
+  --color-gray-900: #111827 !important;
+}
+
+.connection-log {
+  background-color: #f3f4f6 !important;
+  color: #1f2937 !important;
+}
+
+.log-message::before {
+  color: #6b7280 !important;
+}
+
+.card,
+.rounded-lg,
+.shadow,
+.shadow-sm {
+  background-color: #ffffff !important;
+  border-color: #e5e7eb !important;
+}
+
+/* Accent color overrides for consistency */
+.text-coral-500,
+.hover\:text-coral-600:hover {
+  color: #ff6347 !important;
+}
+
+.bg-coral-500,
+.hover\:bg-coral-600:hover {
+  background-color: #ff6347 !important;
+  color: #ffffff !important;
+}
+
+/* Button overrides */
+button {
+  background-color: #f3f4f6 !important;
+  color: #1f2937 !important;
+}
+
+button.bg-coral-500,
+button.hover\:bg-coral-600:hover {
+  background-color: #ff6347 !important;
+  color: #ffffff !important;
+}
+
+/* Исправляем кнопки в фокусе */
+button:focus {
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3) !important;
+}
+
+button.bg-coral-500:focus,
+button.hover\:bg-coral-600:focus {
+  box-shadow: 0 0 0 2px rgba(255, 99, 71, 0.3) !important;
+}
+
+/* Special case for elements with dark:bg-gray-800 */
+.dark\:bg-gray-800 {
+  background-color: #ffffff !important;
+}

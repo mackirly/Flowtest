@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1a1f2e">
+    <title>FlowTest - Dashboard</title>
+    
+    <!-- Подключение шрифта Inter -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    </style>
+    
+    <!-- Скрипт для автоматического скрытия надоедливых блоков -->
+    <script>
+        // Сразу устанавливаем localStorage значения для скрытия блоков
+        localStorage.setItem('hiddenContributorsSection', 'true');
+        localStorage.setItem('hiddenFlakinessSection', 'true');
+        
+        // Функция, которая будет вызвана сразу после загрузки DOM
+        document.addEventListener('DOMContentLoaded', function() {
+            // Скрываем блоки, которые могут показывать предупреждения на весь экран
+            const contributorsContainer = document.querySelector('.grid-cols-1.lg\\:grid-cols-3.gap-6 > div:first-child');
+            const flakinessContainer = document.querySelector('.grid-cols-1.lg\\:grid-cols-3.gap-6 > div:last-child');
+            
+            if (contributorsContainer) contributorsContainer.classList.add('hidden');
+            if (flakinessContainer) flakinessContainer.classList.add('hidden');
+        });
+    </script>
+    
+    <!-- StylesheetFix - load early to prevent CORS issues with external stylesheets -->
+    <script src="js/stylesheet-fix-loader.js"></script>
+    
+    <!-- Загрузка Tailwind CSS для быстрого прототипирования -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link rel="stylesheet" href="css/tailwind-base.css">
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@6.6.6/css/flag-icons.min.css"/>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.2.0/flowbite.min.css" rel="stylesheet">
+    <script type="module" src="js/utils/theme.js"></script>
+    
+    <script>
+    // Настройка Tailwind для работы с темной темой
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        fontFamily: {
+          sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
+        },
+        extend: {
+          colors: {
+            brand: {
+              300: '#ff9980', // светлый красно-оранжевый
+              400: '#ff7f5c', // пастельный красно-оранжевый
+              500: '#ff6633', // яркий красно-оранжевый
+              600: '#ff4500', // темный красно-оранжевый (оранжево-красный)
+              700: '#cc3700'  // очень темный красно-оранжевый
+            },
+            coral: {
+              50: '#fff5f2',
+              100: '#ffede5',
+              200: '#ffd5c2',
+              300: '#ffb999',
+              400: '#ff8c4d',
+              500: '#FF7F50', // основной оттенок coral
+              600: '#e66642',
+              700: '#cc5538',
+              800: '#a4442d',
+              900: '#7a2d1a'
+            }
+          }
+        }
+      }
+    }
+    </script>
+    
+    <style>
+        .calendar-day {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            border-radius: 50%;
+        }
+        
+        .calendar-day.today {
+            background-color: #FF7F50;
+            color: white;
+        }
+        
+        .calendar-day:not(.today):hover {
+            background-color: #FFE4E1;
+            cursor: pointer;
+        }
+        
+        .dark .calendar-day:not(.today):hover {
+            background-color: #FF6347;
+            color: white;
+        }
+        
+        .dark .calendar-day {
+            color: #E5E7EB;
+        }
+
+        #calendarDays {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(40px, 1fr));
+            gap: 4px;
+            padding: 8px;
+        }
+
+        .calendar-widget {
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        /* Стили для графиков */
+        .chart-container {
+            position: relative;
+            min-height: 250px; 
+            display: block;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        /* Стили для оверлея "Нет данных" */
+        .no-data-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            padding: 24px;
+            background-color: rgba(255, 255, 255, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            animation: fadeIn 0.3s ease-in-out;
+            border: 1px dashed rgba(0,0,0,0.1);
+        }
+        
+        .dark .no-data-overlay {
+            background-color: rgba(31, 41, 55, 0.9);
+            border: 1px dashed rgba(255,255,255,0.1);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        
+        /* Стили для кнопки закрытия плейсхолдера */
+        .placeholder-close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 6px;
+            background-color: rgba(229, 231, 235, 0.8);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .placeholder-close-btn:hover {
+            background-color: rgba(209, 213, 219, 1);
+        }
+        
+        .dark .placeholder-close-btn {
+            background-color: rgba(55, 65, 81, 0.8);
+        }
+        
+        .dark .placeholder-close-btn:hover {
+            background-color: rgba(75, 85, 99, 1);
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .coral-button {
+            background-color: #FF7F50; 
+            color: white;
+            transition: all 0.3s ease;
+        }
+
+        .coral-button:hover {
+            background-color: #FF6347;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 127, 80, 0.25);
+        }
+
+        .error-message {
+            color: #dc2626;
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255, 127, 80, 0.2);
+            border-radius: 50%;
+            border-top-color: #FF7F50;
+            animation: spin 1s infinite linear;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* User context menu styles */
+        #userContextMenu {
+            position: fixed;
+            z-index: 9999;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        .modal-input {
+            padding-left: 2.5rem !important;
+        }
+
+        .modal-input:focus {
+            border-color: #FF7F50 !important;
+            box-shadow: 0 0 0 1px #FF7F50 !important;
+        }
+
+        .icon-container {
+            color: #6B7280;
+        }
+
+        .dark .icon-container {
+            color: #9CA3AF;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900">
+    <div class="min-h-screen flex">
+        <!-- Sidebar -->
+        <aside class="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 hidden md:block h-screen sticky top-0">
+            <div class="p-4 sticky top-0">
+                <img src="images/FlowTest.png" alt="Company Logo" class="h-12 w-auto mb-8" data-i18n="companyLogo">
+                <nav class="space-y-2">
+                    <a href="index.html" class="flex items-center p-2 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-coral-50 dark:hover:bg-gray-700 hover:text-coral-600 dark:hover:text-coral-400 group bg-coral-50 dark:bg-gray-700 text-coral-600 dark:text-coral-400">
+                        <i class="ri-dashboard-line text-xl mr-3"></i>
+                        <span data-i18n="dashboard">Панель управления</span>
+                    </a>
+
+                    <a href="test-cases.html" class="flex items-center p-2 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-coral-50 dark:hover:bg-gray-700 hover:text-coral-600 dark:hover:text-coral-400 group">
+                        <i class="ri-file-list-line text-xl mr-3"></i>
+                        <span data-i18n="testCases">Тест-кейсы</span>
+                    </a>
+
+                    <a href="reports.html" class="flex items-center p-2 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-coral-50 dark:hover:bg-gray-700 hover:text-coral-600 dark:hover:text-coral-400 group">
+                        <i class="ri-file-chart-line text-xl mr-3"></i>
+                        <span data-i18n="reports">Отчеты</span>
+                    </a>
+
+                    <a href="events.html" class="flex items-center p-2 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-coral-50 dark:hover:bg-gray-700 hover:text-coral-600 dark:hover:text-coral-400 group">
+                        <i class="ri-calendar-event-line text-xl mr-3"></i>
+                        <span data-i18n="events">События</span>
+                    </a>
+                </nav>
+            </div>
+        </aside>
+
+        <div class="flex-1 bg-gray-50 dark:bg-gray-900">
+            <!-- Header -->
+            <header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between p-4">
+                    <h1 class="text-2xl font-semibold text-gray-800 dark:text-gray-200" data-i18n="dashboard">Панель управления</h1>
+                    <div class="flex items-center space-x-4 ml-auto">
+                        <!-- Project Selector -->
+                        <div class="flex items-center space-x-2">
+                            <div class="flex items-center space-x-2 w-48">
+                                <select id="projectSelector" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-coral-500 focus:border-coral-500 block w-full p-2 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-coral-500 dark:focus:border-coral-500">
+                                    <option value="" selected data-i18n="allProjects">Все проекты</option>
+                                </select>
+                                <button id="addProjectBtn" type="button" aria-label="Add Project" title="Add Project"
+                                    class="w-10 h-10 aspect-square rounded-full bg-white dark:bg-gray-700 flex items-center justify-center transform transition-all duration-300 hover:scale-110 focus:outline-none active:scale-95 text-gray-600 dark:text-gray-300 hover:text-coral-600 dark:hover:text-coral-400">
+                                    <i class="ri-add-line text-xl"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Переключатели языка и темы перенесены в настройки -->
+
+                        <!-- Notifications -->
+                        <div id="notifications-wrapper" class="relative">
+                            <button type="button" id="notifications-button"
+                                    class="relative p-2 text-gray-600 dark:text-gray-300 hover:text-coral-600 dark:hover:text-coral-400">
+                                <span id="notification-count" class="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-coral-600 rounded-full hidden">0</span>
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                                </svg>
+                                <span class="sr-only" data-i18n="notifications">Уведомления</span>
+                            </button>
+                            <div id="notificationList" class="hidden absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg z-50">
+                                <!-- Notifications will be loaded here -->
+                                <div class="p-4 text-center text-gray-500 dark:text-gray-400">
+                                    <p data-i18n="noNotifications">Нет новых уведомлений</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- User Menu -->
+                        <div class="relative">
+                            <button id="user-menu-button" class="flex items-center space-x-2 focus:outline-none">
+                                <div id="user-avatar" class="w-10 h-10 rounded-full bg-coral-500 flex items-center justify-center text-white">
+                                    <span id="user-initials">U</span>
+                                </div>
+                                <span id="user-name" class="inline-block text-sm text-gray-700 dark:text-gray-200">User</span>
+                                <i class="ri-arrow-down-s-line text-gray-500 dark:text-gray-400"></i>
+                            </button>
+                            <div id="user-dropdown" class="hidden absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg py-1 z-50">
+                                <a href="profile.html" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                    <i class="ri-user-line mr-2"></i> <span data-i18n="profile">Профиль</span>
+                                </a>
+                                <a href="settings.html" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                    <i class="ri-settings-line mr-2"></i> <span data-i18n="settings">Настройки</span>
+                                </a>
+                                <a href="admin-panel.html" id="adminPanelLink" class="hidden block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">
+                                    <i class="ri-admin-line mr-2"></i> <span data-i18n="adminPanel">Панель администратора</span>
+                                </a>
+                                <div class="border-t border-gray-200 dark:border-gray-700"></div>
+                                <button id="logout-button" class="w-full text-left block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                    <i class="ri-logout-box-line mr-2"></i> <span data-i18n="logout">Выйти</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Main content -->
+            <main class="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900 p-4">
+                <!-- Error container -->
+                <div id="dashboard-error" class="mb-4"></div>
+                
+                <!-- Project selector error container -->
+                <div id="project-selector-error" class="mb-4"></div>
+                
+                <div id="globalNoProjectsMessage" class="hidden text-center p-4 rounded-lg bg-gray-50 dark:bg-gray-800 shadow border border-gray-200 dark:border-gray-700">
+                    <div class="flex flex-col items-center justify-center py-6">
+                        <div class="text-gray-400 dark:text-gray-500 mb-3">
+                            <svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-semibold text-gray-700 dark:text-gray-200 mb-2" data-i18n="noProjects">Нет проектов</h3>
+                        <p class="text-md mb-4">
+                            <span class="text-gray-500 dark:text-gray-400" data-i18n="createProjectStart">Для начала работы</span>
+                            <button id="noProjectsCreateBtn" class="text-coral-500 hover:text-coral-600 dark:text-coral-400 dark:hover:text-coral-300 cursor-pointer font-medium" data-i18n="createProjectAction">создайте новый проект</button>
+                        </p>
+                    </div>
+                </div>
+
+                <div id="selectProjectMessage" class="hidden text-center p-4 rounded-lg bg-gray-50 dark:bg-gray-800 shadow border border-gray-200 dark:border-gray-700">
+                    <div class="flex flex-col items-center justify-center py-6">
+                        <div class="text-gray-400 dark:text-gray-500 mb-3">
+                            <svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-semibold text-gray-700 dark:text-gray-200 mb-2" data-i18n="selectProjectPrompt">Выберите проект</h3>
+                        <p class="text-md text-gray-500 dark:text-gray-400">Пожалуйста, выберите проект из списка выше, чтобы увидеть данные панели управления.</p>
+                    </div>
+                </div>
+
+                <div id="dashboardContent">
+                    <!-- Stats section -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                        <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+                            <div class="flex items-center">
+                                <div class="p-3 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
+                                    <i class="ri-checkbox-multiple-line text-xl"></i>
+                                </div>
+                                <div class="ml-4">
+                                    <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200" data-i18n="totalTests">Всего тестов</h3>
+                                    <p id="total-test-cases" class="text-2xl font-bold text-blue-600 dark:text-blue-400">0</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+                            <div class="flex items-center">
+                                <div class="p-3 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400">
+                                    <i class="ri-check-line text-xl"></i>
+                                </div>
+                                <div class="ml-4">
+                                    <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200" data-i18n="successRate">Успешные</h3>
+                                    <p id="passed-test-cases" class="text-2xl font-bold text-green-600 dark:text-green-400">0</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+                            <div class="flex items-center">
+                                <div class="p-3 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400">
+                                    <i class="ri-close-line text-xl"></i>
+                                </div>
+                                <div class="ml-4">
+                                    <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200" data-i18n="failed">Неудачные</h3>
+                                    <p id="failed-test-cases" class="text-2xl font-bold text-red-600 dark:text-red-400">0</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+                            <div class="flex items-center">
+                                <div class="p-3 rounded-full bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400">
+                                    <i class="ri-time-line text-xl"></i>
+                                </div>
+                                <div class="ml-4">
+                                    <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200" data-i18n="avgExecutionTime">В ожидании</h3>
+                                    <p id="pending-test-cases" class="text-2xl font-bold text-yellow-600 dark:text-yellow-400">0</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                        <!-- Success Rate Over Time -->
+                        <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+                            <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4" data-i18n="successRateOverTime">Динамика успешных тестов</h3>
+                            <div class="chart-container relative" id="successRateChartContainer">
+                                <canvas id="successRateChart"></canvas>
+                                <div class="no-data-overlay">
+                                    <div class="text-gray-400 dark:text-gray-500 mb-3">
+                                        <i class="ri-line-chart-line text-5xl"></i>
+                                    </div>
+                                    <p class="text-gray-500 dark:text-gray-400 text-center">Недостаточно данных для построения графика.</p>
+                                    <p class="text-sm text-gray-400 dark:text-gray-500 mt-2 text-center">Запустите несколько тестов, чтобы увидеть статистику.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Test Results Distribution -->
+                        <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+                            <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4" data-i18n="testResultsDistribution">Распределение результатов тестов</h3>
+                            <div class="chart-container relative" id="resultsChartContainer">
+                                <canvas id="resultsChart"></canvas>
+                                <div class="no-data-overlay">
+                                    <div class="text-gray-400 dark:text-gray-500 mb-3">
+                                        <i class="ri-pie-chart-line text-5xl"></i>
+                                    </div>
+                                    <p class="text-gray-500 dark:text-gray-400 text-center">Недостаточно данных для построения графика.</p>
+                                    <p class="text-sm text-gray-400 dark:text-gray-500 mt-2 text-center">Запустите несколько тестов, чтобы увидеть статистику.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent activity and project sections -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- Projects section -->
+                        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
+                            <div class="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+                                <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200" data-i18n="projects">Проекты</h2>
+                                <a href="projects.html" class="text-sm text-coral-600 dark:text-coral-400 hover:underline flex items-center">
+                                    <span data-i18n="viewAll">Все проекты</span>
+                                    <i class="ri-arrow-right-line ml-1"></i>
+                                </a>
+                            </div>
+                            <div class="p-4" id="projects-list">
+                                <div class="text-center py-8">
+                                    <div class="loading-spinner mx-auto mb-4"></div>
+                                    <p class="text-gray-500 dark:text-gray-400" data-i18n="loadingProjects">Загрузка проектов...</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Recent activity section -->
+                        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
+                            <div class="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+                                <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200" data-i18n="recentActivity">Последние действия</h2>
+                                <a href="activity.html" class="text-sm text-coral-600 dark:text-coral-400 hover:underline flex items-center">
+                                    <span data-i18n="viewAll">Все действия</span>
+                                    <i class="ri-arrow-right-line ml-1"></i>
+                                </a>
+                            </div>
+                            <div class="p-4" id="activity-list">
+                                <div class="text-center py-8">
+                                    <div class="loading-spinner mx-auto mb-4"></div>
+                                    <p class="text-gray-500 dark:text-gray-400" data-i18n="loadingActivity">Загрузка последних действий...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            <!-- Footer -->
+            <footer class="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 py-4">
+                <div class="container mx-auto px-4">
+                    <div class="flex flex-col md:flex-row items-center justify-between">
+                        <p class="text-gray-600 dark:text-gray-400 text-sm">&copy; 2025 FlowTest 2.0. All rights reserved.</p>
+                        <div class="flex space-x-4 mt-4 md:mt-0">
+                            <a href="#" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 text-sm" data-i18n="privacyPolicy">Политика конфиденциальности</a>
+                            <a href="#" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 text-sm" data-i18n="termsOfService">Условия использования</a>
+                            <a href="#" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 text-sm" data-i18n="contact">Контакты</a>
+                        </div>
+                    </div>
+                </div>
+            </footer>
+        </div>
+    </div>
+
+    <!-- Create Project Modal -->
+    <div id="createProjectModal" class="hidden fixed inset-0 z-50" role="dialog" aria-modal="true">
+        <!-- Затемнение фона -->
+        <div class="fixed inset-0 bg-black bg-opacity-75 transition-opacity"></div>
+        
+        <!-- Модальное окно -->
+        <div class="fixed inset-0 z-50 overflow-y-auto">
+            <div class="flex min-h-full items-center justify-center p-6">
+                <div style="filter: drop-shadow(0 10px 15px rgba(0,0,0,0.5));" class="relative w-full max-w-md bg-white dark:bg-gray-800 rounded-xl text-left transition-all border-2 border-coral-500">
+                    <!-- Заголовок -->
+                    <div class="p-6 pb-4 border-b border-gray-200 dark:border-gray-700">
+                        <div class="flex items-center justify-between">
+                            <h2 class="text-2xl font-bold text-gray-900 dark:text-white" data-i18n="newProject">Новый проект</h2>
+                            <button id="closeModalButton" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors">
+                                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        <p class="text-gray-600 dark:text-gray-300 mt-2" data-i18n="newProjectDescription">
+                            Создайте новый проект для организации ваших тестов.
+                        </p>
+                    </div>
+
+                    <div class="px-6 py-4">
+                        <form id="projectForm" class="space-y-5">
+                            <div class="space-y-2">
+                                <label for="projectName" class="block font-medium text-gray-700 dark:text-gray-300" data-i18n="projectName">Название проекта</label>
+                                <div class="relative">
+                                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none icon-container">
+                                        <i class="ri-file-line"></i>
+                                    </div>
+                                    <input type="text" id="projectName" name="projectName" required
+                                        class="modal-input block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm py-3 text-base"
+                                        placeholder="Введите название проекта" data-i18n-placeholder="projectNamePlaceholder">
+                                </div>
+                                <div id="projectNameError" class="text-red-500 text-sm mt-1 hidden"></div>
+                            </div>
+
+                            <div class="space-y-2">
+                                <label for="description" class="block font-medium text-gray-700 dark:text-gray-300" data-i18n="projectDescription">Описание</label>
+                                <div class="relative">
+                                    <div class="absolute top-3 left-4 flex items-start pointer-events-none icon-container">
+                                        <i class="ri-file-text-line"></i>
+                                    </div>
+                                    <textarea id="description" name="description" rows="4"
+                                        class="modal-input block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm py-3 text-base"
+                                        placeholder="Введите описание проекта" data-i18n-placeholder="projectDescriptionPlaceholder"></textarea>
+                                </div>
+                                <div id="descriptionError" class="text-red-500 text-sm mt-1 hidden"></div>
+                            </div>
+
+                            <!-- User Selection Field -->
+                            <div class="space-y-2">
+                                <label for="projectUsers" class="block font-medium text-gray-700 dark:text-gray-300" data-i18n="projectUsersLabel">Пользователи проекта</label>
+                                <div class="relative">
+                                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none icon-container">
+                                        <i class="ri-user-search-line"></i>
+                                    </div>
+                                    <input type="text" id="userSearchInput" name="userSearch"
+                                        class="modal-input block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm py-3 text-base"
+                                        placeholder="Поиск пользователей..." data-i18n-placeholder="searchUsersPlaceholder">
+                                </div>
+                                <div id="userListContainer" class="mt-2 max-h-40 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-gray-50 dark:bg-gray-700">
+                                    <!-- User list will be populated here by JS -->
+                                    <p id="noUsersFoundMessage" class="text-gray-500 dark:text-gray-400 text-sm hidden" data-i18n="noUsersFound">Пользователи не найдены</p>
+                                    <div id="userListSpinner" class="flex justify-center items-center p-4 hidden">
+                                        <svg class="animate-spin h-5 w-5 text-gray-500 dark:text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                    </div>
+                                </div>
+                                <div id="selectedUsersContainer" class="mt-2 flex flex-wrap gap-1">
+                                    <!-- Selected user badges will appear here -->
+                                </div>
+                                <div id="projectUsersError" class="text-red-500 text-sm mt-1 hidden"></div>
+                            </div>
+                            <!-- End User Selection Field -->
+
+                            <div class="mt-5">
+                                <div id="formErrorMessage" class="text-red-500 text-sm mb-3 p-2 bg-red-100 dark:bg-red-900/30 rounded-md hidden"></div>
+                                <div id="formSuccessMessage" class="text-green-500 text-sm mb-3 p-2 bg-green-100 dark:bg-green-900/30 rounded-md hidden"></div>
+                                
+                                <div class="flex justify-between items-center pt-2">
+                                    <button id="cancelModalButton" type="button" 
+                                        class="flex items-center px-5 py-2.5 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-300 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-300 dark:hover:bg-gray-600 focus:outline-none transition-colors">
+                                        <span data-i18n="cancel">Отмена</span>
+                                    </button>
+                                    
+                                    <button type="submit" 
+                                        class="coral-button flex items-center px-8 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-800 shadow-md transition-all">
+                                        <span data-i18n="create">Создать</span>
+                                        <div id="submitSpinner" class="ml-2 hidden">
+                                            <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                        </div>
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script type="module" src="js/utils/toast.js"></script>
+    <script type="module" src="js/i18n/translations.js"></script>
+    <script type="module" src="js/i18n/i18n.js"></script>
+    <script type="module" src="js/pages/dashboard.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.2.0/flowbite.min.js"></script>
+    
+    <!-- Dashboard Charts -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize charts when no data is available yet
+            function initializeEmptyCharts() {
+                // Success Rate Chart
+                const successRateCtx = document.getElementById('successRateChart').getContext('2d');
+                if (successRateCtx) {
+                    new Chart(successRateCtx, {
+                        type: 'line',
+                        data: {
+                            labels: [],
+                            datasets: [{
+                                label: 'Успешные тесты (%)',
+                                data: [],
+                                borderColor: '#10B981',
+                                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                                tension: 0.4,
+                                fill: true
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    display: true,
+                                    position: 'top',
+                                    labels: {
+                                        boxWidth: 15,
+                                        usePointStyle: true,
+                                        pointStyle: 'circle',
+                                        color: document.documentElement.classList.contains('dark') ? '#E5E7EB' : '#4B5563'
+                                    }
+                                },
+                                tooltip: {
+                                    mode: 'index',
+                                    intersect: false,
+                                    backgroundColor: document.documentElement.classList.contains('dark') ? '#374151' : '#FFF',
+                                    titleColor: document.documentElement.classList.contains('dark') ? '#E5E7EB' : '#1F2937',
+                                    bodyColor: document.documentElement.classList.contains('dark') ? '#9CA3AF' : '#4B5563',
+                                    borderColor: document.documentElement.classList.contains('dark') ? '#4B5563' : '#E5E7EB',
+                                    borderWidth: 1,
+                                    padding: 10,
+                                    displayColors: false
+                                }
+                            },
+                            scales: {
+                                x: {
+                                    display: true,
+                                    grid: {
+                                        display: true,
+                                        color: document.documentElement.classList.contains('dark') ? 'rgba(75, 85, 99, 0.15)' : 'rgba(209, 213, 219, 0.5)'
+                                    },
+                                    ticks: {
+                                        color: document.documentElement.classList.contains('dark') ? '#9CA3AF' : '#6B7280'
+                                    }
+                                },
+                                y: {
+                                    display: true,
+                                    grid: {
+                                        display: true,
+                                        color: document.documentElement.classList.contains('dark') ? 'rgba(75, 85, 99, 0.15)' : 'rgba(209, 213, 219, 0.5)'
+                                    },
+                                    ticks: {
+                                        color: document.documentElement.classList.contains('dark') ? '#9CA3AF' : '#6B7280',
+                                        callback: function(value) {
+                                            return value + '%';
+                                        }
+                                    },
+                                    min: 0,
+                                    max: 100
+                                }
+                            }
+                        }
+                    });
+                }
+
+                // Results Chart (Doughnut)
+                const resultsCtx = document.getElementById('resultsChart').getContext('2d');
+                if (resultsCtx) {
+                    new Chart(resultsCtx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['Успешные', 'Неудачные', 'В ожидании'],
+                            datasets: [{
+                                data: [0, 0, 0],
+                                backgroundColor: [
+                                    '#10B981', // green
+                                    '#EF4444', // red
+                                    '#F59E0B'  // yellow
+                                ],
+                                borderWidth: 0,
+                                hoverOffset: 4
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            cutout: '70%',
+                            plugins: {
+                                legend: {
+                                    position: 'bottom',
+                                    labels: {
+                                        boxWidth: 15,
+                                        usePointStyle: true,
+                                        pointStyle: 'circle',
+                                        padding: 15,
+                                        color: document.documentElement.classList.contains('dark') ? '#E5E7EB' : '#4B5563'
+                                    }
+                                },
+                                tooltip: {
+                                    backgroundColor: document.documentElement.classList.contains('dark') ? '#374151' : '#FFF',
+                                    titleColor: document.documentElement.classList.contains('dark') ? '#E5E7EB' : '#1F2937',
+                                    bodyColor: document.documentElement.classList.contains('dark') ? '#9CA3AF' : '#4B5563',
+                                    borderColor: document.documentElement.classList.contains('dark') ? '#4B5563' : '#E5E7EB',
+                                    borderWidth: 1,
+                                    padding: 10,
+                                    displayColors: true,
+                                    callbacks: {
+                                        label: function(context) {
+                                            const label = context.label || '';
+                                            const value = context.raw || 0;
+                                            const total = context.dataset.data.reduce((acc, val) => acc + val, 0);
+                                            const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
+                                            return `${label}: ${value} (${percentage}%)`;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+
+            // Initialize empty charts
+            setTimeout(initializeEmptyCharts, 500);
+
+            // Handle notifications button
+            const notificationsButton = document.getElementById('notifications-button');
+            const notificationList = document.getElementById('notificationList');
+            
+            if (notificationsButton && notificationList) {
+                notificationsButton.addEventListener('click', function() {
+                    notificationList.classList.toggle('hidden');
+                });
+                
+                // Close dropdown when clicking outside
+                document.addEventListener('click', function(event) {
+                    if (!notificationsButton.contains(event.target) && !notificationList.contains(event.target)) {
+                        notificationList.classList.add('hidden');
+                    }
+                });
+            }
+
+            // Project Modal Functionality
+            const addProjectBtn = document.getElementById('addProjectBtn');
+            const noProjectsCreateBtn = document.getElementById('noProjectsCreateBtn');
+            const createProjectModal = document.getElementById('createProjectModal');
+            const closeModalButton = document.getElementById('closeModalButton');
+            const cancelModalButton = document.getElementById('cancelModalButton');
+            
+            function showProjectModal() {
+                createProjectModal.classList.remove('hidden');
+            }
+            
+            function hideProjectModal() {
+                createProjectModal.classList.add('hidden');
+            }
+            
+            if (addProjectBtn) {
+                addProjectBtn.addEventListener('click', showProjectModal);
+            }
+            
+            if (noProjectsCreateBtn) {
+                noProjectsCreateBtn.addEventListener('click', showProjectModal);
+            }
+            
+            if (closeModalButton) {
+                closeModalButton.addEventListener('click', hideProjectModal);
+            }
+            
+            if (cancelModalButton) {
+                cancelModalButton.addEventListener('click', hideProjectModal);
+            }
+        });
+    </script>
+</body>
+</html>

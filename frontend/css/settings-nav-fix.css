@@ -1,0 +1,65 @@
+/**
+ * Targeted fix for settings navigation highlighting
+ * This stylesheet specifically addresses the issue with the "Общие" tab 
+ * remaining highlighted in the settings navigation
+ */
+
+/* 1. General styles to disable any Tailwind/Flowbite automatic highlighting */
+.settings-nav-link.active,
+.settings-nav-link:active,
+a[href="#general"].active,
+a[href="#general"]:active {
+    background-color: transparent !important;
+    color: inherit !important;
+}
+
+/* 2. Completely override the Flowbite hover effects */
+.settings-nav-link:hover:not(:focus):not([data-active="true"]) {
+    background-color: #f3f4f6 !important;
+    color: #1f2937 !important;
+}
+
+/* 3. Create a new attribute-based highlighting system that bypasses Tailwind/Flowbite */
+.settings-nav-link[data-active="true"] {
+    background-color: #fff5f2 !important;
+    color: #ff6347 !important;
+}
+
+/* 4. Use direct navigation link targeting to ensure proper behavior */
+a[href="#general"] {
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* 5. Ensure that navlinks responding to hash changes works properly */
+a[href="#general"]:not(:focus):not(:active):not([data-active="true"]) {
+    background-color: transparent !important;
+    color: #1f2937 !important;
+}
+
+a[href="#general"]:is(.active),
+.settings-nav-link:is(.active) {
+    background-color: transparent !important;
+    color: inherit !important;
+}
+
+/* 6. Reset highlight state on hover only for non-active items */
+.settings-nav-link:not([data-active="true"]):hover {
+    background-color: #f3f4f6 !important;
+    color: #1f2937 !important;
+}
+
+/* 7. Important fallback for script-managed highlighting */
+html:has(#general:not([style*="display: none"])) a[href="#general"] {
+    background-color: #fff5f2 !important;
+    color: #ff6347 !important;
+}
+
+html:has(#users:not([style*="display: none"])) a[href="#users"] {
+    background-color: #fff5f2 !important;
+    color: #ff6347 !important;
+}
+
+html:has(#repositories:not([style*="display: none"])) a[href="#repositories"] {
+    background-color: #fff5f2 !important;
+    color: #ff6347 !important;
+}
