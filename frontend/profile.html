@@ -19,7 +19,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@6.6.6/css/flag-icons.min.css"/>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.2.0/flowbite.min.css" rel="stylesheet">
     <link rel="stylesheet" href="js/lib/cropper.min.css" />
-    <script type="module" src="js/utils/theme.js"></script>
+    <script type="module" src="js/utils/init-settings.js"></script>
     <script src="js/lib/cropper.min.js"></script>
     
     <script>
@@ -250,7 +250,7 @@
                             <button id="user-menu-button" class="flex items-center space-x-2 focus:outline-none">
                                 <div id="user-avatar" class="user-avatar w-10 h-10 rounded-full bg-coral-500 flex items-center justify-center text-white overflow-hidden">
                                     <span id="user-initials" class="text-white">U</span>
-                                    <img class="hidden w-full h-full object-cover" alt="User avatar">
+                                    <img id="user-avatar-img" class="hidden w-full h-full object-cover" src="" alt="User avatar">
                                 </div>
                                 <span id="user-name" class="inline-block text-sm text-gray-700 dark:text-gray-200" data-i18n="userPlaceholder">User</span>
                                 <i class="ri-arrow-down-s-line text-gray-500 dark:text-gray-400"></i>
@@ -916,7 +916,7 @@
     <footer class="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 py-4 mt-auto">
         <div class="container mx-auto px-4">
             <div class="flex flex-col md:flex-row items-center justify-between">
-                <p class="text-gray-600 dark:text-gray-400 text-sm">&copy; 2025 FlowTest 2.0. All rights reserved.</p>
+                <p class="text-gray-600 dark:text-gray-400 text-sm">&copy; 2025 FlowTest. All rights reserved.</p>
                 <div class="flex space-x-4 mt-4 md:mt-0">
                     <a href="#" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 text-sm" data-i18n="privacyPolicy">Privacy Policy</a>
                     <a href="#" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 text-sm" data-i18n="termsOfService">Terms of Service</a>
@@ -1087,6 +1087,7 @@
     <script type="module" src="js/utils/toast.js"></script>
     <script type="module" src="js/i18n/translations.js"></script>
     <script type="module" src="js/i18n/i18n.js"></script>
+    <script type="module" src="js/utils/resizable-sidebar.js"></script>
     <script type="module" src="js/pages/profile.js" onerror="alert('Error loading profile.js')"></script>
     <script>
         console.log('Cropper.js is loaded:', typeof Cropper !== 'undefined');
@@ -1094,7 +1095,8 @@
             console.error('Script error:', e.message, e);
         });
     </script>
-
-
+    
+    <!-- Auth Guard initialization -->
+    <script type="module" src="./js/init-auth.js"></script>
 </body>
 </html>

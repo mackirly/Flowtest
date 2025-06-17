@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Settings Fix</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 600px; margin: 0 auto; }
+        button { margin: 10px; padding: 10px 20px; cursor: pointer; }
+        .result { margin: 20px 0; padding: 10px; background: #f0f0f0; }
+        .error { color: red; }
+        .success { color: green; }
+        pre { background: #f4f4f4; padding: 10px; overflow: auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Test Settings Fix</h1>
+        
+        <button id="test-patch">Test PATCH Request</button>
+        <button id="test-get">Test GET Profile</button>
+        <button id="clear-logs">Clear Logs</button>
+        
+        <div id="result" class="result">
+            <h3>Results:</h3>
+            <div id="logs"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import ApiClient from './js/api/client.js';
+        import SettingsAPI from './js/api/settings.js';
+        
+        const logs = document.getElementById('logs');
+        
+        function log(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = type;
+            entry.innerHTML = `<strong>[${new Date().toLocaleTimeString()}]</strong> ${message}`;
+            logs.appendChild(entry);
+        }
+        
+        // Test PATCH request
+        document.getElementById('test-patch').addEventListener('click', async () => {
+            try {
+                log('Testing PATCH request to /api/core/profile/...');
+                
+                const testData = {
+                    language: 'en',
+                    theme: 'dark'
+                };
+                
+                log(`Sending data: <pre>${JSON.stringify(testData, null, 2)}</pre>`);
+                
+                const response = await SettingsAPI.updateProfile(testData);
+                
+                log(`Success! Response: <pre>${JSON.stringify(response, null, 2)}</pre>`, 'success');
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+                if (error.status) {
+                    log(`Status: ${error.status}`, 'error');
+                }
+                if (error.data) {
+                    log(`Details: <pre>${JSON.stringify(error.data, null, 2)}</pre>`, 'error');
+                }
+            }
+        });
+        
+        // Test GET request
+        document.getElementById('test-get').addEventListener('click', async () => {
+            try {
+                log('Testing GET request to /api/core/profile/...');
+                
+                const response = await SettingsAPI.getProfile();
+                
+                log(`Success! Profile data: <pre>${JSON.stringify(response, null, 2)}</pre>`, 'success');
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        });
+        
+        // Clear logs
+        document.getElementById('clear-logs').addEventListener('click', () => {
+            logs.innerHTML = '';
+            log('Logs cleared');
+        });
+        
+        // Initial check
+        if (ApiClient.isAuthenticated()) {
+            log('User is authenticated', 'success');
+        } else {
+            log('User is not authenticated - please login first', 'error');
+        }
+    </script>
+</body>
+</html>

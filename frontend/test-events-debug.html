@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Test Events Debug</title>
+</head>
+<body>
+    <h1>Testing Events Page</h1>
+    
+    <script type="module">
+        // Test if imports work
+        console.log('Starting debug...');
+        
+        try {
+            const authModule = await import('./js/api/auth.js');
+            console.log('✓ Auth module loaded:', authModule);
+            
+            const projectsModule = await import('./js/api/projects.js');
+            console.log('✓ Projects module loaded:', projectsModule);
+            
+            const eventsModule = await import('./js/api/events_api.js');
+            console.log('✓ Events API module loaded:', eventsModule);
+            
+            // Test API calls
+            console.log('Testing API calls...');
+            
+            const userData = await authModule.auth.getCurrentUser();
+            console.log('Current user:', userData);
+            
+            const projectsData = await projectsModule.projects.getAll();
+            console.log('Projects:', projectsData);
+            
+        } catch (error) {
+            console.error('Error during testing:', error);
+        }
+    </script>
+</body>
+</html>

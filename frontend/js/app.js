@@ -1,11 +1,28 @@
 /**
- * Main application script for FlowTest 2.0
+ * Main application script for FlowTest
  */
 const App = (() => {
   /**
    * Initialize the application
    */
-  const initialize = () => {
+  const initialize = async () => {
+    // First check authentication
+    try {
+      const authGuardModule = await import('./auth-guard.js');
+      const AuthGuard = authGuardModule.default;
+      
+      const isAuthenticated = await AuthGuard.initialize();
+      
+      // Only continue initialization if authenticated or on public page
+      if (!isAuthenticated && AuthGuard.requiresAuth()) {
+        console.log('[App] User not authenticated, halting initialization');
+        return;
+      }
+    } catch (error) {
+      console.error('[App] Failed to load auth guard:', error);
+      // Continue with initialization on error (fallback)
+    }
+    
     // Initialize UI components
     initializeNavigation();
     initializeUserMenu();
@@ -16,8 +33,18 @@ const App = (() => {
     // Set up event listeners
     setupEventListeners();
     
-    // Show a welcome toast
-    ToastManager.success('Welcome to FlowTest 2.0!');
+    // Show a welcome toast only for authenticated users
+    const currentPath = window.location.pathname;
+    if (!currentPath.includes('login.html') && !currentPath.includes('register.html')) {
+      // Import ToastManager dynamically when needed
+      try {
+        const toastModule = await import('./utils/toast.js');
+        const ToastManager = toastModule.default;
+        ToastManager.success('Welcome to FlowTest!');
+      } catch (error) {
+        console.log('[App] Welcome to FlowTest!');
+      }
+    }
   };
   
   /**

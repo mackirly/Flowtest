@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Events Simple Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 1px;
+            background-color: #e5e7eb;
+        }
+        
+        .calendar-day {
+            min-height: 100px;
+            padding: 8px;
+            background-color: white;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .calendar-day:hover {
+            background-color: #f3f4f6;
+        }
+        
+        .calendar-day.today {
+            background-color: #fee2e2;
+        }
+        
+        .calendar-day.weekend {
+            background-color: #fef3c7;
+        }
+        
+        .calendar-day.other-month {
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto p-4">
+        <h1 class="text-2xl font-bold mb-4">Simple Events Calendar Test</h1>
+        
+        <!-- Simple Header -->
+        <div class="bg-white rounded-lg shadow p-4 mb-4">
+            <div class="flex justify-between items-center">
+                <h2 id="current-month" class="text-xl font-semibold">January 2025</h2>
+                <div class="flex gap-2">
+                    <button id="prev-month" class="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300">←</button>
+                    <button id="today-btn" class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600">Today</button>
+                    <button id="next-month" class="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300">→</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Calendar -->
+        <div class="bg-white rounded-lg shadow overflow-hidden">
+            <!-- Week days -->
+            <div class="grid grid-cols-7 bg-gray-50 border-b">
+                <div class="p-3 text-center text-sm font-medium">Mon</div>
+                <div class="p-3 text-center text-sm font-medium">Tue</div>
+                <div class="p-3 text-center text-sm font-medium">Wed</div>
+                <div class="p-3 text-center text-sm font-medium">Thu</div>
+                <div class="p-3 text-center text-sm font-medium">Fri</div>
+                <div class="p-3 text-center text-sm font-medium">Sat</div>
+                <div class="p-3 text-center text-sm font-medium">Sun</div>
+            </div>
+            
+            <!-- Calendar grid -->
+            <div id="calendar-grid" class="calendar-grid">
+                <!-- Days will be rendered here -->
+            </div>
+        </div>
+        
+        <!-- Debug info -->
+        <div class="mt-4 bg-white rounded-lg shadow p-4">
+            <h3 class="font-semibold mb-2">Debug Info</h3>
+            <div id="debug-info" class="text-sm text-gray-600"></div>
+        </div>
+    </div>
+    
+    <script>
+        let currentDate = new Date();
+        const monthNames = [
+            'January', 'February', 'March', 'April', 'May', 'June',
+            'July', 'August', 'September', 'October', 'November', 'December'
+        ];
+        
+        function renderCalendar() {
+            const calendarGrid = document.getElementById('calendar-grid');
+            const currentMonthElement = document.getElementById('current-month');
+            const debugInfo = document.getElementById('debug-info');
+            
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            
+            // Update month display
+            currentMonthElement.textContent = `${monthNames[month]} ${year}`;
+            
+            // Get first day of month and number of days
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+            const daysInMonth = lastDay.getDate();
+            
+            // Get first day of week (Monday = 0)
+            let startDay = firstDay.getDay() - 1;
+            if (startDay < 0) startDay = 6;
+            
+            // Clear calendar
+            calendarGrid.innerHTML = '';
+            
+            // Debug info
+            debugInfo.innerHTML = `
+                First day: ${firstDay.toDateString()}<br>
+                Start day: ${startDay}<br>
+                Days in month: ${daysInMonth}<br>
+                Grid children: <span id="grid-count">0</span>
+            `;
+            
+            // Add empty cells for days before month starts
+            for (let i = 0; i < startDay; i++) {
+                const emptyDay = document.createElement('div');
+                emptyDay.className = 'calendar-day other-month';
+                calendarGrid.appendChild(emptyDay);
+            }
+            
+            // Add days of current month
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dayElement = document.createElement('div');
+                dayElement.className = 'calendar-day';
+                
+                const date = new Date(year, month, day);
+                const today = new Date();
+                
+                // Check if it's today
+                if (date.toDateString() === today.toDateString()) {
+                    dayElement.classList.add('today');
+                }
+                
+                // Check if it's weekend
+                const dayOfWeek = date.getDay();
+                if (dayOfWeek === 0 || dayOfWeek === 6) {
+                    dayElement.classList.add('weekend');
+                }
+                
+                dayElement.innerHTML = `
+                    <div class="font-medium">${day}</div>
+                `;
+                
+                calendarGrid.appendChild(dayElement);
+            }
+            
+            // Update grid count
+            document.getElementById('grid-count').textContent = calendarGrid.children.length;
+        }
+        
+        // Event listeners
+        document.getElementById('prev-month').addEventListener('click', () => {
+            currentDate.setMonth(currentDate.getMonth() - 1);
+            renderCalendar();
+        });
+        
+        document.getElementById('next-month').addEventListener('click', () => {
+            currentDate.setMonth(currentDate.getMonth() + 1);
+            renderCalendar();
+        });
+        
+        document.getElementById('today-btn').addEventListener('click', () => {
+            currentDate = new Date();
+            renderCalendar();
+        });
+        
+        // Initial render
+        renderCalendar();
+        
+        // Log that script is running
+        console.log('Simple events calendar loaded');
+    </script>
+</body>
+</html>

@@ -27,7 +27,8 @@ class RoleSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Role
-        fields = ['id', 'name', 'description', 'permissions', 'permission_ids', 'is_admin_role']
+        fields = ['id', 'name', 'description', 'permissions', 'permission_ids', 'is_admin_role', 'is_system']
+        read_only_fields = ['is_system']
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -95,7 +96,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name', 
             'middle_name', 'language', 'theme', 'phone_number', 
-            'avatar', 'role_name', 'last_login'
+            'avatar', 'role_name', 'last_login', 'bio'
         ]
         read_only_fields = ['id', 'last_login', 'role_name']
     

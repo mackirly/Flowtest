@@ -3,54 +3,19 @@
  * Handles system settings, repository connections, and various system configurations
  */
 
+console.log('🔄 Loading settings.js file...');
+
 import i18n from '../i18n/i18n.js';
 import ToastManager from '../utils/toast.js';
 import ApiClient from '../api/client.js';
 import ThemeManager from '../utils/theme.js';
+import settingsManager from '../utils/settings-manager.js';
 
 // API Base URL
 const API_BASE_URL = '/api';
 
-// DOM Elements
-const elements = {
-    // Navigation
-    settingsNavLinks: document.querySelectorAll('.settings-nav-link'),
-    settingsSections: document.querySelectorAll('.settings-section'),
-    
-    // Forms
-    generalSettingsForm: document.getElementById('general-settings-form'),
-    repositorySettingsForm: document.getElementById('repository-settings-form'),
-    backupSettingsForm: document.getElementById('backup-settings-form'),
-    
-    // Repository management
-    addRepositoryButton: document.getElementById('add-repository-button'),
-    addRepositoryModal: document.getElementById('add-repository-modal'),
-    closeRepositoryModal: document.getElementById('close-repository-modal'),
-    addRepositoryForm: document.getElementById('add-repository-form'),
-    cancelRepositoryButton: document.getElementById('cancel-repository-button'),
-    repositoriesList: document.getElementById('repositories-list'),
-    repoTypeButtons: document.querySelectorAll('.repo-type-btn'),
-    
-    // Authentication options
-    gitAuthTypeRadios: document.querySelectorAll('[name="git_auth_type"]'),
-    sshKeyAuth: document.getElementById('ssh-key-auth'),
-    basicAuth: document.getElementById('basic-auth'),
-    
-    // Connection testing
-    testConnectionButton: document.getElementById('test-connection-button'),
-    connectionLog: document.querySelector('.connection-log'),
-    logContainer: document.getElementById('log-container'),
-    
-    // Backup actions
-    backupNowButton: document.getElementById('backup-now-button'),
-    
-    // User menu
-    userInitials: document.getElementById('user-initials'),
-    userName: document.getElementById('user-name'),
-    userMenuButton: document.getElementById('user-menu-button'),
-    userDropdown: document.getElementById('user-dropdown'),
-    logoutButton: document.getElementById('logout-button')
-};
+// DOM Elements - will be initialized in initPage
+let elements = {};
 
 // State
 const state = {
@@ -66,30 +31,73 @@ const state = {
     }
 };
 
+// Initialize DOM elements
+function initElements() {
+    console.log('Initializing DOM elements...');
+    elements = {
+        // Navigation
+        settingsNavLinks: document.querySelectorAll('.settings-nav-link'),
+        settingsSections: document.querySelectorAll('.settings-section'),
+        
+        // Forms
+        generalSettingsForm: document.getElementById('general-settings-form'),
+        repositorySettingsForm: document.getElementById('repository-settings-form'),
+        backupSettingsForm: document.getElementById('backup-settings-form'),
+        
+        // Repository management
+        addRepositoryButton: document.getElementById('add-repository-button'),
+        addRepositoryModal: document.getElementById('add-repository-modal'),
+        closeRepositoryModal: document.getElementById('close-repository-modal'),
+        addRepositoryForm: document.getElementById('add-repository-form'),
+        cancelRepositoryButton: document.getElementById('cancel-repository-button'),
+        repositoriesList: document.getElementById('repositories-list'),
+        repoTypeButtons: document.querySelectorAll('.repo-type-btn'),
+        
+        // Authentication options
+        gitAuthTypeRadios: document.querySelectorAll('[name="git_auth_type"]'),
+        sshKeyAuth: document.getElementById('ssh-key-auth'),
+        basicAuth: document.getElementById('basic-auth'),
+        
+        // Connection testing
+        testConnectionButton: document.getElementById('test-connection-button'),
+        connectionLog: document.querySelector('.connection-log'),
+        logContainer: document.getElementById('log-container'),
+        
+        // Backup actions
+        backupNowButton: document.getElementById('backup-now-button'),
+        
+        // User menu
+        userAvatar: document.getElementById('user-avatar'),
+        userInitials: document.getElementById('user-initials'),
+        userName: document.getElementById('user-name'),
+        userMenuButton: document.getElementById('user-menu-button'),
+        userDropdown: document.getElementById('user-dropdown'),
+        logoutButton: document.getElementById('logout-button')
+    };
+    
+    console.log('Elements initialized:', elements);
+}
+
 // Initialize the page
 async function initPage() {
     try {
         console.log('Initializing settings page...');
 
-        // Get the user's preferred theme and respect it
-        const savedTheme = localStorage.getItem('flowtest-theme');
+        // Initialize DOM elements first
+        initElements();
+
+        // Get the user's preferred theme from settings manager
+        const savedTheme = settingsManager.getTheme();
         console.log('User saved theme:', savedTheme);
         
-        if (savedTheme) {
-            ThemeManager.setTheme(savedTheme);
-        } else {
-            // Default to system preference
-            ThemeManager.setTheme(ThemeManager.THEMES.SYSTEM);
-        }
+        // Apply the saved theme
+        ThemeManager.applyTheme(savedTheme);
         
-        // В демо-режиме пропускаем проверку аутентификации
-        // Для реальной системы раскомментируйте проверку ниже
-        /*
+        // Проверяем аутентификацию
         if (!ApiClient.isAuthenticated()) {
             window.location.href = 'login.html';
             return;
         }
-        */
         
         // Initialize i18n
         i18n.translatePage();
@@ -121,20 +129,6 @@ async function initPage() {
 async function loadUserData() {
     try {
         // В демо-режиме используем мок-данные пользователя
-        // Для реальной системы раскомментируйте код ниже
-        
-        // Демонстрационные данные пользователя
-        state.user = {
-            id: 1,
-            username: 'demo_user',
-            first_name: 'Иван',
-            last_name: 'Иванов',
-            email: 'demo@example.com',
-            role: 'admin',
-            last_login: new Date().toISOString()
-        };
-        
-        /*
         // Get current user profile
         state.user = await ApiClient.getCurrentUser();
         
@@ -143,7 +137,6 @@ async function loadUserData() {
             window.location.href = 'login.html';
             return;
         }
-        */
         
         // Update UI with user data
         setupUserMenu();
@@ -164,7 +157,30 @@ function setupEventListeners() {
     elements.backupSettingsForm?.addEventListener('submit', handleBackupSettingsSubmit);
     
     // Repository management
-    elements.addRepositoryButton?.addEventListener('click', openAddRepositoryModal);
+    console.log('Setting up repository event listeners');
+    console.log('addRepositoryButton:', elements.addRepositoryButton);
+    
+    // Use event delegation for add repository buttons
+    document.addEventListener('click', (e) => {
+        if (e.target.id === 'add-repository-button' || e.target.closest('#add-repository-button')) {
+            console.log('Add repository button clicked via delegation');
+            e.preventDefault();
+            openAddRepositoryModal();
+        }
+        if (e.target.id === 'no-repos-add-button' || e.target.closest('#no-repos-add-button')) {
+            console.log('No repos add button clicked via delegation');
+            e.preventDefault();
+            openAddRepositoryModal();
+        }
+    });
+    
+    if (elements.addRepositoryButton) {
+        elements.addRepositoryButton.addEventListener('click', openAddRepositoryModal);
+        console.log('Event listener added to addRepositoryButton');
+    } else {
+        console.error('addRepositoryButton not found!');
+    }
+    
     elements.closeRepositoryModal?.addEventListener('click', closeAddRepositoryModal);
     elements.cancelRepositoryButton?.addEventListener('click', closeAddRepositoryModal);
     elements.addRepositoryForm?.addEventListener('submit', handleAddRepository);
@@ -185,8 +201,10 @@ function setupEventListeners() {
     });
     
     // Authentication type change
-    elements.gitAuthTypeRadios.forEach(radio => {
-        radio.addEventListener('change', handleAuthTypeChange);
+    document.addEventListener('change', (e) => {
+        if (e.target.name === 'git_auth_type') {
+            handleAuthTypeChange(e);
+        }
     });
     
     // Test connection
@@ -228,6 +246,19 @@ function setupEventListeners() {
     
     // Logout button
     elements.logoutButton?.addEventListener('click', handleLogout);
+    
+    // Settings navigation - load repositories when repositories section is shown
+    elements.settingsNavLinks?.forEach(link => {
+        link.addEventListener('click', (e) => {
+            const targetSection = e.target.getAttribute('data-section');
+            if (targetSection === 'repositories') {
+                console.log('🔄 Repositories section activated - loading repositories...');
+                setTimeout(() => {
+                    loadRepositories();
+                }, 100); // Small delay to ensure section is visible
+            }
+        });
+    });
 }
 
 // Load settings data
@@ -236,8 +267,9 @@ async function loadSettingsData() {
         // В демо-режиме используем мок-данные настроек
         // Для реальной системы раскомментируйте код ниже
         
-        // Демонстрационные данные настроек
-        const generalSettings = {
+        // Load settings from localStorage or use defaults
+        const savedGeneralSettings = localStorage.getItem('flowtest-general-settings');
+        const generalSettings = savedGeneralSettings ? JSON.parse(savedGeneralSettings) : {
             system_name: 'FlowTest',
             default_language: 'ru',
             default_theme: 'light',
@@ -254,8 +286,9 @@ async function loadSettingsData() {
         state.settings.general = generalSettings;
         updateGeneralSettingsForm(generalSettings);
         
-        // Демонстрационные данные репозиториев
-        const repoSettings = {
+        // Load repository settings from localStorage or use defaults
+        const savedRepoSettings = localStorage.getItem('flowtest-repository-settings');
+        const repoSettings = savedRepoSettings ? JSON.parse(savedRepoSettings) : {
             default_repo_path: '/var/repositories',
             auto_sync: true,
             sync_interval: 60,
@@ -265,8 +298,9 @@ async function loadSettingsData() {
         state.settings.repositories = repoSettings;
         updateRepositorySettingsForm(repoSettings);
         
-        // Демонстрационные данные резервного копирования
-        const backupSettings = {
+        // Load backup settings from localStorage or use defaults
+        const savedBackupSettings = localStorage.getItem('flowtest-backup-settings');
+        const backupSettings = savedBackupSettings ? JSON.parse(savedBackupSettings) : {
             backup_interval: 'daily',
             backup_time: '02:00',
             retention_days: 30,
@@ -295,6 +329,9 @@ async function loadSettingsData() {
         updateBackupSettingsForm(backupSettings);
         */
         
+        // Load repositories data
+        await loadRepositories();
+        
         // Section activation is now handled by settings-fixed.js
     } catch (error) {
         console.error('Error loading settings data:', error);
@@ -316,19 +353,30 @@ function updateGeneralSettingsForm(generalSettings) {
         // Set default language
         const defaultLanguageSelect = elements.generalSettingsForm.querySelector('[name="default_language"]');
         if (defaultLanguageSelect) {
-            defaultLanguageSelect.value = generalSettings.default_language || 'en';
+            // Get current language from settings manager
+            const currentLanguage = settingsManager.getLanguage();
+            defaultLanguageSelect.value = generalSettings.default_language || currentLanguage || 'en';
+            
+            // Add event listener to change language when selection changes and save it
+            defaultLanguageSelect.addEventListener('change', (e) => {
+                const newLanguage = e.target.value;
+                settingsManager.setLanguage(newLanguage);
+                i18n.setLanguage(newLanguage);
+            });
         }
         
         // Set default theme
         const defaultThemeSelect = elements.generalSettingsForm.querySelector('[name="default_theme"]');
         if (defaultThemeSelect) {
-            defaultThemeSelect.value = generalSettings.default_theme || ThemeManager.getCurrentTheme() || 'light';
+            // Get current theme from settings manager
+            const currentTheme = settingsManager.getTheme();
+            defaultThemeSelect.value = generalSettings.default_theme || currentTheme || 'light';
             
-            // Don't force the theme here - let the user preview it via the change event
-            
-            // Add event listener to change theme when selection changes
+            // Add event listener to change theme when selection changes and save it
             defaultThemeSelect.addEventListener('change', (e) => {
-                ThemeManager.setTheme(e.target.value);
+                const newTheme = e.target.value;
+                settingsManager.setTheme(newTheme);
+                ThemeManager.applyTheme(newTheme);
             });
         }
         
@@ -408,22 +456,234 @@ function updateBackupSettingsForm(backupSettings) {
 
 // Load repositories
 async function loadRepositories() {
+    console.log('🔄 Loading repositories...');
+    
+    const repositoriesContainer = document.getElementById('repositories-list');
+    if (!repositoriesContainer) {
+        console.error('❌ repositories-list container not found!');
+        return;
+    }
+
+    // Show loading state
+    repositoriesContainer.innerHTML = `
+        <div class="text-center py-8">
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-coral-500"></div>
+            <p class="mt-2 text-gray-600 dark:text-gray-400">Loading repositories...</p>
+        </div>
+    `;
+
     try {
-        const response = await ApiClient.get('/repositories');
+        const response = await ApiClient.get('/automation/projects/');
+        console.log('✅ API Response received:', response);
         
-        if (response) {
-            state.repositories = response;
-            renderRepositories();
+        // Extract projects from response
+        const projects = Array.isArray(response) ? response : (response.results || []);
+        console.log(`📊 Found ${projects.length} repositories`);
+        
+        if (projects.length === 0) {
+            // Show empty state
+            repositoriesContainer.innerHTML = `
+                <div class="text-center py-12">
+                    <div class="mx-auto w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mb-4">
+                        <i class="ri-git-repository-line text-2xl text-gray-400"></i>
+                    </div>
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No repositories connected</h3>
+                    <p class="text-gray-500 dark:text-gray-400 mb-6">Connect your first automation repository to get started</p>
+                    <button id="empty-state-add-btn" class="px-4 py-2 bg-coral-500 text-white rounded-lg hover:bg-coral-600 transition-colors">
+                        <i class="ri-add-line mr-2"></i>Add Repository
+                    </button>
+                </div>
+            `;
+            
+            // Add event listener for empty state button
+            document.getElementById('empty-state-add-btn')?.addEventListener('click', openAddRepositoryModal);
+            
+            // Update stats with empty data
+            updateRepositoryStats([]);
+            return;
         }
+
+        // Render repositories list
+        let html = '<div class="space-y-4">';
+        
+        projects.forEach(repo => {
+            const statusColor = getStatusColor(repo.sync_status);
+            const statusText = getStatusText(repo.sync_status);
+            
+            html += `
+                <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1">
+                            <div class="flex items-center space-x-3 mb-2">
+                                <i class="ri-git-repository-line text-xl text-coral-500"></i>
+                                <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">${repo.name}</h3>
+                                <span class="px-2 py-1 text-xs font-medium rounded-full ${statusColor}">
+                                    ${statusText}
+                                </span>
+                            </div>
+                            
+                            <div class="space-y-2">
+                                <p class="text-sm text-gray-600 dark:text-gray-400">
+                                    <i class="ri-link-m mr-2"></i>
+                                    <span class="font-mono">${repo.repository_url}</span>
+                                </p>
+                                <div class="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
+                                    <span><i class="ri-git-branch-line mr-1"></i>${repo.branch}</span>
+                                    <span><i class="ri-flask-line mr-1"></i>${repo.framework}</span>
+                                    ${repo.project_name ? `<span><i class="ri-folder-line mr-1"></i>${repo.project_name}</span>` : ''}
+                                </div>
+                                ${repo.last_sync ? `
+                                    <p class="text-xs text-gray-400">
+                                        ${i18n.t('lastSyncColon')} ${new Date(repo.last_sync).toLocaleDateString()}
+                                    </p>
+                                ` : ''}
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center space-x-2">
+                            <button onclick="syncRepository(${repo.id})" class="px-3 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+                                <i class="ri-refresh-line mr-1"></i>${i18n.t('sync')}
+                            </button>
+                            <button onclick="disconnectRepository(${repo.id})" class="px-3 py-2 text-sm bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors">
+                                <i class="ri-link-unlink mr-1"></i>${i18n.t('remove')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+        repositoriesContainer.innerHTML = html;
+        
+        // Update stats cards
+        updateRepositoryStats(projects);
+        
+        console.log('✅ Repositories rendered successfully');
+        
     } catch (error) {
-        console.error('Error loading repositories:', error);
-        ToastManager.error('Failed to load repositories');
+        console.error('❌ Error loading repositories:', error);
+        
+        // Show error state
+        repositoriesContainer.innerHTML = `
+            <div class="text-center py-12">
+                <div class="mx-auto w-16 h-16 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center mb-4">
+                    <i class="ri-error-warning-line text-2xl text-red-500"></i>
+                </div>
+                <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Failed to load repositories</h3>
+                <p class="text-gray-500 dark:text-gray-400 mb-6">${error.message || 'An error occurred while loading repositories'}</p>
+                <button onclick="loadRepositories()" class="px-4 py-2 bg-coral-500 text-white rounded-lg hover:bg-coral-600 transition-colors">
+                    <i class="ri-refresh-line mr-2"></i>Try Again
+                </button>
+            </div>
+        `;
+        
+        // Update stats with empty data in case of error
+        updateRepositoryStats([]);
     }
 }
 
-// Render repositories
+// Helper functions for status display
+function getStatusColor(status) {
+    switch (status) {
+        case 'synced': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+        case 'syncing': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
+        case 'error': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
+        default: return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
+    }
+}
+
+function getStatusText(status) {
+    switch (status) {
+        case 'synced': return i18n.t('synced');
+        case 'syncing': return i18n.t('syncing');
+        case 'error': return i18n.t('error');
+        case 'not_synced': return i18n.t('notSynced');
+        default: return i18n.t('unknown');
+    }
+}
+
+// Update repository statistics cards
+function updateRepositoryStats(repositories) {
+    console.log('📊 Updating repository stats...');
+    
+    // Calculate stats
+    const totalRepos = repositories.length;
+    const activeRepos = repositories.filter(repo => repo.sync_status === 'synced').length;
+    
+    // Get last sync time
+    const lastSyncTimes = repositories
+        .filter(repo => repo.last_sync)
+        .map(repo => new Date(repo.last_sync))
+        .sort((a, b) => b - a);
+    
+    const lastSyncTime = lastSyncTimes.length > 0 ? lastSyncTimes[0] : null;
+    
+    // Update total repositories count
+    const totalReposElement = document.getElementById('total-repos-count');
+    if (totalReposElement) {
+        totalReposElement.textContent = totalRepos;
+    }
+    
+    // Update active repositories count
+    const activeReposElement = document.getElementById('active-repos-count');
+    if (activeReposElement) {
+        activeReposElement.textContent = activeRepos;
+    }
+    
+    // Update last sync time
+    const lastSyncElement = document.getElementById('last-sync-time');
+    if (lastSyncElement) {
+        if (lastSyncTime) {
+            const timeAgo = getTimeAgo(lastSyncTime);
+            lastSyncElement.textContent = timeAgo;
+        } else {
+            lastSyncElement.textContent = i18n.t('never');
+        }
+    }
+    
+    // Update auto-sync status (placeholder for now)
+    const autoSyncElement = document.getElementById('auto-sync-status');
+    if (autoSyncElement) {
+        // TODO: Get actual status from settings
+        const isAutoSyncEnabled = false; // This should come from actual settings
+        autoSyncElement.textContent = isAutoSyncEnabled ? i18n.t('enabled') : i18n.t('disabled');
+    }
+    
+    console.log(`📊 Stats updated: ${totalRepos} total, ${activeRepos} active`);
+}
+
+// Helper function to get time ago text
+function getTimeAgo(date) {
+    const now = new Date();
+    const diffInSeconds = Math.floor((now - date) / 1000);
+    
+    if (diffInSeconds < 60) {
+        return i18n.t('justNow');
+    } else if (diffInSeconds < 3600) {
+        const minutes = Math.floor(diffInSeconds / 60);
+        const key = minutes === 1 ? 'minutesAgo' : 'minutesAgo_plural';
+        return i18n.t(key).replace('{0}', minutes);
+    } else if (diffInSeconds < 86400) {
+        const hours = Math.floor(diffInSeconds / 3600);
+        const key = hours === 1 ? 'hoursAgo' : 'hoursAgo_plural';
+        return i18n.t(key).replace('{0}', hours);
+    } else {
+        const days = Math.floor(diffInSeconds / 86400);
+        const key = days === 1 ? 'daysAgo' : 'daysAgo_plural';
+        return i18n.t(key).replace('{0}', days);
+    }
+}
+
+// Legacy function - kept for compatibility
 function renderRepositories() {
-    if (!elements.repositoriesList) return;
+    // This function is now handled by loadRepositories()
+    console.log('renderRepositories called - delegating to loadRepositories');
+    
+    if (!elements.repositoriesList) {
+        console.error('repositoriesList element not found!');
+        return;
+    }
     
     if (state.repositories.length === 0) {
         elements.repositoriesList.innerHTML = `
@@ -437,7 +697,11 @@ function renderRepositories() {
         `;
         
         // Add event listener to the button
-        document.getElementById('no-repos-add-button')?.addEventListener('click', openAddRepositoryModal);
+        const noReposAddButton = document.getElementById('no-repos-add-button');
+        if (noReposAddButton) {
+            noReposAddButton.addEventListener('click', openAddRepositoryModal);
+            console.log('Event listener added to no-repos-add-button');
+        }
         
         return;
     }
@@ -567,11 +831,23 @@ async function handleGeneralSettingsSubmit(e) {
         // Update the state
         state.settings.general = settings;
         
+        // In demo mode, just save to local storage
+        try {
+            // Save settings locally
+            localStorage.setItem('flowtest-general-settings', JSON.stringify(settings));
+            ToastManager.success('General settings updated successfully');
+        } catch (error) {
+            console.error('Error saving settings:', error);
+            ToastManager.error('Failed to save settings');
+        }
+        
+        /* For production, uncomment this:
         const response = await ApiClient.put('/settings/general', settings);
         
         if (response) {
             ToastManager.success('General settings updated successfully');
         }
+        */
     } catch (error) {
         console.error('Error updating general settings:', error);
         ToastManager.error('Failed to update general settings');
@@ -594,11 +870,22 @@ async function handleRepositorySettingsSubmit(e) {
         // Update the state
         state.settings.repositories = settings;
         
+        // In demo mode, just save to local storage
+        try {
+            localStorage.setItem('flowtest-repository-settings', JSON.stringify(settings));
+            ToastManager.success('Repository settings updated successfully');
+        } catch (error) {
+            console.error('Error saving settings:', error);
+            ToastManager.error('Failed to save settings');
+        }
+        
+        /* For production, uncomment this:
         const response = await ApiClient.put('/settings/repositories', settings);
         
         if (response) {
             ToastManager.success('Repository settings updated successfully');
         }
+        */
     } catch (error) {
         console.error('Error updating repository settings:', error);
         ToastManager.error('Failed to update repository settings');
@@ -622,11 +909,22 @@ async function handleBackupSettingsSubmit(e) {
         // Update the state
         state.settings.backups = settings;
         
+        // In demo mode, just save to local storage
+        try {
+            localStorage.setItem('flowtest-backup-settings', JSON.stringify(settings));
+            ToastManager.success('Backup settings updated successfully');
+        } catch (error) {
+            console.error('Error saving settings:', error);
+            ToastManager.error('Failed to save settings');
+        }
+        
+        /* For production, uncomment this:
         const response = await ApiClient.put('/settings/backups', settings);
         
         if (response) {
             ToastManager.success('Backup settings updated successfully');
         }
+        */
     } catch (error) {
         console.error('Error updating backup settings:', error);
         ToastManager.error('Failed to update backup settings');
@@ -651,7 +949,13 @@ async function handleBackupNow() {
 
 // Open add repository modal
 function openAddRepositoryModal() {
-    if (!elements.addRepositoryModal) return;
+    console.log('openAddRepositoryModal called');
+    console.log('addRepositoryModal element:', elements.addRepositoryModal);
+    
+    if (!elements.addRepositoryModal) {
+        console.error('addRepositoryModal element not found');
+        return;
+    }
     
     elements.addRepositoryModal.classList.remove('hidden');
     elements.addRepositoryModal.classList.add('flex');
@@ -674,8 +978,11 @@ function openAddRepositoryModal() {
     const defaultAuthRadio = document.querySelector('[name="git_auth_type"][value="none"]');
     if (defaultAuthRadio) defaultAuthRadio.checked = true;
     
-    elements.sshKeyAuth?.classList.add('hidden');
-    elements.basicAuth?.classList.add('hidden');
+    // Load projects for selection
+    loadProjectsForSelection();
+    
+    document.getElementById('basic-auth')?.classList.add('hidden');
+    document.getElementById('token-auth')?.classList.add('hidden');
 }
 
 // Close add repository modal
@@ -703,14 +1010,60 @@ function handleAuthTypeChange(e) {
     const authType = e.target.value;
     
     // Hide all auth sections
-    elements.sshKeyAuth?.classList.add('hidden');
-    elements.basicAuth?.classList.add('hidden');
+    document.getElementById('basic-auth')?.classList.add('hidden');
+    document.getElementById('token-auth')?.classList.add('hidden');
     
     // Show the selected auth section
-    if (authType === 'ssh') {
-        elements.sshKeyAuth?.classList.remove('hidden');
-    } else if (authType === 'basic') {
-        elements.basicAuth?.classList.remove('hidden');
+    if (authType === 'basic') {
+        document.getElementById('basic-auth')?.classList.remove('hidden');
+    } else if (authType === 'token') {
+        document.getElementById('token-auth')?.classList.remove('hidden');
+    }
+}
+
+// Load projects for selection in repository modal
+async function loadProjectsForSelection() {
+    try {
+        console.log('Loading projects for repository selection...');
+        console.log('Auth token available:', !!localStorage.getItem('flowtest_access_token'));
+        
+        // ApiClient.get automatically handles authentication
+        const data = await ApiClient.get('/projects/');
+        console.log('Projects API response:', data);
+        
+        // Handle both paginated (data.results) and direct array responses
+        const projects = Array.isArray(data) ? data : (data.results || []);
+        console.log('Projects array:', projects);
+        
+        // Find the project select element
+        const projectSelect = document.querySelector('[name="project_id"]');
+        if (!projectSelect) {
+            console.error('Project select element not found');
+            return;
+        }
+        
+        // Clear existing options except the default one
+        const defaultOption = projectSelect.querySelector('option[value=""]');
+        projectSelect.innerHTML = '';
+        if (defaultOption) {
+            projectSelect.appendChild(defaultOption);
+        }
+        
+        // Add project options
+        projects.forEach(project => {
+            const option = document.createElement('option');
+            option.value = project.id;
+            option.textContent = project.name;
+            projectSelect.appendChild(option);
+            console.log(`Added project option: ${project.name} (ID: ${project.id})`);
+        });
+        
+        console.log(`Loaded ${projects.length} projects for selection`);
+        
+    } catch (error) {
+        console.error('Error loading projects:', error);
+        console.error('Error details:', error.message, error.status);
+        ToastManager.show(i18n.t('errorLoadingProjects') || 'Error loading projects', 'error');
     }
 }
 
@@ -741,8 +1094,6 @@ async function testRepositoryConnection() {
             repoData.type = 'git';
             repoData.url = formData.get('git_repo_url');
             repoData.branch = formData.get('git_branch');
-            repoData.test_path = formData.get('git_test_path');
-            repoData.test_pattern = formData.get('git_test_pattern');
             repoData.framework = formData.get('git_framework');
             
             // Authentication
@@ -755,16 +1106,20 @@ async function testRepositoryConnection() {
             } else if (authType === 'basic') {
                 repoData.username = formData.get('git_username');
                 repoData.password = formData.get('git_password');
+                repoData.access_token = formData.get('git_password'); // Use password as access token for now
+            } else if (authType === 'token') {
+                repoData.access_token = formData.get('git_access_token');
             }
         }
         
-        // Add display name
+        // Add display name and project
         repoData.name = formData.get('repo_name');
+        repoData.project_id = formData.get('project_id');
         
         addLogMessage(`Connecting to ${repoData.url}...`, 'info');
         
         // Make API request to test the connection
-        const response = await ApiClient.post('/repositories/test', repoData);
+        const response = await ApiClient.post('/automation/projects/test/', repoData);
         
         if (response && response.success) {
             addLogMessage('Repository found', 'success');
@@ -778,10 +1133,23 @@ async function testRepositoryConnection() {
             }
             
             if (response.test_files_count > 0) {
-                addLogMessage(`Found ${response.test_files_count} test files matching pattern`, 'success');
+                addLogMessage(`Found ${response.test_files_count} test files in repository`, 'success');
+                
+                // Show some example test files
+                if (response.test_files_found && response.test_files_found.length > 0) {
+                    addLogMessage('Example test files found:', 'info');
+                    response.test_files_found.slice(0, 5).forEach(file => {
+                        addLogMessage(`  - ${file}`, 'info');
+                    });
+                    if (response.test_files_found.length > 5) {
+                        addLogMessage(`  ... and ${response.test_files_found.length - 5} more`, 'info');
+                    }
+                }
+                
                 addLogMessage('Connection test completed successfully', 'success');
             } else {
-                addLogMessage(`No test files found matching pattern ${repoData.test_pattern || '*'}`, 'warning');
+                addLogMessage('No test files found in repository', 'warning');
+                addLogMessage('The repository may not contain tests or tests may be in an unsupported format', 'info');
             }
         } else {
             addLogMessage('Failed to connect to repository', 'error');
@@ -828,8 +1196,6 @@ async function handleAddRepository(e) {
             repoData.type = 'git';
             repoData.url = formData.get('git_repo_url');
             repoData.branch = formData.get('git_branch');
-            repoData.test_path = formData.get('git_test_path');
-            repoData.test_pattern = formData.get('git_test_pattern');
             repoData.framework = formData.get('git_framework');
             
             // Authentication
@@ -842,17 +1208,46 @@ async function handleAddRepository(e) {
             } else if (authType === 'basic') {
                 repoData.username = formData.get('git_username');
                 repoData.password = formData.get('git_password');
+                repoData.access_token = formData.get('git_password'); // Use password as access token for now
+            } else if (authType === 'token') {
+                repoData.access_token = formData.get('git_access_token');
             }
         }
         
-        // Add display name
+        // Add display name and project
         repoData.name = formData.get('repo_name') || extractRepoName(repoData.url);
+        repoData.project_id = formData.get('project_id');
         
         // Add auto sync
         repoData.auto_sync = formData.get('auto_sync') === 'on';
         
+        // Validate project selection
+        if (!repoData.project_id) {
+            ToastManager.error('Please select a project for this repository');
+            return;
+        }
+        
+        // Transform data for automation projects API
+        const projectData = {
+            name: repoData.name,
+            repository_url: repoData.url,
+            repository_type: repoData.type === 'git' ? 'github' : repoData.type,
+            branch: repoData.branch || 'main',
+            framework: repoData.framework || 'auto',
+            project: repoData.project_id
+        };
+        
+        // Add authentication fields if provided
+        if (repoData.access_token) {
+            projectData.access_token = repoData.access_token;
+        }
+        if (repoData.username) {
+            projectData.username = repoData.username;
+        }
+
         // Make API request to add the repository
-        const response = await ApiClient.post('/repositories', repoData);
+        console.log('Sending project data:', projectData);
+        const response = await ApiClient.post('/automation/projects/', projectData);
         
         if (response) {
             ToastManager.success('Repository connected successfully');
@@ -861,7 +1256,42 @@ async function handleAddRepository(e) {
         }
     } catch (error) {
         console.error('Error adding repository:', error);
-        ToastManager.error('Failed to connect repository: ' + (error.message || 'Unknown error'));
+        console.error('Error status:', error.status);
+        console.error('Error data:', error.data);
+        
+        let errorMessage = 'Failed to connect repository: ';
+        
+        // Check for specific error types
+        if (error.data && error.data.error && error.data.error.message) {
+            const message = error.data.error.message;
+            if (message.includes('duplicate key value') && message.includes('already exists')) {
+                errorMessage = 'Repository with this name already exists in the selected project. Please choose a different name.';
+            } else {
+                errorMessage += message;
+            }
+        } else if (error.data && typeof error.data === 'object') {
+            // Try to extract specific field errors
+            const errors = [];
+            for (const [field, messages] of Object.entries(error.data)) {
+                if (Array.isArray(messages)) {
+                    errors.push(`${field}: ${messages.join(', ')}`);
+                } else if (typeof messages === 'string') {
+                    errors.push(`${field}: ${messages}`);
+                }
+            }
+            errorMessage += errors.length > 0 ? errors.join('; ') : JSON.stringify(error.data);
+        } else {
+            errorMessage += error.message || 'Unknown error';
+        }
+        
+        // Still reload repositories even if there was an error
+        try {
+            await loadRepositories();
+        } catch (loadError) {
+            console.error('Error reloading repositories after failed creation:', loadError);
+        }
+        
+        ToastManager.error(errorMessage);
     }
 }
 
@@ -884,7 +1314,7 @@ async function syncRepository(repoId) {
     try {
         ToastManager.info('Syncing repository...');
         
-        const response = await ApiClient.post(`/repositories/${repoId}/sync`);
+        const response = await ApiClient.post(`/automation/projects/${repoId}/sync/`);
         
         if (response) {
             ToastManager.success('Repository synced successfully');
@@ -918,7 +1348,7 @@ async function disconnectRepository(repoId) {
     }
     
     try {
-        const response = await ApiClient.delete(`/repositories/${repoId}`);
+        const response = await ApiClient.delete(`/automation/projects/${repoId}/`);
         
         if (response) {
             ToastManager.success('Repository disconnected successfully');
@@ -944,6 +1374,7 @@ function setupNavigation() {
         
         // Only load repositories if that section is active
         if (hash === 'repositories') {
+            console.log('Hash changed to repositories, loading repositories...');
             loadRepositories();
         }
     });
@@ -961,6 +1392,7 @@ function showSection(sectionId) {
     
     // If repositories section is shown, load the repositories
     if (sectionId === 'repositories') {
+        console.log('Loading repositories for section:', sectionId);
         loadRepositories();
     }
 }
@@ -977,18 +1409,35 @@ function getInitials(name) {
 
 // Setup user menu with user data
 function setupUserMenu() {
-    if (!state.user) return;
+    console.log('[Settings] Setting up user menu with data:', state.user);
+    if (!state.user) {
+        console.error('[Settings] No user data available');
+        return;
+    }
     
-    // Format the user's name and initials
-    const firstName = state.user.first_name || '';
-    const lastName = state.user.last_name || '';
-    const displayName = firstName && lastName 
-        ? `${firstName} ${lastName}` 
-        : state.user.name || state.user.username || 'User';
+    // Format the user's name - always use username
+    const displayName = state.user.username || state.user.email?.split('@')[0] || 'User';
     
-    // Set user initials
-    if (elements.userInitials) {
-        elements.userInitials.textContent = getInitials(displayName);
+    console.log('[Settings] Display name:', displayName);
+    
+    // Set user avatar or initials
+    const userAvatarImg = document.getElementById('user-avatar-img');
+    const userInitialsSpan = document.getElementById('user-initials');
+    
+    if (state.user.avatar && userAvatarImg) {
+        // Show avatar image
+        userAvatarImg.src = state.user.avatar;
+        userAvatarImg.classList.remove('hidden');
+        if (userInitialsSpan) {
+            userInitialsSpan.style.display = 'none';
+        }
+    } else if (userInitialsSpan) {
+        // Show initials
+        const initials = getInitials(displayName);
+        userInitialsSpan.textContent = initials;
+        if (userAvatarImg) {
+            userAvatarImg.classList.add('hidden');
+        }
     }
     
     // Set user name
@@ -1139,5 +1588,22 @@ function fixDarkHoverStates() {
     });
 }
 
+// Export functions for use in HTML
+// Make functions globally accessible
+window.syncRepository = syncRepository;
+window.disconnectRepository = disconnectRepository;
+window.loadRepositories = loadRepositories;
+
+window.SettingsPageFunctions = {
+    initPage,
+    openAddRepositoryModal,
+    closeAddRepositoryModal,
+    loadRepositories,
+    showSection
+};
+
 // Initialize page when DOM is loaded
-document.addEventListener('DOMContentLoaded', initPage);
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('[Settings] DOM loaded, initializing page...');
+    initPage();
+});

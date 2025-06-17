@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Routing</title>
+</head>
+<body>
+    <h1>Test Case Routing Test</h1>
+    
+    <div>
+        <h2>Test URLs:</h2>
+        
+        <h3>Test Cases:</h3>
+        <ul>
+            <li><a href="/test-cases.html#new-testcase">Create new test case</a></li>
+            <li><a href="/test-cases.html#testcase/123">Open test case 123</a></li>
+            <li><a href="/test-cases.html#folder/1/testcase/123">Open test case 123 in folder 1</a></li>
+            <li><a href="/test-cases.html#folder/1/new-testcase">Create new test case in folder 1</a></li>
+        </ul>
+        
+        <h3>Folders:</h3>
+        <ul>
+            <li><a href="/test-cases.html#new-folder">Create new folder</a></li>
+            <li><a href="/test-cases.html#folder/1">Open folder 1</a></li>
+            <li><a href="/test-cases.html#folder/1/edit">Edit folder 1</a></li>
+            <li><a href="/test-cases.html#folder/1/new-folder">Create new subfolder in folder 1</a></li>
+        </ul>
+    </div>
+    
+    <div>
+        <h2>Current Hash:</h2>
+        <p id="current-hash">No hash</p>
+    </div>
+    
+    <script type="module">
+        import Router from './js/utils/router.js';
+        
+        const router = new Router();
+        
+        function updateHashDisplay() {
+            const hashEl = document.getElementById('current-hash');
+            hashEl.textContent = window.location.hash || 'No hash';
+        }
+        
+        // Update display on hash change
+        window.addEventListener('hashchange', updateHashDisplay);
+        
+        // Initial display
+        updateHashDisplay();
+        
+        console.log('Router test initialized');
+    </script>
+</body>
+</html>

@@ -194,21 +194,36 @@ class UserViewSet(viewsets.ModelViewSet):
         request=UserProfileSerializer,
         responses={200: UserProfileSerializer}
     )
-    @action(detail=False, methods=['patch'], parser_classes=[JSONParser])
+    @action(detail=False, methods=['patch'], parser_classes=[JSONParser, FormParser, MultiPartParser])
     def update_profile(self, request):
         """Update the current user's profile"""
-        user = request.user
-        serializer = UserProfileSerializer(
-            user, 
-            data=request.data, 
-            partial=True,
-            context={'request': request}
-        )
-        
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            print('\n[DEBUG] Received profile update request')
+            print(f'[DEBUG] Request data: {request.data}')
+            print(f'[DEBUG] Content-Type: {request.content_type}')
+            print(f'[DEBUG] Method: {request.method}')
+            print(f'[DEBUG] Headers: {request.headers}')
+            
+            user = request.user
+            serializer = UserProfileSerializer(
+                user, 
+                data=request.data, 
+                partial=True,
+                context={'request': request}
+            )
+            
+            if serializer.is_valid():
+                print(f'[DEBUG] Serializer valid. Data: {serializer.validated_data}')
+                serializer.save()
+                return Response(serializer.data)
+            print(f'[DEBUG] Serializer errors: {serializer.errors}')
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            print(f'[DEBUG] Exception in update_profile: {str(e)}')
+            return Response(
+                {'error': str(e)}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
     
     @extend_schema(
         description="Upload user avatar",

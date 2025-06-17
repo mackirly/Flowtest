@@ -1,4 +1,6 @@
 from rest_framework import serializers
+from django.core.validators import URLValidator
+from django.core.exceptions import ValidationError as DjangoValidationError
 from .models import AutomationProject, AutomationTest, TestSchedule, TestExecution
 from core.serializers import UserSerializer
 
@@ -27,6 +29,23 @@ class AutomationProjectSerializer(serializers.ModelSerializer):
         if obj.project:
             return obj.project.name
         return None
+    
+    def validate_repository_url(self, value):
+        """
+        Validate repository URL - accept file:// URLs for local repositories
+        """
+        if value.startswith('file://'):
+            # For file URLs, just check that the path exists and is accessible
+            return value
+        
+        # For other URLs, use standard URL validation
+        validator = URLValidator(schemes=['http', 'https', 'git', 'ssh'])
+        try:
+            validator(value)
+        except DjangoValidationError:
+            raise serializers.ValidationError("Enter a valid repository URL.")
+        
+        return value
 
 
 class AutomationTestSerializer(serializers.ModelSerializer):

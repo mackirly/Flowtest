@@ -17,7 +17,7 @@
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@6.6.6/css/flag-icons.min.css"/>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.2.0/flowbite.min.css" rel="stylesheet">
-    <script type="module" src="js/utils/theme.js"></script>
+    <script type="module" src="js/utils/init-settings.js"></script>
 
     <script>
     // Настройка Tailwind для работы с темной темой
@@ -46,6 +46,68 @@
       },
     }
     </script>
+
+    <style>
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 1px;
+        }
+        
+        .calendar-day {
+            min-height: 120px;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .calendar-day:hover {
+            background-color: rgba(255, 127, 80, 0.1);
+        }
+        
+        .calendar-day.today {
+            background-color: rgba(255, 127, 80, 0.2);
+            border: 2px solid #FF7F50;
+        }
+        
+        .calendar-day.weekend {
+            background-color: rgba(239, 68, 68, 0.05);
+        }
+        
+        .calendar-day.other-month {
+            opacity: 0.3;
+        }
+        
+        .event-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin: 1px;
+        }
+        
+        .event-indicator.simple {
+            background-color: #3B82F6;
+        }
+        
+        .event-indicator.test-run {
+            background-color: #10B981;
+        }
+        
+        .event-indicators {
+            position: absolute;
+            bottom: 4px;
+            left: 4px;
+            display: flex;
+            flex-wrap: wrap;
+            max-width: calc(100% - 8px);
+        }
+        
+        .calendar-header {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 1px;
+        }
+    </style>
 </head>
 <body class="bg-gray-50 dark:bg-gray-900">
     <div class="min-h-screen flex">
@@ -81,7 +143,7 @@
             <!-- Header -->
             <header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
                 <div class="flex items-center justify-between p-4">
-                    <h1 class="text-2xl font-semibold text-gray-800 dark:text-gray-200" data-i18n="events"></h1>
+                    <h1 class="text-2xl font-semibold text-gray-800 dark:text-gray-200" data-i18n="events">События</h1>
                     <div class="flex items-center space-x-4 ml-auto">
                         <!-- Project Selector -->
                         <div class="flex items-center space-x-2">
@@ -141,76 +203,70 @@
 
             <!-- Main content -->
             <main class="flex-1 bg-gray-50 dark:bg-gray-900 p-4">
-                <!-- Toolbar -->
+                <!-- Calendar Header -->
                 <div class="mb-6">
                     <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
-                        <!-- Search and filters -->
-                        <div class="flex flex-1 w-full sm:w-auto gap-4">
-                            <!-- Search -->
-                            <div class="relative flex-1">
-                                <input type="text" id="search-events" placeholder="Поиск событий..." class="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-coral-500">
-                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <i class="ri-search-line text-gray-400"></i>
-                                </div>
-                            </div>
-                            
-                            <!-- Date Filter -->
-                            <div class="relative">
-                                <select id="date-filter" class="pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-coral-500">
-                                    <option value="all">Все даты</option>
-                                    <option value="today">Сегодня</option>
-                                    <option value="week">Эта неделя</option>
-                                    <option value="month">Этот месяц</option>
-                                </select>
-                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <i class="ri-calendar-line text-gray-400"></i>
-                                </div>
-                            </div>
+                        <div class="flex items-center space-x-4">
+                            <button id="prev-month" class="p-2 text-gray-600 dark:text-gray-300 hover:text-coral-600 dark:hover:text-coral-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                                <i class="ri-arrow-left-line text-xl"></i>
+                            </button>
+                            <h2 id="current-month" class="text-xl font-semibold text-gray-800 dark:text-gray-200 min-w-[200px] text-center"></h2>
+                            <button id="next-month" class="p-2 text-gray-600 dark:text-gray-300 hover:text-coral-600 dark:hover:text-coral-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                                <i class="ri-arrow-right-line text-xl"></i>
+                            </button>
                         </div>
-
-                        <!-- Create Event Button -->
-                        <button id="create-event-btn" class="px-4 py-2 bg-coral-500 text-white rounded-lg hover:bg-coral-600 focus:outline-none focus:ring-2 focus:ring-coral-500 focus:ring-offset-2 transition-all duration-300 flex items-center">
-                            <i class="ri-add-line mr-2"></i>
-                            <span>Создать событие</span>
-                        </button>
+                        
+                        <div class="flex items-center space-x-2">
+                            <button id="today-btn" class="px-4 py-2 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
+                                Сегодня
+                            </button>
+                            <button id="create-event-btn" class="px-4 py-2 bg-coral-500 text-white rounded-lg hover:bg-coral-600 focus:outline-none focus:ring-2 focus:ring-coral-500 focus:ring-offset-2 transition-all duration-300 flex items-center">
+                                <i class="ri-add-line mr-2"></i>
+                                <span>Создать событие</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Events List -->
-                <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
-                    <!-- List Header -->
-                    <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                        <div class="grid grid-cols-12 gap-4">
-                            <div class="col-span-3 font-medium text-gray-700 dark:text-gray-300">Название</div>
-                            <div class="col-span-2 font-medium text-gray-700 dark:text-gray-300">Дата</div>
-                            <div class="col-span-2 font-medium text-gray-700 dark:text-gray-300">Тип</div>
-                            <div class="col-span-3 font-medium text-gray-700 dark:text-gray-300">Участники</div>
-                            <div class="col-span-2 font-medium text-gray-700 dark:text-gray-300">Статус</div>
+                <!-- Calendar -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+                    <!-- Calendar Header -->
+                    <div class="calendar-header bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
+                        <div class="p-3 text-center font-medium text-gray-700 dark:text-gray-300">Пн</div>
+                        <div class="p-3 text-center font-medium text-gray-700 dark:text-gray-300">Вт</div>
+                        <div class="p-3 text-center font-medium text-gray-700 dark:text-gray-300">Ср</div>
+                        <div class="p-3 text-center font-medium text-gray-700 dark:text-gray-300">Чт</div>
+                        <div class="p-3 text-center font-medium text-gray-700 dark:text-gray-300">Пт</div>
+                        <div class="p-3 text-center font-medium text-red-600 dark:text-red-400">Сб</div>
+                        <div class="p-3 text-center font-medium text-red-600 dark:text-red-400">Вс</div>
+                    </div>
+                    
+                    <!-- Calendar Grid -->
+                    <div id="calendar-grid" class="calendar-grid bg-white dark:bg-gray-800">
+                        <!-- Calendar days will be generated here -->
+                    </div>
+                </div>
+
+                <!-- Legend -->
+                <div class="mt-4 bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-3">Легенда</h3>
+                    <div class="flex flex-wrap gap-4">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-4 h-4 bg-blue-500 rounded-full"></div>
+                            <span class="text-sm text-gray-600 dark:text-gray-400">Простое событие</span>
                         </div>
-                    </div>
-
-                    <!-- List Content -->
-                    <div id="events-list" class="divide-y divide-gray-200 dark:divide-gray-700">
-                        <!-- Events will be loaded here -->
-                    </div>
-
-                    <!-- Empty State -->
-                    <div id="empty-state" class="hidden text-center py-12">
-                        <div class="mx-auto w-24 h-24 mb-4 text-gray-400 dark:text-gray-600">
-                            <i class="ri-calendar-event-line text-6xl"></i>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-4 h-4 bg-green-500 rounded-full"></div>
+                            <span class="text-sm text-gray-600 dark:text-gray-400">Событие с запуском тестов</span>
                         </div>
-                        <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Нет событий</h3>
-                        <p class="text-gray-500 dark:text-gray-400 mb-4">Создайте новое событие, чтобы начать.</p>
-                        <button id="create-first-event-btn" class="px-4 py-2 bg-coral-500 text-white rounded-lg hover:bg-coral-600 focus:outline-none focus:ring-2 focus:ring-coral-500 focus:ring-offset-2 transition-all duration-300 inline-flex items-center">
-                            <i class="ri-add-line mr-2"></i>
-                            <span>Создать событие</span>
-                        </button>
-                    </div>
-
-                    <!-- Loading State -->
-                    <div id="loading-state" class="hidden text-center py-12">
-                        <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-coral-500 mx-auto"></div>
-                        <p class="mt-4 text-gray-500 dark:text-gray-400">Загрузка событий...</p>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-4 h-4 border-2 border-coral-500 rounded"></div>
+                            <span class="text-sm text-gray-600 dark:text-gray-400">Сегодня</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-4 h-4 bg-red-100 dark:bg-red-900/30 rounded"></div>
+                            <span class="text-sm text-gray-600 dark:text-gray-400">Выходные</span>
+                        </div>
                     </div>
                 </div>
             </main>
@@ -235,7 +291,7 @@
     <div id="create-event-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50">
         <div class="fixed inset-0 overflow-y-auto">
             <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
-                <div class="relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
+                <div class="relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-2xl">
                     <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                         <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">Создать событие</h3>
                     </div>
@@ -251,11 +307,19 @@
                             <div>
                                 <label for="event-type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Тип события</label>
                                 <select id="event-type" name="type" required class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-coral-500">
-                                    <option value="meeting">Встреча</option>
-                                    <option value="deadline">Дедлайн</option>
-                                    <option value="review">Ревью</option>
-                                    <option value="other">Другое</option>
+                                    <option value="simple">Простое событие</option>
+                                    <option value="test-run">Событие с запуском тестов</option>
                                 </select>
+                            </div>
+
+                            <!-- Test Cases Selection (only for test-run events) -->
+                            <div id="test-cases-section" class="hidden">
+                                <label for="test-cases" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Выберите тест-кейсы</label>
+                                <div class="border border-gray-300 dark:border-gray-600 rounded-lg p-3 max-h-40 overflow-y-auto">
+                                    <div id="test-cases-list">
+                                        <!-- Test cases will be loaded here -->
+                                    </div>
+                                </div>
                             </div>
 
                             <!-- Date and Time -->
@@ -270,18 +334,46 @@
                                 </div>
                             </div>
 
+                            <!-- Repeat Settings -->
+                            <div>
+                                <label class="flex items-center space-x-2">
+                                    <input type="checkbox" id="repeat-event" class="rounded border-gray-300 dark:border-gray-600 text-coral-500 focus:ring-coral-500">
+                                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Повторять событие</span>
+                                </label>
+                            </div>
+
+                            <!-- Repeat Options -->
+                            <div id="repeat-options" class="hidden space-y-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label for="repeat-interval" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Интервал</label>
+                                        <input type="number" id="repeat-interval" min="1" value="1" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-coral-500">
+                                    </div>
+                                    <div>
+                                        <label for="repeat-unit" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Единица</label>
+                                        <select id="repeat-unit" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-coral-500">
+                                            <option value="days">Дни</option>
+                                            <option value="weeks">Недели</option>
+                                            <option value="months">Месяцы</option>
+                                            <option value="years">Годы</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <label for="repeat-end-date" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Окончание повторов (максимум 3 года)</label>
+                                    <input type="date" id="repeat-end-date" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-coral-500">
+                                </div>
+                                
+                                <div class="text-sm text-gray-600 dark:text-gray-400">
+                                    <span id="repeat-preview">Предварительный просмотр повторов будет показан здесь</span>
+                                </div>
+                            </div>
+
                             <!-- Description -->
                             <div>
                                 <label for="event-description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Описание</label>
                                 <textarea id="event-description" name="description" rows="3" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-coral-500"></textarea>
-                            </div>
-
-                            <!-- Participants -->
-                            <div>
-                                <label for="event-participants" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Участники</label>
-                                <select id="event-participants" name="participants" multiple class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-coral-500">
-                                    <!-- Participants will be loaded here -->
-                                </select>
                             </div>
                         </div>
 
@@ -300,10 +392,40 @@
         </div>
     </div>
 
+    <!-- Event Details Modal -->
+    <div id="event-details-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50">
+        <div class="fixed inset-0 overflow-y-auto">
+            <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+                <div class="relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
+                    <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                        <h3 id="event-details-title" class="text-lg font-medium text-gray-900 dark:text-gray-100"></h3>
+                    </div>
+                    <div class="px-6 py-4">
+                        <div id="event-details-content">
+                            <!-- Event details will be loaded here -->
+                        </div>
+                    </div>
+                    <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-3">
+                        <button id="close-details-btn" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                            Закрыть
+                        </button>
+                        <button id="edit-event-btn" class="px-4 py-2 bg-coral-500 text-white rounded-lg hover:bg-coral-600">
+                            Редактировать
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Scripts -->
     <script type="module" src="js/utils/toast.js"></script>
     <script type="module" src="js/i18n/translations.js"></script>
     <script type="module" src="js/i18n/i18n.js"></script>
+    <script type="module" src="js/utils/resizable-sidebar.js"></script>
     <script type="module" src="js/pages/events.js"></script>
+    
+    <!-- Auth Guard initialization -->
+    <script type="module" src="./js/init-auth.js"></script>
 </body>
 </html>

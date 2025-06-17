@@ -8,11 +8,42 @@
     <!-- StylesheetFix - load early to prevent CORS issues with external stylesheets -->
     <script src="js/stylesheet-fix-loader.js"></script>
     
+    <!-- Tailwind CSS для корректной работы стилей -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
     <link rel="stylesheet" href="css/tailwind-base.css">
     <link rel="stylesheet" href="css/style.css">
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@6.6.6/css/flag-icons.min.css"/>
-    <script type="module" src="js/utils/theme.js"></script>
+    <script type="module" src="js/utils/init-settings.js"></script>
+    
+    <script>
+    // Настройка Tailwind для работы с темной темой
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        fontFamily: {
+          sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
+        },
+        extend: {
+          colors: {
+            coral: {
+              50: '#fff5f2',
+              100: '#ffede5',
+              200: '#ffd5c2',
+              300: '#ffb999',
+              400: '#ff8c4d',
+              500: '#FF7F50', 
+              600: '#e66642',
+              700: '#cc5538',
+              800: '#a4442d',
+              900: '#7a2d1a'
+            }
+          }
+        }
+      }
+    }
+    </script>
 </head>
 <body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen flex items-center justify-center">
     <!-- Theme and Language Controls -->
@@ -50,7 +81,7 @@
 
     <div class="max-w-md w-full mx-4 p-8 bg-white dark:bg-gray-800 rounded-lg shadow-lg">
         <div class="flex justify-center mb-6">
-            <img src="images/logo.svg" alt="FlowTest Logo" class="h-16">
+            <img src="images/FlowTest.png" alt="FlowTest Logo" class="h-16">
         </div>
         
         <h1 class="text-2xl font-bold text-center mb-2" data-i18n="createAccount">Create an Account</h1>
@@ -134,7 +165,10 @@
         </div>
         
         <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 text-center text-sm text-gray-500 dark:text-gray-400">
-            <p>FlowTest 2.0 &copy; 2025</p>
+            <button onclick="localStorage.clear(); location.reload();" class="text-xs text-gray-400 hover:text-gray-600 mb-2">
+                Clear localStorage & Reload
+            </button>
+            <p>FlowTest &copy; 2025</p>
         </div>
     </div>
 

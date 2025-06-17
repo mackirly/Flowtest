@@ -19,6 +19,9 @@ class Activity(models.Model):
         ('test_case_delete', _('Test Case Deleted')),
         ('test_run', _('Test Run')),
         ('report_generate', _('Report Generated')),
+        ('event_create', _('Event Created')),
+        ('event_update', _('Event Updated')),
+        ('event_delete', _('Event Deleted')),
     ]
     
     user = models.ForeignKey(
@@ -42,12 +45,9 @@ class Activity(models.Model):
 
 def avatar_upload_path(instance, filename):
     """Generate path for user avatar uploads"""
-    # Get the file extension
-    ext = filename.split('.')[-1]
-    # Generate a unique filename
-    unique_filename = f"avatar.{ext}"
-    # Return path like 'avatars/user_1/avatar.jpg'
-    return os.path.join('avatars', f'user_{instance.id}', unique_filename)
+    # Keep original filename with suffix
+    # Return path like 'avatars/user_1/avatar_xyz123.jpg'
+    return os.path.join('avatars', f'user_{instance.id}', filename)
 
 
 class Permission(models.Model):
@@ -89,6 +89,10 @@ class Role(models.Model):
         default=False, 
         help_text=_("Administrative role with full access")
     )
+    is_system = models.BooleanField(
+        default=False,
+        help_text=_("System role that cannot be deleted")
+    )
     
     class Meta:
         verbose_name = _('role')
@@ -120,6 +124,7 @@ class CustomUser(AbstractUser):
     language = models.CharField(max_length=10, choices=LANGUAGE_CHOICES, default='en')
     theme = models.CharField(max_length=10, choices=THEME_CHOICES, default='light')
     phone_number = models.CharField(max_length=20, blank=True)
+    bio = models.TextField(_('Biography'), blank=True)
     avatar = models.ImageField(
         upload_to=avatar_upload_path,
         null=True,

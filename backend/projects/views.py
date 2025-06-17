@@ -222,10 +222,10 @@ class FolderViewSet(viewsets.ModelViewSet):
             )
         
         if parent_id:
-            queryset = queryset.filter(parent_folder_id=parent_id)
+            queryset = queryset.filter(parent_id=parent_id)
         
         if root_only and root_only.lower() == 'true':
-            queryset = queryset.filter(parent_folder__isnull=True)
+            queryset = queryset.filter(parent__isnull=True)
             
         return queryset.order_by('name')
     
@@ -241,7 +241,7 @@ class FolderViewSet(viewsets.ModelViewSet):
         project = get_object_or_404(Project, id=project_id)
         
         # Set project and author
-        serializer.save(project=project)
+        serializer.save(project=project, author=self.request.user)
     
     @extend_schema(
         description="Move folder to another parent",
@@ -256,7 +256,7 @@ class FolderViewSet(viewsets.ModelViewSet):
         
         # If parent_id is None, move to root level
         if parent_id is None:
-            folder.parent_folder = None
+            folder.parent = None
         else:
             parent_folder = get_object_or_404(Folder, id=parent_id)
             
@@ -275,9 +275,9 @@ class FolderViewSet(viewsets.ModelViewSet):
                         {'error': 'Cannot move a folder to its own descendant'},
                         status=status.HTTP_400_BAD_REQUEST
                     )
-                current = current.parent_folder
+                current = current.parent
                 
-            folder.parent_folder = parent_folder
+            folder.parent = parent_folder
             
         folder.save()
         serializer = self.get_serializer(folder)

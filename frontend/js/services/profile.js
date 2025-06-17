@@ -2,7 +2,8 @@
  * Profile service for handling profile-related API calls
  */
 
-const API_BASE = '/api';
+const API_BASE = 'http://localhost/api';
+const MEDIA_BASE = 'http://localhost'; // Using nginx proxy for all endpoints
 
 export default class ProfileService {
     constructor() {
@@ -30,7 +31,13 @@ export default class ProfileService {
             
             // Fix avatar URL if needed
             if (profile.avatar && !profile.avatar.startsWith('http')) {
-                profile.avatar = new URL(profile.avatar, window.location.origin).href;
+                // Если путь начинается с /media, подставляем MEDIA_BASE
+                if (profile.avatar.startsWith('/media')) {
+                    profile.avatar = MEDIA_BASE + profile.avatar;
+                } else {
+                    profile.avatar = new URL(profile.avatar, window.location.origin).href;
+                }
+                console.log('[Profile] Итоговый URL аватара:', profile.avatar);
             }
             
             // Get additional data in parallel
@@ -98,20 +105,40 @@ export default class ProfileService {
             throw new Error('No auth token found');
         }
         
-        const response = await fetch(`${API_BASE}/core/users/update_profile/`, {
-            method: 'PATCH',
-            headers: {
-                'Authorization': `Bearer ${this.token}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(data)
-        });
+        console.log('[Profile] Updating profile with data:', data);
         
-        if (!response.ok) {
-            throw new Error(`Profile update failed: ${response.status}`);
+        try {
+            const formData = new FormData();
+            Object.entries(data).forEach(([key, value]) => {
+                if (value) formData.append(key, value);
+            });
+
+            const response = await fetch(`${API_BASE}/core/users/update_profile/`, {
+                method: 'PATCH',
+                headers: {
+                    'Authorization': `Bearer ${this.token}`,
+                    'Accept': 'application/json'
+                },
+                body: formData
+            });
+            
+            const responseText = await response.text();
+            console.log('[Profile] Response text:', responseText);
+            
+            if (!response.ok) {
+                throw new Error(`Profile update failed: ${response.status} - ${responseText}`);
+            }
+            
+            try {
+                return responseText ? JSON.parse(responseText) : {};
+            } catch (e) {
+                console.error('[Profile] Error parsing response:', e);
+                throw new Error('Invalid response format');
+            }
+        } catch (error) {
+            console.error('[Profile] Update error:', error);
+            throw error;
         }
-        
-        return response.json();
     }
     
     async changePassword(currentPassword, newPassword) {
@@ -158,7 +185,20 @@ export default class ProfileService {
             throw new Error(`Avatar upload failed: ${response.status}`);
         }
         
-        return response.json();
+        const result = await response.json();
+        
+        // Fix avatar URL if needed
+        if (result.avatar && !result.avatar.startsWith('http')) {
+    // Формируем URL без порта (http://localhost/media/...)
+    if (result.avatar.startsWith('/media')) {
+        result.avatar = window.location.origin.replace(/:\d+$/, '') + result.avatar;
+    } else {
+        result.avatar = new URL(result.avatar, window.location.origin).href;
+    }
+    console.log('[Profile] Fixed avatar URL in upload response:', result.avatar);
+}
+        
+        return result;
     }
 }
 

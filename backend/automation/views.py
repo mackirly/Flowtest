@@ -2,6 +2,7 @@ from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import ValidationError
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample
 from django.utils import timezone
@@ -25,7 +26,7 @@ class AutomationProjectViewSet(viewsets.ModelViewSet):
     API endpoint for managing automation projects.
     """
     serializer_class = AutomationProjectSerializer
-    permission_classes = [IsAuthenticated, HasProjectPermission]
+    permission_classes = [IsAuthenticated]
     pagination_class = StandardResultsSetPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['repository_type', 'sync_status']
@@ -35,23 +36,49 @@ class AutomationProjectViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """
-        Filter automation projects based on related project.
+        Filter automation projects based on related project or return all for global access.
         """
         user = self.request.user
         project_id = self.kwargs.get('project_id')
         
-        return AutomationProject.objects.filter(
-            project_id=project_id,
-            project__members=user
-        )
+        if project_id:
+            # Project-specific context
+            return AutomationProject.objects.filter(
+                project_id=project_id,
+                project__members=user
+            )
+        else:
+            # Global context (settings page)
+            return AutomationProject.objects.filter(
+                project__members=user
+            )
     
     def perform_create(self, serializer):
         """
         Create a new automation project and associate with the project.
         """
-        project_id = self.kwargs.get('project_id')
-        project = Project.objects.get(id=project_id)
-        serializer.save(project=project, created_by=self.request.user)
+        project_id = self.kwargs.get('project_id') or self.request.data.get('project_id')
+        
+        if project_id:
+            # Use specified project
+            try:
+                project = Project.objects.get(id=project_id, members=self.request.user)
+            except Project.DoesNotExist:
+                raise ValidationError({"project_id": "Project not found or access denied"})
+        else:
+            # Global context - get user's first project or create default
+            user_projects = Project.objects.filter(members=self.request.user)
+            if user_projects.exists():
+                project = user_projects.first()
+            else:
+                # Create a default project for the user
+                project = Project.objects.create(
+                    name="Default Project",
+                    description="Auto-created project for automation"
+                )
+                project.members.add(self.request.user)
+        
+        serializer.save(project=project)
     
     @action(detail=True, methods=['post'])
     def sync(self, request, pk=None, project_id=None):
@@ -74,13 +101,9 @@ class AutomationProjectViewSet(viewsets.ModelViewSet):
             automation_project.sync_status = 'syncing'
             automation_project.save()
             
-            # This would be implemented with Celery
-            # sync_task = sync_repository.delay(automation_project.id, force)
-            
-            # For now, simulate success
-            automation_project.sync_status = 'synced'
-            automation_project.last_sync = timezone.now()
-            automation_project.save()
+            # Launch async sync task
+            from .tasks import sync_repository
+            sync_task = sync_repository.delay(automation_project.id, force)
             
             return Response(
                 {"message": "Repository sync initiated", "status": "syncing"},
@@ -103,6 +126,127 @@ class AutomationProjectViewSet(viewsets.ModelViewSet):
             
         serializer = AutomationTestSerializer(queryset, many=True)
         return Response(serializer.data)
+    
+    @action(detail=False, methods=['post'])
+    def test(self, request, project_id=None):
+        """
+        Test repository connection without creating a project.
+        """
+        try:
+            import git
+            import os
+            import tempfile
+            from urllib.parse import urlparse
+            
+            data = request.data
+            repo_url = data.get('url')
+            branch = data.get('branch', 'main')
+            auth_type = data.get('auth_type', 'none')
+            
+            if not repo_url:
+                return Response({
+                    'success': False,
+                    'error': 'Repository URL is required'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Create temporary directory for test clone
+            with tempfile.TemporaryDirectory() as temp_dir:
+                try:
+                    # Prepare clone options
+                    clone_options = {
+                        'depth': 1,  # Shallow clone for testing
+                        'branch': branch
+                    }
+                    
+                    # Handle authentication
+                    if auth_type == 'basic' and data.get('username') and data.get('password'):
+                        parsed_url = urlparse(repo_url)
+                        auth_url = f"{parsed_url.scheme}://{data['username']}:{data['password']}@{parsed_url.netloc}{parsed_url.path}"
+                        repo_url = auth_url
+                        auth_success = True
+                    elif auth_type == 'token' and data.get('access_token'):
+                        parsed_url = urlparse(repo_url)
+                        auth_url = f"{parsed_url.scheme}://{data['access_token']}:x-oauth-basic@{parsed_url.netloc}{parsed_url.path}"
+                        repo_url = auth_url
+                        auth_success = True
+                    else:
+                        auth_success = auth_type == 'none'
+                    
+                    # Attempt to clone
+                    repo = git.Repo.clone_from(repo_url, temp_dir, **clone_options)
+                    
+                    # Count test files throughout entire repository
+                    test_files_count = 0
+                    test_files_found = []
+                    
+                    # Common test file patterns for different frameworks
+                    test_patterns = [
+                        # Python patterns
+                        lambda f: f.startswith('test_') and f.endswith('.py'),
+                        lambda f: f.endswith('_test.py'),
+                        lambda f: f.startswith('test') and f.endswith('.py'),
+                        # JavaScript patterns  
+                        lambda f: f.endswith('.test.js'),
+                        lambda f: f.endswith('.spec.js'),
+                        lambda f: f.endswith('.test.ts'),
+                        lambda f: f.endswith('.spec.ts'),
+                        # Robot Framework
+                        lambda f: f.endswith('.robot'),
+                        # Playwright
+                        lambda f: 'playwright' in f.lower() and f.endswith('.py'),
+                        lambda f: 'e2e' in f.lower() and f.endswith('.py'),
+                    ]
+                    
+                    # Walk through entire repository
+                    for root, dirs, files in os.walk(temp_dir):
+                        # Skip common non-test directories
+                        dirs[:] = [d for d in dirs if d not in ['.git', '.pytest_cache', '__pycache__', 'node_modules', '.venv', 'venv']]
+                        
+                        for file in files:
+                            # Check if file matches any test pattern
+                            if any(pattern(file) for pattern in test_patterns):
+                                test_files_count += 1
+                                rel_path = os.path.relpath(os.path.join(root, file), temp_dir)
+                                test_files_found.append(rel_path)
+                    
+                    return Response({
+                        'success': True,
+                        'auth_success': auth_success,
+                        'test_files_count': test_files_count,
+                        'test_files_found': test_files_found[:10],  # Show first 10 files as examples
+                        'branch': branch,
+                        'message': 'Repository connection test successful'
+                    })
+                    
+                except git.exc.GitCommandError as e:
+                    error_msg = str(e)
+                    if 'Authentication failed' in error_msg or 'invalid username or password' in error_msg:
+                        return Response({
+                            'success': False,
+                            'auth_success': False,
+                            'error': 'Authentication failed. Please check your credentials.'
+                        })
+                    elif 'Repository not found' in error_msg:
+                        return Response({
+                            'success': False,
+                            'error': 'Repository not found. Please check the URL.'
+                        })
+                    else:
+                        return Response({
+                            'success': False,
+                            'error': f'Git error: {error_msg}'
+                        })
+                        
+        except ImportError:
+            return Response({
+                'success': False,
+                'error': 'Git support not available. Please install GitPython.'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': f'Unexpected error: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class AutomationTestViewSet(viewsets.ModelViewSet):
@@ -158,13 +302,9 @@ class AutomationTestViewSet(viewsets.ModelViewSet):
             parameters=parameters
         )
         
-        # This would be implemented with Celery
-        # execute_task = execute_automation_test.delay(execution.id)
-        
-        # For now, simulate in-progress
-        execution.status = 'in_progress'
-        execution.start_time = timezone.now()
-        execution.save()
+        # Launch async execution task
+        from .tasks import execute_automation_test
+        execute_task = execute_automation_test.delay(execution.id)
         
         return Response(
             TestExecutionSerializer(execution).data,
@@ -199,13 +339,9 @@ class AutomationTestViewSet(viewsets.ModelViewSet):
                         parameters=parameters
                     )
                     
-                    # This would be implemented with Celery
-                    # execute_task = execute_automation_test.delay(execution.id)
-                    
-                    # For now, simulate in-progress
-                    execution.status = 'in_progress'
-                    execution.start_time = timezone.now()
-                    execution.save()
+                    # Launch async execution task
+                    from .tasks import execute_automation_test
+                    execute_task = execute_automation_test.delay(execution.id)
                     
                     executions.append(execution)
                 except AutomationTest.DoesNotExist:

@@ -285,6 +285,18 @@ class RoleViewSet(viewsets.ModelViewSet):
             
         return queryset
     
+    def destroy(self, request, *args, **kwargs):
+        """Delete a role (prevent deletion of system roles)"""
+        role = self.get_object()
+        
+        if role.is_system:
+            return Response(
+                {'error': 'System roles cannot be deleted'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        return super().destroy(request, *args, **kwargs)
+    
     @extend_schema(
         description="Assign permissions to a role",
         request={"type": "object", "properties": {"permission_ids": {"type": "array", "items": {"type": "integer"}}}},

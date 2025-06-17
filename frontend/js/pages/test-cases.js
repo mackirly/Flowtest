@@ -1,1617 +1,3192 @@
-/**
- * Test Cases page functionality
- */
-import i18n from '../i18n/i18n.js';
-import ApiClient from '../api/client.js';
+import authManager from '../api/auth.js';
+import { TestCaseClient } from '../api/testcases.js';
+import projects from '../api/projects.js';
 import ToastManager from '../utils/toast.js';
+import { formatDateTime } from '../utils/date.js';
+import { updateUserUI } from '../services/user.js';
+import { wsService } from '../services/websocket.js';
+import Router from '../utils/router.js';
 
-// Store for application state
-const AppState = {
-    projects: [],
-    folders: [],
-    testCases: [],
-    selectedProject: null,
-    selectedFolder: null,
-    filters: {
-        status: '',
-        priority: '',
-        type: '',
-        tags: '',
-        search: ''
-    },
-    sortBy: 'name'
-};
+class TestCasesPage {
+    constructor() {
+        this.testCaseClient = new TestCaseClient();
+        this.projectClient = projects;
+        this.toastManager = ToastManager;
+        this.router = new Router();
+        
+        this.currentProject = null;
+        this.currentFolder = null;
+        this.testCases = [];
+        this.projects = [];
+        this.folders = [];
+        
+        // UI state
+        this.expandedFolders = new Set();
+        this.selectedItem = null;
+        
+        // Search, filter and sort state
+        this.searchTerm = '';
+        this.filters = {
+            status: '',
+            priority: '',
+            type: ''
+        };
+        this.sortBy = 'name';
+        
+        this.init();
+    }
 
-document.addEventListener('DOMContentLoaded', function() {
-    // Check if user is logged in
-    const token = localStorage.getItem('accessToken');
-    if (!token) {
-        window.location.href = 'login.html';
-        return;
+    async init() {
+        console.log('[TestCases] Initializing page');
+        
+        try {
+            // Check authentication
+            const token = localStorage.getItem('flowtest_access_token');
+            if (!token) {
+                console.log('[TestCases] No token found, redirecting to login');
+                window.location.href = '/login.html';
+                return;
+            }
+
+            // Update user UI
+            console.log('[TestCases] Updating user UI...');
+            await updateUserUI();
+            console.log('[TestCases] User UI updated');
+
+            // Load initial data
+            console.log('[TestCases] Loading projects...');
+            await this.loadProjects();
+            console.log('[TestCases] Projects loaded');
+            
+            // Check if we need to load folders for current project
+            // This handles the case when returning from test run page
+            const projectSelector = document.getElementById('projectSelector');
+            if (projectSelector && projectSelector.value && !this.folders.length) {
+                console.log('[TestCases] Loading folders for selected project:', projectSelector.value);
+                this.currentProject = projectSelector.value;
+                await this.loadFolders();
+            }
+            
+            // Initialize folder tree (will show empty state)
+            this.updateFolderTree();
+            
+            // Setup event listeners
+            this.setupEventListeners();
+            this.setupSidebarToggle();
+            this.setupContextMenu();
+            this.setupModals();
+            
+            console.log('[TestCases] Page initialization completed successfully');
+        } catch (error) {
+            console.error('[TestCases] Error during page initialization:', error);
+            this.toastManager.error('Failed to initialize page');
+        }
+    }
+
+    setupEventListeners() {
+        // Project selector
+        const projectSelector = document.getElementById('projectSelector');
+        if (projectSelector) {
+            projectSelector.addEventListener('change', (e) => this.handleProjectChange(e));
+        }
+
+        // Create test case button
+        const createTestCaseBtn = document.getElementById('create-testcase-button');
+        if (createTestCaseBtn) {
+            createTestCaseBtn.addEventListener('click', () => this.showCreateTestCaseModal());
+        }
+
+        // Automation button
+        const automationBtn = document.getElementById('automation-button');
+        if (automationBtn) {
+            automationBtn.addEventListener('click', () => this.showAutomationModal());
+        }
+
+
+        // Add project button (in header)
+        const addProjectBtn = document.getElementById('addProjectBtn');
+        if (addProjectBtn) {
+            addProjectBtn.addEventListener('click', () => this.showCreateProjectModal());
+        }
+
+        // Search input in sidebar
+        const searchInput = document.getElementById('search-folders');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => this.handleFolderSearch(e.target.value));
+        }
+
+        // Filters
+        ['filter-status', 'filter-priority', 'filter-type'].forEach(filterId => {
+            const filter = document.getElementById(filterId);
+            if (filter) {
+                filter.addEventListener('change', () => this.applyFilters());
+            }
+        });
+
+        // Sort options
+        document.querySelectorAll('input[name="sort"]').forEach(radio => {
+            radio.addEventListener('change', () => this.applySorting());
+        });
+
+        // User dropdown
+        const userMenuButton = document.getElementById('user-menu-button');
+        const userDropdown = document.getElementById('user-dropdown');
+        
+        if (userMenuButton && userDropdown) {
+            userMenuButton.addEventListener('click', () => {
+                userDropdown.classList.toggle('hidden');
+            });
+            
+            // Close dropdown on outside click
+            document.addEventListener('click', (e) => {
+                if (!userMenuButton.contains(e.target) && !userDropdown.contains(e.target)) {
+                    userDropdown.classList.add('hidden');
+                }
+            });
+        }
+
+        // Logout button
+        const logoutButton = document.getElementById('logout-button');
+        if (logoutButton) {
+            logoutButton.addEventListener('click', async () => {
+                await authManager.logout();
+                window.location.href = '/login.html';
+            });
+        }
+        
+        // Clear folder selection when clicking on main content area
+        const mainContent = document.querySelector('main');
+        if (mainContent) {
+            mainContent.addEventListener('click', (e) => {
+                // Only clear if clicking on empty area (not on folder elements or forms)
+                if (e.target === mainContent || e.target.closest('.empty-state')) {
+                    this.clearFolderSelection();
+                }
+            });
+        }
+    }
+
+    setupSidebarToggle() {
+        const sidebarToggle = document.getElementById('sidebar-toggle');
+        const sidebar = document.getElementById('sidebar');
+        
+        if (sidebarToggle && sidebar) {
+            sidebarToggle.addEventListener('click', () => {
+                sidebar.classList.toggle('-translate-x-full');
+                console.log('[TestCases] Sidebar toggled');
+            });
+        }
+    }
+
+    toggleSidebarSection(event) {
+        const button = event.currentTarget;
+        const section = button.closest('.sidebar-section');
+        const content = section.querySelector('.sidebar-section-content');
+        const icon = button.querySelector('i');
+        
+        if (content && icon) {
+            content.classList.toggle('hidden');
+            icon.classList.toggle('rotate-90');
+            console.log('[TestCases] Toggled sidebar section');
+        }
+    }
+
+    setupContextMenu() {
+        const contextMenu = document.getElementById('context-menu');
+        
+        // Hide context menu on click anywhere
+        document.addEventListener('click', () => {
+            if (contextMenu) {
+                contextMenu.classList.add('hidden');
+            }
+        });
+
+        // Prevent default context menu
+        document.addEventListener('contextmenu', (e) => {
+            if (e.target.closest('.folder-tree') || e.target.closest('.empty-state')) {
+                e.preventDefault();
+            }
+        });
+
+        // Add context menu to folders tree container
+        const foldersTree = document.getElementById('folders-tree');
+        if (foldersTree) {
+            foldersTree.addEventListener('contextmenu', (e) => {
+                // Only handle if clicked on empty space, not on a folder
+                if (!e.target.closest('.folder-item')) {
+                    e.preventDefault();
+                    this.handleEmptyStateContextMenu(e);
+                }
+            });
+        }
+    }
+
+    setupModals() {
+        // Create folder modal
+        const folderModal = document.getElementById('folder-modal');
+        const createFolderForm = document.getElementById('create-folder-form');
+        const closeFolderModal = document.getElementById('close-folder-modal');
+        const cancelFolderBtn = document.getElementById('cancel-folder-btn');
+
+        if (closeFolderModal) {
+            closeFolderModal.addEventListener('click', () => {
+                if (folderModal) {
+                    folderModal.classList.add('hidden');
+                    folderModal.style.display = '';
+                }
+            });
+        }
+
+        // Cancel button is handled via onclick in HTML
+
+        if (createFolderForm) {
+            createFolderForm.addEventListener('submit', (e) => this.handleCreateFolder(e));
+        }
+
+        // Create test case modal
+        const testCaseModal = document.getElementById('testcase-modal');
+        const createTestCaseForm = document.getElementById('create-testcase-form');
+        const closeTestCaseModal = document.getElementById('close-testcase-modal');
+        const cancelTestCaseBtn = document.getElementById('cancel-testcase-btn');
+
+        if (closeTestCaseModal) {
+            closeTestCaseModal.addEventListener('click', () => {
+                this.closeTestCaseModal();
+            });
+        }
+
+        // Cancel button is handled via onclick in HTML
+
+        // Test case type change handler
+        const testcaseTypeSelect = document.getElementById('testcase-type');
+        if (testcaseTypeSelect) {
+            testcaseTypeSelect.addEventListener('change', (e) => {
+                this.handleTestCaseTypeChange(e.target.value);
+            });
+        }
+
+        if (createTestCaseForm) {
+            createTestCaseForm.addEventListener('submit', (e) => this.handleCreateTestCase(e));
+        }
+
+        // Click outside modal to close
+        [folderModal, testCaseModal].forEach(modal => {
+            if (modal) {
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) {
+                        modal.classList.add('hidden');
+                        modal.style.display = '';
+                    }
+                });
+            }
+        });
+    }
+
+    async loadProjects() {
+        try {
+            console.log('[TestCases] Loading projects...');
+            const response = await this.projectClient.getAll();
+            console.log('[TestCases] Projects API response:', response);
+            
+            // Handle both paginated and non-paginated responses
+            if (response) {
+                if (response.results) {
+                    // Paginated response
+                    this.projects = response.results;
+                } else if (Array.isArray(response)) {
+                    // Direct array response
+                    this.projects = response;
+                } else {
+                    console.log('[TestCases] Unexpected response format:', response);
+                    this.projects = [];
+                }
+                
+                console.log('[TestCases] Projects loaded:', this.projects.length);
+                this.updateProjectSelector();
+                
+                // Select first project if available
+                if (this.projects.length > 0 && !this.currentProject) {
+                    const projectSelector = document.getElementById('projectSelector');
+                    if (projectSelector) {
+                        projectSelector.value = this.projects[0].id;
+                        await this.handleProjectChange({ target: projectSelector });
+                    }
+                }
+            } else {
+                console.log('[TestCases] No projects in response or response is empty');
+                this.projects = [];
+                this.updateProjectSelector();
+            }
+        } catch (error) {
+            console.error('[TestCases] Error loading projects:', error);
+            this.projects = [];
+            this.updateProjectSelector();
+            
+            // Don't show error toast if it's a 404 or authentication issue
+            if (error.status !== 404 && error.status !== 401) {
+                this.toastManager.error('Failed to load projects');
+            }
+        }
+    }
+
+    updateProjectSelector() {
+        const projectSelector = document.getElementById('projectSelector');
+        if (!projectSelector) return;
+
+        // Clear existing options
+        projectSelector.innerHTML = '<option value="" data-i18n="selectProject">Выберите проект</option>';
+
+        // Add project options
+        this.projects.forEach(project => {
+            const option = document.createElement('option');
+            option.value = project.id;
+            option.textContent = project.name;
+            projectSelector.appendChild(option);
+        });
+
+        console.log('[TestCases] Updated project selector with', this.projects.length, 'projects');
+    }
+
+    async handleProjectChange(event) {
+        const projectId = event.target.value;
+        
+        // Disconnect previous WebSocket if any
+        if (this.currentProject) {
+            wsService.disconnect('test_execution');
+        }
+        
+        if (!projectId) {
+            this.currentProject = null;
+            this.folders = [];
+            this.updateFolderTree();
+            this.showEmptyState();
+            return;
+        }
+
+        this.currentProject = projectId;
+        console.log('[TestCases] Selected project:', projectId);
+        
+        // Connect WebSocket for real-time updates (disabled for now)
+        // this.setupWebSocket(projectId);
+        
+        // Load folders for the project
+        await this.loadFolders();
     }
     
-    // Initialize components
-    initUserMenu();
-    initLanguageMenu();
-    initProjectSelector();
-    initFolderModal();
-    initTestCaseModal();
-    initFilterModal();
-    initContextMenu();
-    
-    // Initialize event listeners
-    document.getElementById('search-testcases').addEventListener('input', handleSearch);
-    document.getElementById('sort-selector').addEventListener('change', handleSort);
-    document.getElementById('create-folder-button').addEventListener('click', showFolderModal);
-    document.getElementById('create-testcase-button').addEventListener('click', showTestCaseModal);
-    document.getElementById('filter-button').addEventListener('click', showFilterModal);
-    
-    // Load user profile
-    loadUserProfile();
-    
-    // Load projects
-    loadProjects();
-});
-
-/**
- * Initialize user menu dropdown
- */
-function initUserMenu() {
-    const userMenuButton = document.getElementById('user-menu-button');
-    const userDropdown = document.getElementById('user-dropdown');
-    const logoutButton = document.getElementById('logout-button');
-    
-    // Toggle dropdown
-    userMenuButton.addEventListener('click', function() {
-        userDropdown.classList.toggle('hidden');
-    });
-    
-    // Close dropdown when clicking outside
-    document.addEventListener('click', function(event) {
-        if (!userMenuButton.contains(event.target) && !userDropdown.contains(event.target)) {
-            userDropdown.classList.add('hidden');
+    setupWebSocket(projectId) {
+        // WebSocket is optional - don't let it break the page
+        try {
+            // Connect to test execution WebSocket
+            wsService.connect('test_execution', projectId);
+            
+            // Handle test execution updates
+            wsService.on('test_execution', 'test_execution_status', (data) => {
+                console.log('[TestCases] Test execution status update:', data);
+                this.handleTestExecutionUpdate(data);
+            });
+            
+            // Handle test execution logs
+            wsService.on('test_execution', 'test_execution_log', (data) => {
+                console.log('[TestCases] Test execution log:', data);
+                // Could show logs in a console window if needed
+            });
+            
+            // Handle repository sync updates
+            wsService.on('test_execution', 'repository_sync_update', (data) => {
+                console.log('[TestCases] Repository sync update:', data);
+                this.handleRepositorySyncUpdate(data);
+            });
+        } catch (error) {
+            console.log('[TestCases] WebSocket connection failed (non-critical):', error.message);
+            // Continue without WebSocket - it's optional
         }
-    });
+    }
     
-    // Handle logout
-    logoutButton.addEventListener('click', function(event) {
+    handleTestExecutionUpdate(data) {
+        // Update test case card with execution status
+        const testCaseCard = document.querySelector(`[data-test-case-id="${data.test_case_id}"]`);
+        if (testCaseCard) {
+            // Update status badge
+            const statusBadge = testCaseCard.querySelector('.test-status-badge');
+            if (statusBadge) {
+                statusBadge.textContent = data.status;
+                statusBadge.className = `test-status-badge ${this.getStatusClass(data.status)}`;
+            }
+        }
+        
+        // Show toast notification
+        if (data.status === 'success') {
+            this.toastManager.success(`Test execution completed successfully`);
+        } else if (data.status === 'failed') {
+            this.toastManager.error(`Test execution failed: ${data.message || 'Unknown error'}`);
+        }
+    }
+    
+    handleRepositorySyncUpdate(data) {
+        // Show sync status notification
+        if (data.status === 'syncing') {
+            this.toastManager.info(`Repository sync in progress: ${data.message}`);
+        } else if (data.status === 'synced') {
+            this.toastManager.success(`Repository sync completed: ${data.message}`);
+        } else if (data.status === 'error') {
+            this.toastManager.error(`Repository sync failed: ${data.message}`);
+        }
+    }
+    
+    getStatusClass(status) {
+        const statusClasses = {
+            'pending': 'bg-yellow-100 text-yellow-800',
+            'running': 'bg-blue-100 text-blue-800',
+            'success': 'bg-green-100 text-green-800',
+            'passed': 'bg-green-100 text-green-800',
+            'failed': 'bg-red-100 text-red-800',
+            'error': 'bg-red-100 text-red-800',
+            'timeout': 'bg-orange-100 text-orange-800'
+        };
+        return statusClasses[status] || 'bg-gray-100 text-gray-800';
+    }
+
+    async loadFolders() {
+        if (!this.currentProject) return;
+
+        try {
+            console.log('[TestCases] Loading folders for project:', this.currentProject);
+            const response = await this.projectClient.getFolders(this.currentProject);
+            
+            // Handle both paginated and non-paginated responses
+            if (response) {
+                if (response.results) {
+                    // Paginated response
+                    this.folders = response.results;
+                } else if (Array.isArray(response)) {
+                    // Direct array response
+                    this.folders = response;
+                } else {
+                    console.log('[TestCases] Unexpected folders response format:', response);
+                    this.folders = [];
+                }
+            } else {
+                this.folders = [];
+            }
+
+            console.log('[TestCases] Loaded', this.folders.length, 'folders');
+            this.updateFolderTree();
+            this.updateTestCasesList();
+        } catch (error) {
+            console.error('[TestCases] Error loading folders:', error);
+            // Don't show error for 404 - just means no folders yet
+            if (error.status !== 404) {
+                this.toastManager.error('Failed to load folders');
+            }
+            this.folders = [];
+            this.updateFolderTree();
+            this.updateTestCasesList();
+        }
+    }
+
+    updateFolderTree() {
+        const folderTree = document.getElementById('folders-tree');
+        const emptyState = document.getElementById('folders-empty-state');
+        if (!folderTree) return;
+
+        if (this.folders.length === 0 || !this.currentProject) {
+            // Show empty state
+            if (emptyState) {
+                emptyState.style.display = 'flex';
+            }
+            // Clear any existing tree content except empty state
+            const children = Array.from(folderTree.children);
+            children.forEach(child => {
+                if (child.id !== 'folders-empty-state') {
+                    child.remove();
+                }
+            });
+            return;
+        }
+
+        // Hide empty state and show tree
+        if (emptyState) {
+            emptyState.style.display = 'none';
+        }
+
+        // Clear existing tree content except empty state
+        const children = Array.from(folderTree.children);
+        children.forEach(child => {
+            if (child.id !== 'folders-empty-state') {
+                child.remove();
+            }
+        });
+
+        // Build folder hierarchy
+        const rootFolders = this.folders.filter(f => !f.parent);
+        rootFolders.forEach(folder => {
+            const folderElement = this.createFolderElement(folder);
+            folderTree.appendChild(folderElement);
+        });
+
+
+        console.log('[TestCases] Updated folder tree with', this.folders.length, 'folders');
+    }
+
+    createFolderElement(folder, level = 0) {
+        const div = document.createElement('div');
+        div.className = 'folder-item';
+        div.dataset.folderId = folder.id;
+
+        const childFolders = this.folders.filter(f => f.parent === folder.id);
+        const hasTestCases = (folder.test_cases_count || 0) > 0;
+        const hasChildren = childFolders.length > 0 || hasTestCases;
+        const isExpanded = this.expandedFolders.has(folder.id);
+
+        div.innerHTML = `
+            <div class="folder-header flex items-center py-2 px-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer" style="padding-left: ${level * 20 + 8}px">
+                <button class="folder-toggle mr-1 ${hasChildren ? '' : 'invisible'}" data-folder-id="${folder.id}">
+                    <i class="ri-arrow-right-s-line text-gray-500 transition-transform ${isExpanded ? 'rotate-90' : ''}"></i>
+                </button>
+                <i class="ri-folder-${isExpanded ? 'open' : '3'}-line text-yellow-500 mr-2"></i>
+                <span class="folder-name flex-1 text-sm">${folder.name}</span>
+                <span class="test-count text-xs text-gray-500 dark:text-gray-400">${folder.test_cases_count || 0}</span>
+            </div>
+            ${hasChildren ? `
+                <div class="folder-content ${isExpanded ? '' : 'hidden'}">
+                    <div class="folder-children"></div>
+                    <div class="folder-test-cases" data-folder-id="${folder.id}"></div>
+                </div>
+            ` : ''}
+        `;
+
+        // Add event listeners
+        const header = div.querySelector('.folder-header');
+        const toggle = div.querySelector('.folder-toggle');
+        
+        header.addEventListener('click', (e) => {
+            if (!e.target.closest('.folder-toggle')) {
+                this.selectFolder(folder);
+            }
+        });
+
+        header.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            this.showFolderContextMenu(e, folder);
+        });
+
+        if (toggle) {
+            toggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.toggleFolder(folder.id);
+            });
+        }
+
+        // Add child folders
+        if (hasChildren) {
+            const childrenContainer = div.querySelector('.folder-children');
+            childFolders.forEach(child => {
+                const childElement = this.createFolderElement(child, level + 1);
+                childrenContainer.appendChild(childElement);
+            });
+        }
+
+        return div;
+    }
+
+    async toggleFolder(folderId) {
+        if (this.expandedFolders.has(folderId)) {
+            this.expandedFolders.delete(folderId);
+        } else {
+            this.expandedFolders.add(folderId);
+        }
+        
+        // Update URL if this folder is currently selected
+        if (this.currentFolder && this.currentFolder.id === folderId) {
+            this.updateUrlForFolder(folderId);
+        }
+        
+        // Update the specific folder element
+        const folderElement = document.querySelector(`[data-folder-id="${folderId}"]`);
+        if (folderElement) {
+            const toggle = folderElement.querySelector('.folder-toggle i');
+            const folderIcon = folderElement.querySelector('.folder-header > i[class*="folder"]');
+            const folderContent = folderElement.querySelector('.folder-content');
+            
+            if (toggle) {
+                toggle.classList.toggle('rotate-90');
+            }
+            
+            if (folderIcon) {
+                if (this.expandedFolders.has(folderId)) {
+                    folderIcon.className = folderIcon.className.replace('folder-3', 'folder-open');
+                } else {
+                    folderIcon.className = folderIcon.className.replace('folder-open', 'folder-3');
+                }
+            }
+            
+            if (folderContent) {
+                folderContent.classList.toggle('hidden');
+                
+                // Load test cases when expanding folder
+                if (this.expandedFolders.has(folderId)) {
+                    await this.loadFolderTestCases(folderId);
+                }
+            }
+        }
+
+        console.log('[TestCases] Toggled folder:', folderId);
+    }
+    
+    async loadFolderTestCases(folderId) {
+        try {
+            console.log('[TestCases] Loading test cases for folder:', folderId);
+            const response = await this.testCaseClient.getTestCases(this.currentProject, { folder_id: folderId });
+            
+            const testCases = response?.results || response || [];
+            console.log('[TestCases] Loaded', testCases.length, 'test cases for folder', folderId);
+            
+            // Find the test cases container for this folder
+            const testCasesContainer = document.querySelector(`[data-folder-id="${folderId}"].folder-test-cases`);
+            if (!testCasesContainer) {
+                console.error('[TestCases] Test cases container not found for folder:', folderId);
+                return;
+            }
+            
+            // Clear existing test cases
+            testCasesContainer.innerHTML = '';
+            
+            // Add test cases to the container
+            testCases.forEach(testCase => {
+                const testCaseElement = this.createTestCaseTreeElement(testCase, folderId);
+                testCasesContainer.appendChild(testCaseElement);
+            });
+            
+        } catch (error) {
+            console.error('[TestCases] Error loading test cases for folder:', folderId, error);
+        }
+    }
+    
+    createTestCaseTreeElement(testCase, folderId) {
+        // Find the folder level to calculate proper indentation
+        const folder = this.folders.find(f => f.id === folderId);
+        const folderLevel = this.getFolderLevel(folder);
+        const testCaseIndent = (folderLevel + 1) * 20 + 8; // Same as folder content level
+        
+        const div = document.createElement('div');
+        div.className = 'test-case-item py-1 px-2 hover:bg-gray-50 dark:hover:bg-gray-800 rounded cursor-pointer';
+        div.style.paddingLeft = `${testCaseIndent}px`;
+        div.dataset.testCaseId = testCase.id;
+        
+        console.log('[TestCases] Creating test case tree element:', testCase.title, 'ID:', testCase.id);
+        
+        div.innerHTML = `
+            <div class="flex items-center overflow-hidden">
+                <i class="ri-file-text-line text-blue-500 mr-2 text-sm flex-shrink-0"></i>
+                <span class="test-case-name flex-1 text-sm text-gray-700 dark:text-gray-300 truncate mr-2">${testCase.title}</span>
+                <span class="test-case-priority text-xs px-2 py-1 rounded flex-shrink-0 ${this.getPriorityClass(testCase.priority)}">${testCase.priority}</span>
+            </div>
+        `;
+        
+        // Add click handler to open test case
+        div.addEventListener('click', () => {
+            this.openTestCase(testCase);
+        });
+        
+        // Если активен режим прогона, сразу добавляем элементы управления
+        if (this.currentTestRun && window.checkAndAddTestRunControls) {
+            setTimeout(() => {
+                window.checkAndAddTestRunControls();
+            }, 100);
+        }
+        
+        return div;
+    }
+    
+    getPriorityClass(priority) {
+        switch (priority) {
+            case 'high': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
+            case 'medium': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
+            case 'low': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+            default: return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
+        }
+    }
+    
+    getFolderLevel(folder) {
+        if (!folder) return 0;
+        
+        let level = 0;
+        let currentFolder = folder;
+        
+        while (currentFolder && currentFolder.parent) {
+            level++;
+            currentFolder = this.folders.find(f => f.id === currentFolder.parent);
+        }
+        
+        return level;
+    }
+    
+    async openTestCase(testCase) {
+        console.log('[TestCases] Opening test case:', testCase.title);
+        
+        try {
+            // Load full test case data (in case tree version is incomplete)
+            const fullTestCase = await this.testCaseClient.getTestCase(this.currentProject, testCase.id);
+            
+            // Use the existing openTestCaseForm function
+            window.openTestCaseForm(fullTestCase);
+            
+            // Update URL to reflect current test case
+            this.updateUrlForTestCase(fullTestCase.id, fullTestCase.folder);
+            
+            console.log('[TestCases] Test case opened for editing:', fullTestCase.id);
+            
+        } catch (error) {
+            console.error('[TestCases] Error opening test case:', error);
+            this.toastManager.error('Ошибка при открытии тест-кейса');
+        }
+    }
+
+    selectFolder(folder) {
+        // Remove previous selection
+        document.querySelectorAll('.folder-header').forEach(header => {
+            header.classList.remove('bg-blue-50', 'dark:bg-blue-900', 'border-l-2', 'border-blue-500');
+        });
+
+        // Add selection to current folder
+        const folderElement = document.querySelector(`[data-folder-id="${folder.id}"] .folder-header`);
+        if (folderElement) {
+            folderElement.classList.add('bg-blue-50', 'dark:bg-blue-900', 'border-l-2', 'border-blue-500');
+        }
+
+        this.currentFolder = folder;
+        console.log('[TestCases] Selected folder:', folder.name);
+        
+        // Update URL to reflect selected folder
+        this.updateUrlForFolder(folder.id);
+        
+        // Open folder form in view mode
+        this.showFolderDetails(folder);
+    }
+
+    async loadTestCases(folderId) {
+        try {
+            console.log('[TestCases] Loading test cases for folder:', folderId);
+            
+            // Load test cases from API
+            if (folderId && this.currentProject) {
+                try {
+                    const response = await this.testCaseClient.getTestCases(this.currentProject, { folder: folderId });
+                    this.testCases = response.results || response || [];
+                    console.log('[TestCases] Loaded test cases from API:', this.testCases.length);
+                } catch (apiError) {
+                    console.warn('[TestCases] API call failed, using mock data:', apiError);
+                    // Fallback to mock data if API fails
+                    this.testCases = this.getMockTestCases(folderId);
+                }
+            } else {
+                // Use mock data if no folder selected
+                this.testCases = this.getMockTestCases(folderId);
+            }
+
+            this.updateTestCasesList();
+        } catch (error) {
+            console.error('[TestCases] Error loading test cases:', error);
+            this.toastManager.error('Failed to load test cases');
+        }
+    }
+
+    updateTestCasesList() {
+        const contentArea = document.getElementById('content-area');
+        if (!contentArea) return;
+
+        const emptyState = document.getElementById('empty-state');
+        const testCasesList = document.getElementById('test-cases-list');
+
+        const filteredTestCases = this.getFilteredAndSortedTestCases();
+
+        // Проверяем, есть ли папки или тест-кейсы в принципе
+        const hasContent = this.folders.length > 0 || this.testCases.length > 0;
+
+        if (filteredTestCases.length === 0 && !hasContent) {
+            // Показываем empty state только если вообще нет контента
+            if (emptyState) emptyState.classList.remove('hidden');
+            if (testCasesList) testCasesList.classList.add('hidden');
+            return;
+        }
+
+        // Если есть папки в дереве, скрываем empty state, даже если нет отфильтрованных тест-кейсов
+        if (emptyState) emptyState.classList.add('hidden');
+        
+        if (filteredTestCases.length === 0) {
+            // Есть структура папок, но нет тест-кейсов для отображения
+            if (testCasesList) testCasesList.classList.add('hidden');
+            return;
+        }
+
+        if (testCasesList) {
+            testCasesList.classList.remove('hidden');
+            
+            testCasesList.innerHTML = `
+                <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    ${filteredTestCases.map(tc => this.createTestCaseCard(tc)).join('')}
+                </div>
+            `;
+
+            // Add event listeners to test case cards
+            testCasesList.querySelectorAll('.test-case-card').forEach(card => {
+                card.addEventListener('click', (e) => {
+                    const testCaseId = card.dataset.testCaseId;
+                    const testCase = this.testCases.find(tc => tc.id === testCaseId);
+                    if (testCase) {
+                        this.viewTestCase(testCase);
+                    }
+                });
+                
+                card.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    const testCaseId = card.dataset.testCaseId;
+                    const testCase = this.testCases.find(tc => tc.id === testCaseId);
+                    if (testCase) {
+                        this.showTestCaseContextMenu(e, testCase);
+                    }
+                });
+            });
+        }
+        
+        // Если активен режим прогона, добавляем элементы управления
+        if (window.checkAndAddTestRunControls) {
+            window.checkAndAddTestRunControls();
+        }
+    }
+
+    createTestCaseCard(testCase) {
+        const statusColors = {
+            passed: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+            failed: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+            pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+        };
+
+        const priorityColors = {
+            high: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+            medium: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+            low: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+        };
+        
+        const isAutomated = testCase.type === 'automated' || testCase.test_type === 'automated';
+        
+        return `
+            <div class="test-case-card bg-white dark:bg-gray-800 p-4 rounded-lg shadow hover:shadow-md transition-shadow cursor-pointer" data-test-case-id="${testCase.id}">
+                <div class="flex justify-between items-start mb-2">
+                    <h3 class="font-medium text-gray-900 dark:text-gray-100">${testCase.name || testCase.title}</h3>
+                    <div class="flex gap-2">
+                        <span class="px-2 py-1 text-xs rounded-full ${statusColors[testCase.status] || statusColors.pending}">
+                            ${testCase.status}
+                        </span>
+                        <span class="px-2 py-1 text-xs rounded-full ${priorityColors[testCase.priority] || priorityColors.medium}">
+                            ${testCase.priority}
+                        </span>
+                    </div>
+                </div>
+                <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">${testCase.description}</p>
+                ${isAutomated ? `
+                    <div class="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-gray-700">
+                        <span class="text-xs text-gray-500 dark:text-gray-400 flex items-center">
+                            <i class="ri-code-s-slash-line mr-1"></i> Automated
+                        </span>
+                        <button onclick="event.stopPropagation(); testCasesPage.runTestCase('${testCase.id}')" 
+                                class="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 flex items-center">
+                            <i class="ri-play-line mr-1"></i> Run Test
+                        </button>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }
+
+    showEmptyState() {
+        const mainContent = document.getElementById('main-content');
+        if (!mainContent) return;
+
+        mainContent.innerHTML = `
+            <div class="empty-state flex items-center justify-center h-full border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg m-6">
+                <div class="text-center text-gray-500 dark:text-gray-400">
+                    <i class="ri-folder-add-line text-4xl mb-2"></i>
+                    <p>Select a project to start</p>
+                    <p class="text-sm mt-1">Right-click here to create folders and test cases</p>
+                </div>
+            </div>
+        `;
+
+        // Add context menu to empty state
+        const emptyState = mainContent.querySelector('.empty-state');
+        if (emptyState) {
+            emptyState.addEventListener('contextmenu', (e) => this.handleEmptyStateContextMenu(e));
+        }
+    }
+
+    hideEmptyState() {
+        const mainContent = document.getElementById('main-content');
+        if (mainContent && mainContent.querySelector('.empty-state')) {
+            mainContent.innerHTML = '';
+        }
+    }
+
+    handleEmptyStateContextMenu(event) {
         event.preventDefault();
+        console.log('[TestCases] handleEmptyStateContextMenu called');
         
-        // Call logout API
-        ApiClient.logout()
-            .then(() => {
-                // Display success message
-                ToastManager.success(i18n.t('logout-success') || 'Successfully logged out');
-                
-                // Redirect to login page
-                window.location.href = 'login.html';
-            })
-            .catch(error => {
-                // Display error
-                ToastManager.error(i18n.t('logout-error') || 'Failed to logout. Please try again.');
-                console.error('Logout error:', error);
-            });
-    });
-}
-
-/**
- * Initialize language menu dropdown
- */
-function initLanguageMenu() {
-    const languageMenuButton = document.getElementById('language-menu-button');
-    const languageDropdown = document.getElementById('language-dropdown');
-    const languageLinks = document.querySelectorAll('#language-dropdown a[data-lang]');
-    const currentLanguageFlag = document.getElementById('current-language-flag');
-    
-    // Set current language flag
-    if (currentLanguageFlag) {
-        const currentLang = i18n.getLanguage();
-        switch (currentLang) {
-            case 'en':
-                currentLanguageFlag.className = 'fi fi-gb';
-                break;
-            case 'ru':
-                currentLanguageFlag.className = 'fi fi-ru';
-                break;
-            case 'de': 
-                currentLanguageFlag.className = 'fi fi-de';
-                break;
-            default:
-                currentLanguageFlag.className = 'fi fi-gb';
+        if (!this.currentProject) {
+            this.toastManager.warning('Сначала выберите проект');
+            return;
         }
-    }
-    
-    // Toggle dropdown
-    languageMenuButton.addEventListener('click', function() {
-        languageDropdown.classList.toggle('hidden');
-    });
-    
-    // Close dropdown when clicking outside
-    document.addEventListener('click', function(event) {
-        if (!languageMenuButton.contains(event.target) && !languageDropdown.contains(event.target)) {
-            languageDropdown.classList.add('hidden');
+
+        const contextMenu = document.getElementById('context-menu');
+        if (!contextMenu) {
+            console.error('[TestCases] Context menu element not found');
+            return;
         }
-    });
-    
-    // Handle language selection
-    languageLinks.forEach(link => {
-        link.addEventListener('click', function(event) {
-            event.preventDefault();
-            const lang = this.getAttribute('data-lang');
-            
-            // Set language
-            i18n.setLanguage(lang);
-            
-            // Update flag
-            if (currentLanguageFlag) {
-                switch (lang) {
-                    case 'en':
-                        currentLanguageFlag.className = 'fi fi-gb';
-                        break;
-                    case 'ru':
-                        currentLanguageFlag.className = 'fi fi-ru';
-                        break;
-                    case 'de': 
-                        currentLanguageFlag.className = 'fi fi-de';
-                        break;
-                }
-            }
-            
-            // Hide dropdown
-            languageDropdown.classList.add('hidden');
-        });
-    });
-}
 
-/**
- * Load user profile
- */
-function loadUserProfile() {
-    ApiClient.getCurrentUser()
-        .then(user => {
-            // Update user name and initials
-            const userNameElement = document.getElementById('user-name');
-            const userInitialsElement = document.getElementById('user-initials');
-            
-            if (userNameElement && user.name) {
-                userNameElement.textContent = user.name;
-            } else if (userNameElement && user.email) {
-                userNameElement.textContent = user.email.split('@')[0];
-            }
-            
-            if (userInitialsElement) {
-                if (user.name) {
-                    // Get initials from name
-                    const nameParts = user.name.split(' ');
-                    userInitialsElement.textContent = nameParts.map(part => part.charAt(0).toUpperCase()).join('');
-                } else if (user.email) {
-                    // Use first letter of email
-                    userInitialsElement.textContent = user.email.charAt(0).toUpperCase();
-                }
-            }
-        })
-        .catch(error => {
-            console.error('Get user profile error:', error);
-            
-            // If unauthorized, redirect to login
-            if (error.status === 401) {
-                window.location.href = 'login.html';
-            }
-        });
-}
-
-/**
- * Initialize project selector
- */
-function initProjectSelector() {
-    const projectSelector = document.getElementById('project-selector');
-    
-    if (projectSelector) {
-        projectSelector.addEventListener('change', function() {
-            const projectId = this.value;
-            AppState.selectedProject = projectId;
-            AppState.selectedFolder = null;
-            
-            // Load folders for the selected project
-            loadFolders(projectId);
-            
-            // Clear test cases
-            clearTestCases();
-        });
-    }
-}
-
-/**
- * Load projects
- */
-function loadProjects() {
-    const projectSelector = document.getElementById('project-selector');
-    
-    ApiClient.get('/projects/')
-        .then(response => {
-            if (response.results && response.results.length > 0) {
-                AppState.projects = response.results;
-                
-                // Populate project selector
-                if (projectSelector) {
-                    // Clear existing options
-                    const defaultOption = projectSelector.querySelector('option[disabled]');
-                    projectSelector.innerHTML = '';
-                    
-                    if (defaultOption) {
-                        projectSelector.appendChild(defaultOption);
-                    }
-                    
-                    // Add project options
-                    response.results.forEach(project => {
-                        const option = document.createElement('option');
-                        option.value = project.id;
-                        option.textContent = project.name;
-                        projectSelector.appendChild(option);
-                    });
-                    
-                    // Enable project selector
-                    projectSelector.disabled = false;
-                }
-            } else {
-                // No projects found
-                ToastManager.info(i18n.t('no-projects-info') || 'No projects found. Create a project first.');
-                
-                // Disable project selector
-                if (projectSelector) {
-                    projectSelector.disabled = true;
-                }
-            }
-        })
-        .catch(error => {
-            console.error('Load projects error:', error);
-            ToastManager.error(i18n.t('load-projects-error') || 'Failed to load projects. Please try again.');
-        });
-}
-
-/**
- * Load folders for a project
- * @param {string} projectId - Project ID
- */
-function loadFolders(projectId) {
-    const folderTree = document.getElementById('folder-tree');
-    
-    // Show loading indicator
-    if (folderTree) {
-        folderTree.innerHTML = `
-            <div class="py-20 text-center text-gray-500 dark:text-gray-400">
-                <div class="loading-spinner mx-auto mb-4"></div>
-                <p>${i18n.t('loadingFolders') || 'Loading folders...'}</p>
-            </div>
-        `;
-    }
-    
-    ApiClient.get(`/projects/${projectId}/folders/`)
-        .then(response => {
-            AppState.folders = response.results || [];
-            
-            // Build folder tree
-            if (folderTree) {
-                // If no folders, show empty state
-                if (!AppState.folders.length) {
-                    folderTree.innerHTML = `
-                        <div class="py-10 text-center text-gray-500 dark:text-gray-400">
-                            <i class="ri-folder-line text-4xl mb-2"></i>
-                            <p>${i18n.t('noFolders') || 'No folders found'}</p>
-                            <button id="create-root-folder-button" class="mt-3 px-3 py-1 text-xs bg-coral-500 hover:bg-coral-600 text-white rounded-md">
-                                <i class="ri-add-line mr-1"></i> ${i18n.t('createFolder') || 'Create Folder'}
-                            </button>
-                        </div>
-                    `;
-                    
-                    // Add event listener to create root folder button
-                    const createRootFolderButton = document.getElementById('create-root-folder-button');
-                    if (createRootFolderButton) {
-                        createRootFolderButton.addEventListener('click', showFolderModal);
-                    }
-                    return;
-                }
-                
-                // Clear folder tree
-                folderTree.innerHTML = '';
-                
-                // Build a hierarchical folder structure
-                const folderMap = new Map();
-                const rootFolders = [];
-                
-                // Create folder nodes
-                AppState.folders.forEach(folder => {
-                    folder.children = [];
-                    folderMap.set(folder.id, folder);
-                    
-                    if (!folder.parent_folder) {
-                        rootFolders.push(folder);
-                    }
-                });
-                
-                // Build hierarchy
-                AppState.folders.forEach(folder => {
-                    if (folder.parent_folder) {
-                        const parentFolder = folderMap.get(folder.parent_folder);
-                        if (parentFolder) {
-                            parentFolder.children.push(folder);
-                        }
-                    }
-                });
-                
-                // Render the folder tree
-                rootFolders.forEach(folder => {
-                    const folderElement = createFolderElement(folder);
-                    folderTree.appendChild(folderElement);
-                });
-            }
-        })
-        .catch(error => {
-            console.error('Load folders error:', error);
-            
-            if (folderTree) {
-                folderTree.innerHTML = `
-                    <div class="py-10 text-center text-gray-500 dark:text-gray-400">
-                        <p class="text-red-500">${i18n.t('loadFoldersError') || 'Failed to load folders'}</p>
-                        <button id="retry-load-folders" class="mt-3 px-3 py-1 text-xs bg-coral-500 hover:bg-coral-600 text-white rounded-md">
-                            ${i18n.t('retry') || 'Retry'}
-                        </button>
-                    </div>
-                `;
-                
-                // Add event listener to retry button
-                const retryButton = document.getElementById('retry-load-folders');
-                if (retryButton) {
-                    retryButton.addEventListener('click', () => loadFolders(projectId));
-                }
-            }
-            
-            ToastManager.error(i18n.t('load-folders-error') || 'Failed to load folders. Please try again.');
-        });
-}
-
-/**
- * Create a folder element
- * @param {Object} folder - Folder data
- * @returns {HTMLElement} Folder element
- */
-function createFolderElement(folder) {
-    const folderElement = document.createElement('div');
-    folderElement.className = 'folder-item';
-    folderElement.setAttribute('data-folder-id', folder.id);
-    
-    // Determine if the folder has children
-    const hasChildren = folder.children && folder.children.length > 0;
-    
-    const folderContent = `
-        <div class="flex items-center py-2 px-2 rounded-md tree-item" data-folder-id="${folder.id}">
-            <button class="folder-toggle mr-1 text-gray-500 dark:text-gray-400 ${hasChildren ? '' : 'invisible'}" data-folder-id="${folder.id}">
-                <i class="ri-arrow-right-s-line"></i>
-            </button>
-            <div class="flex items-center flex-grow">
-                <i class="ri-folder-line text-coral-500 dark:text-coral-400 mr-2"></i>
-                <span class="text-sm">${folder.name}</span>
-            </div>
-            <div class="folder-actions hidden">
-                <button class="p-1 text-gray-500 dark:text-gray-400 hover:text-coral-500 dark:hover:text-coral-400" title="${i18n.t('addTestCase') || 'Add Test Case'}" data-action="add-testcase" data-folder-id="${folder.id}">
-                    <i class="ri-add-line"></i>
+        contextMenu.innerHTML = `
+            <div class="py-1">
+                <button class="context-menu-item w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center" onclick="testCasesPage.showCreateFolderForm()">
+                    <i class="ri-folder-add-line mr-2"></i> Создать папку
                 </button>
-                <button class="p-1 text-gray-500 dark:text-gray-400 hover:text-coral-500 dark:hover:text-coral-400" title="${i18n.t('addSubfolder') || 'Add Subfolder'}" data-action="add-subfolder" data-folder-id="${folder.id}">
-                    <i class="ri-folder-add-line"></i>
-                </button>
-            </div>
-        </div>
-    `;
-    
-    folderElement.innerHTML = folderContent;
-    
-    // Add children container if the folder has children
-    if (hasChildren) {
-        const childrenContainer = document.createElement('div');
-        childrenContainer.className = 'folder-children ml-4 hidden';
-        childrenContainer.setAttribute('data-parent-id', folder.id);
-        
-        // Add children folders
-        folder.children.forEach(childFolder => {
-            const childElement = createFolderElement(childFolder);
-            childrenContainer.appendChild(childElement);
-        });
-        
-        folderElement.appendChild(childrenContainer);
-    }
-    
-    // Add event listeners
-    const folderItem = folderElement.querySelector('.tree-item');
-    const folderToggle = folderElement.querySelector('.folder-toggle');
-    const folderActions = folderElement.querySelector('.folder-actions');
-    
-    // Folder click
-    folderItem.addEventListener('click', (event) => {
-        if (event.target.closest('[data-action]')) {
-            return; // Don't select folder if action button was clicked
-        }
-        
-        // Remove active class from all folder items
-        document.querySelectorAll('.tree-item').forEach(item => {
-            item.classList.remove('active');
-        });
-        
-        // Add active class to this folder item
-        folderItem.classList.add('active');
-        
-        // Store selected folder
-        AppState.selectedFolder = folder.id;
-        
-        // Load test cases for this folder
-        loadTestCases(AppState.selectedProject, folder.id);
-    });
-    
-    // Show folder actions on hover
-    folderItem.addEventListener('mouseenter', () => {
-        folderActions.classList.remove('hidden');
-    });
-    
-    folderItem.addEventListener('mouseleave', () => {
-        folderActions.classList.add('hidden');
-    });
-    
-    // Toggle folder
-    if (hasChildren) {
-        folderToggle.addEventListener('click', (event) => {
-            event.stopPropagation();
-            
-            const childrenContainer = folderElement.querySelector(`.folder-children[data-parent-id="${folder.id}"]`);
-            const isOpen = childrenContainer.classList.contains('hidden');
-            
-            // Toggle children visibility
-            if (isOpen) {
-                childrenContainer.classList.remove('hidden');
-                folderToggle.classList.add('open');
-            } else {
-                childrenContainer.classList.add('hidden');
-                folderToggle.classList.remove('open');
-            }
-        });
-    }
-    
-    // Add test case button
-    const addTestCaseButton = folderElement.querySelector('[data-action="add-testcase"]');
-    if (addTestCaseButton) {
-        addTestCaseButton.addEventListener('click', (event) => {
-            event.stopPropagation();
-            showTestCaseModal(folder.id);
-        });
-    }
-    
-    // Add subfolder button
-    const addSubfolderButton = folderElement.querySelector('[data-action="add-subfolder"]');
-    if (addSubfolderButton) {
-        addSubfolderButton.addEventListener('click', (event) => {
-            event.stopPropagation();
-            showFolderModal(folder.id);
-        });
-    }
-    
-    return folderElement;
-}
-
-/**
- * Load test cases for a folder
- * @param {string} projectId - Project ID
- * @param {string} folderId - Folder ID
- */
-function loadTestCases(projectId, folderId) {
-    const testCasesList = document.getElementById('test-cases-list');
-    const testCount = document.getElementById('test-count');
-    
-    // Show loading indicator
-    if (testCasesList) {
-        testCasesList.innerHTML = `
-            <div class="py-20 text-center text-gray-500 dark:text-gray-400">
-                <div class="loading-spinner mx-auto mb-4"></div>
-                <p>${i18n.t('loadingTestCases') || 'Loading test cases...'}</p>
-            </div>
-        `;
-    }
-    
-    ApiClient.get(`/projects/${projectId}/folders/${folderId}/testcases/`)
-        .then(response => {
-            AppState.testCases = response.results || [];
-            
-            // Update test count
-            if (testCount) {
-                testCount.textContent = AppState.testCases.length;
-            }
-            
-            // Render test cases
-            renderTestCases();
-        })
-        .catch(error => {
-            console.error('Load test cases error:', error);
-            
-            if (testCasesList) {
-                testCasesList.innerHTML = `
-                    <div class="py-10 text-center text-gray-500 dark:text-gray-400">
-                        <p class="text-red-500">${i18n.t('loadTestCasesError') || 'Failed to load test cases'}</p>
-                        <button id="retry-load-testcases" class="mt-3 px-3 py-1 text-xs bg-coral-500 hover:bg-coral-600 text-white rounded-md">
-                            ${i18n.t('retry') || 'Retry'}
-                        </button>
-                    </div>
-                `;
-                
-                // Add event listener to retry button
-                const retryButton = document.getElementById('retry-load-testcases');
-                if (retryButton) {
-                    retryButton.addEventListener('click', () => loadTestCases(projectId, folderId));
-                }
-            }
-            
-            ToastManager.error(i18n.t('load-testcases-error') || 'Failed to load test cases. Please try again.');
-        });
-}
-
-/**
- * Render test cases based on current filters and sorting
- */
-function renderTestCases() {
-    const testCasesList = document.getElementById('test-cases-list');
-    
-    if (!testCasesList) return;
-    
-    // Clear list
-    testCasesList.innerHTML = '';
-    
-    // Filter test cases
-    let filteredTestCases = AppState.testCases;
-    
-    // Apply status filter
-    if (AppState.filters.status) {
-        filteredTestCases = filteredTestCases.filter(tc => tc.status === AppState.filters.status);
-    }
-    
-    // Apply priority filter
-    if (AppState.filters.priority) {
-        filteredTestCases = filteredTestCases.filter(tc => tc.priority === AppState.filters.priority);
-    }
-    
-    // Apply type filter
-    if (AppState.filters.type) {
-        filteredTestCases = filteredTestCases.filter(tc => tc.type === AppState.filters.type);
-    }
-    
-    // Apply tags filter
-    if (AppState.filters.tags) {
-        const tagList = AppState.filters.tags.split(',').map(tag => tag.trim().toLowerCase());
-        filteredTestCases = filteredTestCases.filter(tc => {
-            const testCaseTags = tc.tags ? tc.tags.split(',').map(tag => tag.trim().toLowerCase()) : [];
-            return tagList.some(tag => testCaseTags.includes(tag));
-        });
-    }
-    
-    // Apply search filter
-    if (AppState.filters.search) {
-        const searchTerm = AppState.filters.search.toLowerCase();
-        filteredTestCases = filteredTestCases.filter(tc => 
-            tc.name.toLowerCase().includes(searchTerm) || 
-            (tc.description && tc.description.toLowerCase().includes(searchTerm))
-        );
-    }
-    
-    // Sort test cases
-    switch (AppState.sortBy) {
-        case 'name':
-            filteredTestCases.sort((a, b) => a.name.localeCompare(b.name));
-            break;
-        case 'updated':
-            filteredTestCases.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
-            break;
-        case 'status':
-            filteredTestCases.sort((a, b) => a.status.localeCompare(b.status));
-            break;
-        default:
-            filteredTestCases.sort((a, b) => a.name.localeCompare(b.name));
-    }
-    
-    // Update test count
-    const testCount = document.getElementById('test-count');
-    if (testCount) {
-        testCount.textContent = filteredTestCases.length;
-    }
-    
-    // If no test cases after filtering, show empty state
-    if (filteredTestCases.length === 0) {
-        testCasesList.innerHTML = `
-            <div class="py-10 text-center text-gray-500 dark:text-gray-400">
-                <i class="ri-file-list-line text-4xl mb-2"></i>
-                <p>${i18n.t('noTestCases') || 'No test cases found'}</p>
-                <button id="create-testcase-button-empty" class="mt-3 px-3 py-1 text-xs bg-coral-500 hover:bg-coral-600 text-white rounded-md">
-                    <i class="ri-add-line mr-1"></i> ${i18n.t('createTestCase') || 'Create Test Case'}
+                <button class="context-menu-item w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center" onclick="testCasesPage.showCreateTestCaseModal()">
+                    <i class="ri-file-add-line mr-2"></i> Создать тест-кейс
                 </button>
             </div>
         `;
-        
-        // Add event listener to create test case button
-        const createTestCaseButton = document.getElementById('create-testcase-button-empty');
-        if (createTestCaseButton) {
-            createTestCaseButton.addEventListener('click', () => showTestCaseModal(AppState.selectedFolder));
-        }
-        
-        return;
-    }
-    
-    // Create test case items
-    filteredTestCases.forEach(testCase => {
-        const testCaseItem = createTestCaseItem(testCase);
-        testCasesList.appendChild(testCaseItem);
-    });
-}
 
-/**
- * Create a test case item
- * @param {Object} testCase - Test case data
- * @returns {HTMLElement} Test case item element
- */
-function createTestCaseItem(testCase) {
-    const testCaseItem = document.createElement('div');
-    testCaseItem.className = 'p-4 hover:bg-gray-50 dark:hover:bg-gray-750 cursor-pointer border-l-2 border-transparent hover:border-coral-500';
-    testCaseItem.setAttribute('data-testcase-id', testCase.id);
-    
-    // Format date
-    const updatedDate = new Date(testCase.updated_at);
-    const formattedDate = updatedDate.toLocaleDateString();
-    
-    // Get status class
-    let statusClass = 'status-pending';
-    let statusText = i18n.t('pending') || 'Pending';
-    
-    switch (testCase.status) {
-        case 'passed':
-            statusClass = 'status-passed';
-            statusText = i18n.t('passed') || 'Passed';
-            break;
-        case 'failed':
-            statusClass = 'status-failed';
-            statusText = i18n.t('failed') || 'Failed';
-            break;
+        this.positionContextMenu(contextMenu, event);
+        console.log('[TestCases] Context menu positioned');
     }
-    
-    // Get priority class
-    let priorityClass = 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300';
-    let priorityText = i18n.t('medium') || 'Medium';
-    
-    switch (testCase.priority) {
-        case 'high':
-            priorityClass = 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
-            priorityText = i18n.t('high') || 'High';
-            break;
-        case 'low':
-            priorityClass = 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
-            priorityText = i18n.t('low') || 'Low';
-            break;
-    }
-    
-    // Create tags HTML
-    let tagsHtml = '';
-    if (testCase.tags) {
-        const tags = testCase.tags.split(',').map(tag => tag.trim());
-        tagsHtml = tags.map(tag => `
-            <span class="tag bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">${tag}</span>
-        `).join('');
-    }
-    
-    testCaseItem.innerHTML = `
-        <div class="flex items-start">
-            <div class="flex-grow">
-                <div class="flex items-center mb-1">
-                    <h3 class="font-medium">${testCase.name}</h3>
-                    <div class="ml-2 flex">
-                        <span class="status-indicator ${statusClass}"></span>
-                    </div>
-                </div>
-                <p class="text-sm text-gray-600 dark:text-gray-400 mb-2 line-clamp-2">${testCase.description || ''}</p>
-                <div class="flex flex-wrap gap-1 mb-2">
-                    ${tagsHtml}
-                </div>
-                <div class="flex items-center text-xs text-gray-500 dark:text-gray-400">
-                    <span class="status-badge ${statusClass}">${statusText}</span>
-                    <span class="mx-2">•</span>
-                    <span class="status-badge ${priorityClass}">${priorityText}</span>
-                    <span class="mx-2">•</span>
-                    <span><i class="ri-time-line mr-1"></i>${formattedDate}</span>
-                </div>
-            </div>
-            <div class="ml-4 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button class="p-1 text-gray-500 dark:text-gray-400 hover:text-coral-500 dark:hover:text-coral-400" title="${i18n.t('run') || 'Run'}" data-action="run-testcase" data-testcase-id="${testCase.id}">
-                    <i class="ri-play-circle-line"></i>
-                </button>
-                <button class="p-1 text-gray-500 dark:text-gray-400 hover:text-coral-500 dark:hover:text-coral-400" title="${i18n.t('edit') || 'Edit'}" data-action="edit-testcase" data-testcase-id="${testCase.id}">
-                    <i class="ri-edit-line"></i>
-                </button>
-            </div>
-        </div>
-    `;
-    
-    // Add event listeners
-    testCaseItem.addEventListener('click', () => {
-        showTestCaseDetails(testCase.id);
-    });
-    
-    // Prevent propagation for action buttons
-    const actionButtons = testCaseItem.querySelectorAll('[data-action]');
-    actionButtons.forEach(button => {
-        button.addEventListener('click', (event) => {
-            event.stopPropagation();
-            
-            const action = button.getAttribute('data-action');
-            const testCaseId = button.getAttribute('data-testcase-id');
-            
-            if (action === 'run-testcase') {
-                runTestCase(testCaseId);
-            } else if (action === 'edit-testcase') {
-                editTestCase(testCaseId);
-            }
-        });
-    });
-    
-    return testCaseItem;
-}
 
-/**
- * Clear test cases
- */
-function clearTestCases() {
-    const testCasesList = document.getElementById('test-cases-list');
-    const testCount = document.getElementById('test-count');
-    
-    AppState.testCases = [];
-    
-    if (testCount) {
-        testCount.textContent = '0';
-    }
-    
-    if (testCasesList) {
-        testCasesList.innerHTML = `
-            <div class="py-20 text-center text-gray-500 dark:text-gray-400">
-                <p data-i18n="selectFolderOrProject">Please select a project and folder to view test cases</p>
+    showFolderContextMenu(event, folder) {
+        const contextMenu = document.getElementById('context-menu');
+        if (!contextMenu) return;
+
+        contextMenu.innerHTML = `
+            <div class="py-1">
+                <button class="context-menu-item w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center" onclick="testCasesPage.showCreateTestCaseModal('${folder.id}')">
+                    <i class="ri-file-add-line mr-2"></i> Создать тест-кейс
+                </button>
+                <button class="context-menu-item w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center" onclick="testCasesPage.showCreateFolderForm('${folder.id}')">
+                    <i class="ri-folder-add-line mr-2"></i> Создать подпапку
+                </button>
+                <button class="context-menu-item w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center" onclick="testCasesPage.editFolder('${folder.id}')">
+                    <i class="ri-edit-line mr-2"></i> Редактировать
+                </button>
+                <div class="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+                <button class="context-menu-item w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center" onclick="testCasesPage.deleteFolder('${folder.id}')">
+                    <i class="ri-delete-bin-line mr-2"></i> Удалить
+                </button>
             </div>
         `;
-    }
-}
 
-/**
- * Handle search input
- * @param {Event} event - Input event
- */
-function handleSearch(event) {
-    AppState.filters.search = event.target.value;
-    renderTestCases();
-}
-
-/**
- * Handle sort selection
- * @param {Event} event - Change event
- */
-function handleSort(event) {
-    AppState.sortBy = event.target.value;
-    renderTestCases();
-}
-
-/**
- * Initialize folder modal
- */
-function initFolderModal() {
-    const modal = document.getElementById('new-folder-modal');
-    const closeButton = document.getElementById('close-folder-modal');
-    const cancelButton = document.getElementById('cancel-folder-button');
-    const form = document.getElementById('new-folder-form');
-    
-    // Close modal
-    const closeModal = () => {
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-        form.reset();
-    };
-    
-    // Close button
-    if (closeButton) {
-        closeButton.addEventListener('click', closeModal);
+        this.positionContextMenu(contextMenu, event);
     }
-    
-    // Cancel button
-    if (cancelButton) {
-        cancelButton.addEventListener('click', closeModal);
+
+    showTestCaseContextMenu(event, testCase) {
+        const contextMenu = document.getElementById('context-menu');
+        if (!contextMenu) return;
+
+        contextMenu.innerHTML = `
+            <div class="py-1">
+                <button class="context-menu-item" onclick="testCasesPage.runTestCase('${testCase.id}')">
+                    <i class="ri-play-line mr-2"></i> Run Test
+                </button>
+                <button class="context-menu-item" onclick="testCasesPage.editTestCase('${testCase.id}')">
+                    <i class="ri-edit-line mr-2"></i> Edit
+                </button>
+                <button class="context-menu-item" onclick="testCasesPage.duplicateTestCase('${testCase.id}')">
+                    <i class="ri-file-copy-line mr-2"></i> Duplicate
+                </button>
+                <div class="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+                <button class="context-menu-item text-red-600 dark:text-red-400" onclick="testCasesPage.deleteTestCase('${testCase.id}')">
+                    <i class="ri-delete-bin-line mr-2"></i> Delete
+                </button>
+            </div>
+        `;
+
+        this.positionContextMenu(contextMenu, event);
     }
-    
-    // Close when clicking outside modal content
-    if (modal) {
-        modal.addEventListener('click', (event) => {
-            if (event.target === modal) {
-                closeModal();
+
+    positionContextMenu(menu, event) {
+        // Get click coordinates
+        let x = event.clientX;
+        let y = event.clientY;
+        
+        // Add small offset to position menu slightly away from cursor
+        x += 2;
+        y += 2;
+        
+        console.log('[TestCases] Context menu position:', { x, y, clientX: event.clientX, clientY: event.clientY });
+        
+        // Initially hide menu to calculate dimensions
+        menu.style.visibility = 'hidden';
+        menu.classList.remove('hidden');
+        
+        // Get menu dimensions
+        const rect = menu.getBoundingClientRect();
+        const menuWidth = rect.width;
+        const menuHeight = rect.height;
+        
+        // Adjust position if menu goes off-screen
+        if (x + menuWidth > window.innerWidth - 5) {
+            x = x - menuWidth - 5;
+        }
+        
+        if (y + menuHeight > window.innerHeight - 5) {
+            y = y - menuHeight - 5;
+        }
+        
+        // Ensure menu doesn't go off the left or top edge
+        if (x < 5) x = 5;
+        if (y < 5) y = 5;
+        
+        // Apply final position
+        menu.style.left = `${x}px`;
+        menu.style.top = `${y}px`;
+        menu.style.visibility = 'visible';
+    }
+
+    hideAllViews() {
+        // Hide all possible views
+        const emptyState = document.getElementById('empty-state');
+        const testCasesList = document.getElementById('test-cases-list');
+        const folderFormView = document.getElementById('folder-form-view');
+        const testCaseFormView = document.getElementById('test-case-form-view');
+        
+        if (emptyState) emptyState.classList.add('hidden');
+        if (testCasesList) testCasesList.classList.add('hidden');
+        if (folderFormView) folderFormView.classList.add('hidden');
+        if (testCaseFormView) testCaseFormView.classList.add('hidden');
+    }
+
+    showCreateFolderForm(parentId = null, folderData = null) {
+        console.log('[TestCases] showCreateFolderForm called, parentId:', parentId, 'folderData:', folderData);
+        
+        if (!this.currentProject) {
+            this.toastManager.warning('Сначала выберите проект');
+            return;
+        }
+        
+        // Hide all other views
+        this.hideAllViews();
+        
+        // Show folder form view
+        const formView = document.getElementById('folder-form-view');
+        formView.classList.remove('hidden');
+        
+        // Update form title
+        const formTitle = document.getElementById('folder-form-title');
+        const formSubtitle = document.getElementById('folder-form-subtitle');
+        const actionButtons = document.getElementById('folder-action-buttons');
+        
+        // Show form fields
+        const formContainer = document.querySelector('#folder-form');
+        if (formContainer) {
+            formContainer.style.display = 'block';
+        }
+        
+        // Ensure fields are enabled
+        document.getElementById('folder-name').disabled = false;
+        document.getElementById('folder-description').disabled = false;
+        document.getElementById('folder-parent').disabled = false;
+        
+        if (folderData) {
+            // Edit mode
+            formTitle.textContent = 'Редактирование папки';
+            formSubtitle.textContent = 'Измените настройки папки';
+            formSubtitle.style.display = 'block';
+            actionButtons.classList.remove('hidden');
+            
+            // Make sure the actions section is visible
+            const actionsSection = document.querySelector('#folder-form-view .bg-white.border-2');
+            if (actionsSection) {
+                actionsSection.style.display = 'block';
             }
-        });
-    }
-    
-    // Form submission
-    if (form) {
-        form.addEventListener('submit', (event) => {
-            event.preventDefault();
             
-            const folderName = document.getElementById('folder-name').value;
-            const folderDescription = document.getElementById('folder-description').value;
-            const parentFolder = document.getElementById('parent-folder').value;
+            // Fill form with folder data
+            document.getElementById('folder-name').value = folderData.name || '';
+            document.getElementById('folder-description').value = folderData.description || '';
+            document.getElementById('folder-parent').value = folderData.parent || '';
             
-            if (!AppState.selectedProject) {
-                ToastManager.error(i18n.t('select-project-first') || 'Please select a project first');
-                return;
+            // Set meta information
+            document.getElementById('folder-author').textContent = folderData.author_name || folderData.author || '-';
+            document.getElementById('folder-created-date').textContent = folderData.created_at ? new Date(folderData.created_at).toLocaleString() : '-';
+            document.getElementById('folder-modified-date').textContent = folderData.updated_at ? new Date(folderData.updated_at).toLocaleString() : '-';
+            document.getElementById('folder-modified-by').textContent = folderData.last_modified_by_name || folderData.last_modified_by || '-';
+            
+            // Store folder ID for saving
+            formView.dataset.folderId = folderData.id;
+            delete formView.dataset.viewMode;
+        } else {
+            // Create mode
+            formTitle.textContent = 'Новая папка';
+            formSubtitle.textContent = 'Создайте папку для организации тест-кейсов';
+            formSubtitle.style.display = 'block';
+            actionButtons.classList.add('hidden');
+            
+            // Make sure the actions section is visible
+            const actionsSection = document.querySelector('#folder-form-view .bg-white.border-2');
+            if (actionsSection) {
+                actionsSection.style.display = 'block';
             }
             
-            // Create folder data
-            const folderData = {
-                name: folderName,
-                description: folderDescription,
-                parent_folder: parentFolder || null,
-                project: AppState.selectedProject
-            };
+            // Reset form
+            document.getElementById('folder-form').reset();
+            document.getElementById('folder-parent').value = parentId || '';
             
-            // Call API to create folder
-            ApiClient.post(`/projects/${AppState.selectedProject}/folders/`, folderData)
-                .then(response => {
-                    ToastManager.success(i18n.t('folder-created') || 'Folder created successfully');
-                    
-                    // Reload folders
-                    loadFolders(AppState.selectedProject);
-                    
-                    // Close modal
-                    closeModal();
-                })
-                .catch(error => {
-                    console.error('Create folder error:', error);
-                    ToastManager.error(i18n.t('create-folder-error') || 'Failed to create folder. Please try again.');
-                });
-        });
+            // Set current user as author
+            const currentUser = localStorage.getItem('flowtest_username') || 'Текущий пользователь';
+            document.getElementById('folder-author').textContent = currentUser;
+            document.getElementById('folder-created-date').textContent = new Date().toLocaleString();
+            document.getElementById('folder-modified-date').textContent = '-';
+            document.getElementById('folder-modified-by').textContent = '-';
+            
+            // Clear folder ID
+            delete formView.dataset.folderId;
+        }
+        
+        // Update parent folder options
+        this.updateParentFolderOptions(parentId);
+        
+        // Scroll to top
+        window.scrollTo(0, 0);
+        
+        // Update URL to reflect current state
+        if (folderData) {
+            // Editing existing folder
+            this.updateUrlForEditFolder(folderData.id);
+        } else {
+            // Creating new folder
+            this.updateUrlForNewFolder(parentId);
+        }
+        
+        // Focus on name field
+        setTimeout(() => {
+            document.getElementById('folder-name').focus();
+        }, 100);
     }
-}
-
-/**
- * Show folder modal
- * @param {string} [parentFolderId] - Parent folder ID (optional)
- */
-function showFolderModal(parentFolderId) {
-    const modal = document.getElementById('new-folder-modal');
-    const parentFolderSelect = document.getElementById('parent-folder');
     
-    if (!AppState.selectedProject) {
-        ToastManager.error(i18n.t('select-project-first') || 'Please select a project first');
-        return;
-    }
-    
-    // Reset form
-    document.getElementById('new-folder-form').reset();
-    
-    // Populate parent folder select
-    if (parentFolderSelect) {
+    updateParentFolderOptions(selectedParentId = null) {
+        const parentSelect = document.getElementById('folder-parent');
+        if (!parentSelect) return;
+        
         // Clear existing options
-        parentFolderSelect.innerHTML = `<option value="" data-i18n="rootFolder">${i18n.t('rootFolder') || 'Root Folder'}</option>`;
+        parentSelect.innerHTML = '<option value="">Корневая папка (без родителя)</option>';
         
         // Add folder options
-        AppState.folders.forEach(folder => {
+        this.folders.forEach(folder => {
             const option = document.createElement('option');
             option.value = folder.id;
             option.textContent = folder.name;
-            parentFolderSelect.appendChild(option);
+            if (folder.id === selectedParentId) {
+                option.selected = true;
+            }
+            parentSelect.appendChild(option);
+        });
+    }
+
+    showCreateTestCaseModal(folderId = null) {
+        console.log('[TestCases] showCreateTestCaseModal called, folderId:', folderId);
+        
+        if (!this.currentProject) {
+            this.toastManager.warning('Сначала выберите проект');
+            return;
+        }
+        
+        // Store folder ID for new test case
+        if (folderId || this.currentFolder) {
+            this.selectedFolderId = folderId || this.currentFolder.id;
+        }
+        
+        // Hide all other views first
+        this.hideAllViews();
+        
+        // Use the new form
+        window.openTestCaseForm();
+        
+        // Update URL to reflect current state
+        this.updateUrlForNewTestCase(folderId || this.currentFolder?.id);
+        
+        console.log('[TestCases] Test case form opened');
+    }
+
+    closeTestCaseModal() {
+        const modal = document.getElementById('testcase-modal');
+        if (modal) {
+            modal.classList.add('hidden');
+            modal.style.display = '';
+        }
+        
+        // Reset form
+        const form = document.getElementById('create-testcase-form');
+        if (form) {
+            form.reset();
+        }
+        
+        // Reset validation states
+        const inputs = form.querySelectorAll('input, textarea, select');
+        inputs.forEach(input => {
+            input.classList.remove('border-red-500');
         });
         
-        // Set parent folder if provided
-        if (parentFolderId) {
-            parentFolderSelect.value = parentFolderId;
-        }
-    }
-    
-    // Show modal
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
-}
-
-/**
- * Initialize test case modal
- */
-function initTestCaseModal() {
-    const modal = document.getElementById('new-testcase-modal');
-    const closeButton = document.getElementById('close-testcase-modal');
-    const cancelButton = document.getElementById('cancel-testcase-button');
-    const form = document.getElementById('new-testcase-form');
-    const addStepButton = document.getElementById('add-step-button');
-    
-    // Close modal
-    const closeModal = () => {
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-        form.reset();
+        const errorMessages = form.querySelectorAll('.text-red-500');
+        errorMessages.forEach(msg => {
+            msg.textContent = '';
+        });
         
-        // Clear steps
-        const stepsContainer = document.getElementById('steps-container');
-        if (stepsContainer) {
-            stepsContainer.innerHTML = '';
+        // Hide automation section
+        const automationSection = document.getElementById('automation-section');
+        if (automationSection) {
+            automationSection.classList.add('hidden');
         }
-    };
-    
-    // Close button
-    if (closeButton) {
-        closeButton.addEventListener('click', closeModal);
+        
+        // Clear URL hash
+        this.clearUrl();
+        
+        this.editingTestCase = null;
     }
-    
-    // Cancel button
-    if (cancelButton) {
-        cancelButton.addEventListener('click', closeModal);
-    }
-    
-    // Close when clicking outside modal content
-    if (modal) {
-        modal.addEventListener('click', (event) => {
-            if (event.target === modal) {
-                closeModal();
-            }
-        });
-    }
-    
-    // Add step button
-    if (addStepButton) {
-        addStepButton.addEventListener('click', addTestCaseStep);
-    }
-    
-    // Form submission
-    if (form) {
-        form.addEventListener('submit', (event) => {
-            event.preventDefault();
-            
-            const testCaseName = document.getElementById('testcase-name').value;
-            const testCaseFolder = document.getElementById('testcase-folder').value;
-            const testCaseDescription = document.getElementById('testcase-description').value;
-            const testCasePriority = document.getElementById('testcase-priority').value;
-            const testCaseType = document.getElementById('testcase-type').value;
-            const testCaseTags = document.getElementById('testcase-tags').value;
-            
-            // Get steps
-            const steps = [];
-            const stepElements = document.querySelectorAll('.test-step');
-            stepElements.forEach((stepElement, index) => {
-                const actionInput = stepElement.querySelector('input[name="step-action"]');
-                const expectedInput = stepElement.querySelector('input[name="step-expected"]');
-                
-                if (actionInput && expectedInput) {
-                    steps.push({
-                        order: index + 1,
-                        action: actionInput.value,
-                        expected_result: expectedInput.value
-                    });
-                }
-            });
-            
-            if (!AppState.selectedProject) {
-                ToastManager.error(i18n.t('select-project-first') || 'Please select a project first');
-                return;
-            }
-            
-            if (!testCaseFolder) {
-                ToastManager.error(i18n.t('select-folder-first') || 'Please select a folder first');
-                return;
-            }
-            
-            // Create test case data
-            const testCaseData = {
-                name: testCaseName,
-                description: testCaseDescription,
-                folder: testCaseFolder,
-                priority: testCasePriority,
-                type: testCaseType,
-                tags: testCaseTags,
-                steps: steps
-            };
-            
-            // Call API to create test case
-            ApiClient.post(`/projects/${AppState.selectedProject}/folders/${testCaseFolder}/testcases/`, testCaseData)
-                .then(response => {
-                    ToastManager.success(i18n.t('testcase-created') || 'Test case created successfully');
-                    
-                    // Reload test cases
-                    loadTestCases(AppState.selectedProject, testCaseFolder);
-                    
-                    // Close modal
-                    closeModal();
-                })
-                .catch(error => {
-                    console.error('Create test case error:', error);
-                    ToastManager.error(i18n.t('create-testcase-error') || 'Failed to create test case. Please try again.');
-                });
-        });
-    }
-}
 
-/**
- * Add a test case step
- */
-function addTestCaseStep() {
-    const stepsContainer = document.getElementById('steps-container');
-    
-    if (!stepsContainer) return;
-    
-    const stepCount = stepsContainer.children.length + 1;
-    
-    const stepElement = document.createElement('div');
-    stepElement.className = 'test-step bg-gray-50 dark:bg-gray-750 p-3 rounded border border-gray-200 dark:border-gray-700';
-    
-    stepElement.innerHTML = `
-        <div class="flex justify-between items-center mb-2">
-            <h4 class="text-sm font-medium">${i18n.t('step') || 'Step'} ${stepCount}</h4>
-            <button type="button" class="remove-step-button p-1 text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400">
-                <i class="ri-delete-bin-line"></i>
-            </button>
-        </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-                <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1" data-i18n="action">Action</label>
-                <input type="text" name="step-action" required 
-                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700"
-                    placeholder="${i18n.t('actionPlaceholder') || 'What to do'}">
-            </div>
-            <div>
-                <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1" data-i18n="expectedResult">Expected Result</label>
-                <input type="text" name="step-expected" required 
-                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-coral-500 bg-white dark:bg-gray-700"
-                    placeholder="${i18n.t('expectedResultPlaceholder') || 'What should happen'}">
-            </div>
-        </div>
-    `;
-    
-    stepsContainer.appendChild(stepElement);
-    
-    // Add event listener to remove button
-    const removeButton = stepElement.querySelector('.remove-step-button');
-    if (removeButton) {
-        removeButton.addEventListener('click', () => {
-            stepElement.remove();
-            
-            // Renumber steps
-            const stepElements = stepsContainer.querySelectorAll('.test-step');
-            stepElements.forEach((element, index) => {
-                const stepNumber = element.querySelector('h4');
-                if (stepNumber) {
-                    stepNumber.textContent = `${i18n.t('step') || 'Step'} ${index + 1}`;
-                }
-            });
-        });
-    }
-}
-
-/**
- * Show test case modal
- * @param {string} [folderId] - Folder ID (optional)
- */
-function showTestCaseModal(folderId) {
-    const modal = document.getElementById('new-testcase-modal');
-    const folderSelect = document.getElementById('testcase-folder');
-    
-    if (!AppState.selectedProject) {
-        ToastManager.error(i18n.t('select-project-first') || 'Please select a project first');
-        return;
-    }
-    
-    // Reset form
-    document.getElementById('new-testcase-form').reset();
-    
-    // Clear steps
-    const stepsContainer = document.getElementById('steps-container');
-    if (stepsContainer) {
-        stepsContainer.innerHTML = '';
-    }
-    
-    // Add first step
-    addTestCaseStep();
-    
-    // Populate folder select
-    if (folderSelect) {
+    updateFolderSelectOptions(folderSelect, selectedFolderId = null) {
+        if (!folderSelect) return;
+        
         // Clear existing options
-        folderSelect.innerHTML = '';
+        folderSelect.innerHTML = '<option value="" data-i18n="selectFolder">Select Folder</option>';
         
-        // Add folder options
-        AppState.folders.forEach(folder => {
+        // Add folders
+        this.folders.forEach(folder => {
             const option = document.createElement('option');
             option.value = folder.id;
             option.textContent = folder.name;
+            if (folder.id === selectedFolderId || folder.id === this.currentFolder?.id) {
+                option.selected = true;
+            }
             folderSelect.appendChild(option);
         });
+    }
+
+    handleTestCaseTypeChange(type) {
+        const automationSection = document.getElementById('automation-section');
+        if (!automationSection) return;
         
-        // Set folder if provided
-        if (folderId) {
-            folderSelect.value = folderId;
-        } else if (AppState.selectedFolder) {
-            folderSelect.value = AppState.selectedFolder;
+        if (type === 'automated') {
+            automationSection.classList.remove('hidden');
+            // Load automation projects if needed
+            this.loadAutomationProjects();
+        } else {
+            automationSection.classList.add('hidden');
         }
     }
-    
-    // Show modal
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
-}
 
-/**
- * Show test case details
- * @param {string} testCaseId - Test case ID
- */
-function showTestCaseDetails(testCaseId) {
-    const modal = document.getElementById('testcase-details-modal');
-    const closeButton = document.getElementById('close-details-modal');
-    const deleteButton = document.getElementById('delete-testcase-button');
-    const runButton = document.getElementById('run-testcase-button');
-    const editButton = document.getElementById('edit-testcase-button');
-    
-    // Find test case
-    const testCase = AppState.testCases.find(tc => tc.id === testCaseId);
-    
-    if (!testCase) {
-        ToastManager.error(i18n.t('testcase-not-found') || 'Test case not found');
-        return;
-    }
-    
-    // Populate modal
-    document.getElementById('testcase-details-title').textContent = testCase.name;
-    
-    // Get folder path
-    const folder = AppState.folders.find(f => f.id === testCase.folder);
-    document.getElementById('testcase-details-path').textContent = folder ? folder.name : '';
-    
-    // Set status
-    const statusElement = document.getElementById('testcase-details-status');
-    statusElement.innerHTML = '';
-    
-    let statusClass = 'status-pending';
-    let statusText = i18n.t('pending') || 'Pending';
-    
-    switch (testCase.status) {
-        case 'passed':
-            statusClass = 'status-passed';
-            statusText = i18n.t('passed') || 'Passed';
-            break;
-        case 'failed':
-            statusClass = 'status-failed';
-            statusText = i18n.t('failed') || 'Failed';
-            break;
-    }
-    
-    statusElement.innerHTML = `
-        <span class="status-indicator ${statusClass} mr-1"></span>
-        <span>${statusText}</span>
-    `;
-    
-    // Set priority
-    const priorityElement = document.getElementById('testcase-details-priority');
-    let priorityText = i18n.t('medium') || 'Medium';
-    
-    switch (testCase.priority) {
-        case 'high':
-            priorityText = i18n.t('high') || 'High';
-            break;
-        case 'low':
-            priorityText = i18n.t('low') || 'Low';
-            break;
-    }
-    
-    priorityElement.textContent = priorityText;
-    
-    // Set type
-    const typeElement = document.getElementById('testcase-details-type');
-    let typeText = i18n.t('functional') || 'Functional';
-    
-    switch (testCase.type) {
-        case 'performance':
-            typeText = i18n.t('performance') || 'Performance';
-            break;
-        case 'security':
-            typeText = i18n.t('security') || 'Security';
-            break;
-        case 'usability':
-            typeText = i18n.t('usability') || 'Usability';
-            break;
-        case 'compatibility':
-            typeText = i18n.t('compatibility') || 'Compatibility';
-            break;
-        case 'api':
-            typeText = i18n.t('api') || 'API';
-            break;
-    }
-    
-    typeElement.textContent = typeText;
-    
-    // Set updated date
-    const updatedElement = document.getElementById('testcase-details-updated');
-    const updatedDate = new Date(testCase.updated_at);
-    updatedElement.textContent = updatedDate.toLocaleDateString();
-    
-    // Set tags
-    const tagsElement = document.getElementById('testcase-details-tags');
-    tagsElement.innerHTML = '';
-    
-    if (testCase.tags) {
-        const tags = testCase.tags.split(',').map(tag => tag.trim());
-        tags.forEach(tag => {
-            const tagElement = document.createElement('span');
-            tagElement.className = 'tag bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
-            tagElement.textContent = tag;
-            tagsElement.appendChild(tagElement);
-        });
-    }
-    
-    // Set description
-    document.getElementById('testcase-details-description').textContent = testCase.description || '';
-    
-    // Set steps
-    const stepsContainer = document.getElementById('testcase-details-steps');
-    stepsContainer.innerHTML = '';
-    
-    if (testCase.steps && testCase.steps.length > 0) {
-        testCase.steps.forEach((step, index) => {
-            const stepElement = document.createElement('div');
-            stepElement.className = 'grid grid-cols-1 md:grid-cols-2 gap-4 p-3 bg-gray-50 dark:bg-gray-750 rounded border border-gray-200 dark:border-gray-700';
+    async loadAutomationProjects() {
+        const projectSelect = document.getElementById('testcase-automation-project');
+        if (!projectSelect || !this.currentProject) return;
+        
+        try {
+            // TODO: Replace with actual API call
+            // const response = await this.automationClient.getProjects(this.currentProject);
             
-            stepElement.innerHTML = `
-                <div>
-                    <h5 class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">${i18n.t('step') || 'Step'} ${index + 1}: ${i18n.t('action') || 'Action'}</h5>
-                    <p>${step.action}</p>
-                </div>
-                <div>
-                    <h5 class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">${i18n.t('expectedResult') || 'Expected Result'}</h5>
-                    <p>${step.expected_result}</p>
+            // For now, show mock data
+            const mockProjects = [
+                { id: '1', name: 'Web Tests Repository', url: 'https://github.com/example/web-tests' },
+                { id: '2', name: 'API Tests Repository', url: 'https://github.com/example/api-tests' }
+            ];
+            
+            // Clear existing options
+            projectSelect.innerHTML = '<option value="" data-i18n="selectAutomationProject">Select Automation Project</option>';
+            
+            // Add project options
+            mockProjects.forEach(project => {
+                const option = document.createElement('option');
+                option.value = project.id;
+                option.textContent = project.name;
+                projectSelect.appendChild(option);
+            });
+            
+        } catch (error) {
+            console.error('[TestCases] Error loading automation projects:', error);
+            this.toastManager.error('Failed to load automation projects');
+        }
+    }
+
+    showCreateProjectModal() {
+        // For now, redirect to the dashboard or settings where project creation is handled
+        // TODO: Implement project creation modal or redirect to appropriate page
+        this.toastManager.info('Project creation will be available soon. Please use the dashboard to create projects.');
+        
+        // Alternative: Redirect to dashboard
+        // window.location.href = 'index.html';
+    }
+
+    async handleCreateFolder(event) {
+        event.preventDefault();
+        
+        const formData = new FormData(event.target);
+        const folderData = {
+            name: formData.get('name'),
+            description: formData.get('description'),
+            parent: formData.get('parent') || null,
+            project: this.currentProject
+        };
+
+        try {
+            console.log('[TestCases] Creating folder:', folderData);
+            // TODO: Replace with actual API call
+            // await this.projectClient.createFolder(this.currentProject, folderData);
+            
+            this.toastManager.success('Folder created successfully');
+            
+            // Close modal and reload folders
+            const modal = document.getElementById('folder-modal');
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.style.display = '';
+            }
+            event.target.reset();
+            await this.loadFolders();
+        } catch (error) {
+            console.error('[TestCases] Error creating folder:', error);
+            this.toastManager.error('Failed to create folder');
+        }
+    }
+
+    async handleCreateTestCase(event) {
+        event.preventDefault();
+        
+        // Validate form
+        const name = document.getElementById('testcase-name').value.trim();
+        const description = document.getElementById('testcase-description').value.trim();
+        const priority = document.getElementById('testcase-priority').value;
+        const type = document.getElementById('testcase-type').value;
+        const folder = document.getElementById('testcase-folder-select').value;
+        
+        let isValid = true;
+        
+        // Clear previous errors
+        const errorMessages = document.querySelectorAll('#create-testcase-form .text-red-500');
+        errorMessages.forEach(msg => msg.textContent = '');
+        
+        const inputs = document.querySelectorAll('#create-testcase-form input, #create-testcase-form textarea, #create-testcase-form select');
+        inputs.forEach(input => input.classList.remove('border-red-500'));
+        
+        // Validate required fields
+        if (!name) {
+            const nameInput = document.getElementById('testcase-name');
+            const nameError = document.getElementById('testcase-name-error');
+            nameInput.classList.add('border-red-500');
+            if (nameError) nameError.textContent = 'Test case name is required';
+            isValid = false;
+        }
+        
+        if (!description) {
+            const descInput = document.getElementById('testcase-description');
+            const descError = document.getElementById('testcase-description-error');
+            descInput.classList.add('border-red-500');
+            if (descError) descError.textContent = 'Description is required';
+            isValid = false;
+        }
+        
+        if (!isValid) {
+            return;
+        }
+        
+        const testCaseData = {
+            name,
+            description,
+            priority,
+            type,
+            folder: folder || this.currentFolder?.id,
+            project: this.currentProject
+        };
+        
+        // Add automation data if automated
+        if (type === 'automated') {
+            const automationProject = document.getElementById('testcase-automation-project').value;
+            const testPath = document.getElementById('testcase-test-path').value.trim();
+            
+            if (!automationProject) {
+                const projectSelect = document.getElementById('testcase-automation-project');
+                projectSelect.classList.add('border-red-500');
+                this.toastManager.error('Automation project is required for automated tests');
+                return;
+            }
+            
+            if (!testPath) {
+                const pathInput = document.getElementById('testcase-test-path');
+                const pathError = document.getElementById('testcase-test-path-error');
+                pathInput.classList.add('border-red-500');
+                if (pathError) pathError.textContent = 'Test path is required for automated tests';
+                return;
+            }
+            
+            testCaseData.automation_project = automationProject;
+            testCaseData.test_path = testPath;
+        }
+
+        try {
+            console.log('[TestCases] Creating test case:', testCaseData);
+            
+            // TODO: Replace with actual API call
+            // const response = await this.testCaseClient.createTestCase(testCaseData);
+            
+            // For now, simulate success and add to local test cases
+            const newTestCase = {
+                id: Date.now().toString(),
+                name: testCaseData.name,
+                description: testCaseData.description,
+                priority: testCaseData.priority,
+                type: testCaseData.type,
+                status: 'pending',
+                folder: testCaseData.folder,
+                project: testCaseData.project,
+                automation_project: testCaseData.automation_project,
+                test_path: testCaseData.test_path,
+                created_at: new Date().toISOString()
+            };
+            
+            this.testCases.push(newTestCase);
+            this.updateTestCasesList();
+            
+            this.toastManager.success('Test case created successfully');
+            
+            // Close modal and reset form
+            this.closeTestCaseModal();
+            
+        } catch (error) {
+            console.error('[TestCases] Error creating test case:', error);
+            this.toastManager.error('Failed to create test case');
+        }
+    }
+
+    // Method called from HTML modal
+    async createTestCase(testCaseData) {
+        if (!this.currentProject) {
+            this.toastManager.error('Please select a project first');
+            return;
+        }
+
+        try {
+            console.log('[TestCases] Creating test case:', testCaseData);
+            
+            // Add project if not set
+            if (!testCaseData.project) {
+                testCaseData.project = this.currentProject;
+            }
+            
+            // Add folder if current folder is selected
+            if (!testCaseData.folder && this.currentFolder) {
+                testCaseData.folder = this.currentFolder.id;
+            }
+            
+            const response = await this.testCaseClient.createTestCase(this.currentProject, testCaseData);
+            
+            this.toastManager.success('Test case created successfully');
+            
+            // Close modal
+            const modal = document.getElementById('testcase-modal');
+            if (modal) {
+                modal.classList.add('hidden');
+            }
+            
+            // Reset form fields
+            document.getElementById('testcase-title').value = '';
+            document.getElementById('testcase-description').value = '';
+            document.getElementById('testcase-priority').value = 'medium';
+            document.getElementById('testcase-type').value = 'manual';
+            document.getElementById('testcase-automation-project').value = '';
+            document.getElementById('testcase-automation-test-name').value = '';
+            
+            // Hide automation fields
+            document.getElementById('automation-fields').classList.add('hidden');
+            
+            // Reload test cases
+            await this.loadTestCases(this.currentFolder?.id);
+        } catch (error) {
+            console.error('[TestCases] Error creating test case:', error);
+            this.toastManager.error('Failed to create test case');
+        }
+    }
+
+    async createFolder(folderData) {
+        if (!this.currentProject) {
+            this.toastManager.warning('Please select a project first');
+            return;
+        }
+
+        try {
+            console.log('[TestCases] Creating folder:', folderData);
+            console.log('[TestCases] Current project:', this.currentProject);
+            
+            // Prepare data for API
+            const apiData = {
+                name: folderData.name,
+                description: folderData.description || '',
+                parent: folderData.parent && folderData.parent !== '' ? folderData.parent : null,
+                project: this.currentProject  // Add project ID to the request
+            };
+            
+            console.log('[TestCases] API data to send:', apiData);
+
+            // Create folder via API
+            const response = await this.projectClient.createFolder(this.currentProject, apiData);
+            
+            console.log('[TestCases] Folder created via API:', response);
+            
+            // Reload folders to get updated list from server
+            await this.loadFolders();
+            
+            this.toastManager.success('Folder created successfully');
+            
+        } catch (error) {
+            console.error('[TestCases] Error creating folder:', error);
+            console.error('[TestCases] Error details:', {
+                status: error.status,
+                data: error.data,
+                response: error.response
+            });
+            
+            // Try to show more specific error message
+            if (error.response && error.response.data) {
+                const errorData = error.response.data;
+                console.log('[TestCases] Error data type:', typeof errorData);
+                console.log('[TestCases] Error data:', errorData);
+                
+                if (typeof errorData === 'object') {
+                    // Check if error is wrapped in an "error" field
+                    if (errorData.error && typeof errorData.error === 'object') {
+                        console.log('[TestCases] Error wrapped in error field:', errorData.error);
+                        const actualError = errorData.error;
+                        
+                        // Check if it has field_errors
+                        if (actualError.field_errors) {
+                            console.log('[TestCases] Field errors:', actualError.field_errors);
+                            const errorMessages = Object.entries(actualError.field_errors)
+                                .map(([field, messages]) => {
+                                    if (Array.isArray(messages)) {
+                                        return `${field}: ${messages.join(', ')}`;
+                                    } else {
+                                        return `${field}: ${messages}`;
+                                    }
+                                })
+                                .join('; ');
+                            this.toastManager.error(`Failed to create folder: ${errorMessages}`);
+                        } else if (actualError.message) {
+                            this.toastManager.error(`Failed to create folder: ${actualError.message}`);
+                        } else if (actualError.detail) {
+                            this.toastManager.error(`Failed to create folder: ${actualError.detail}`);
+                        } else {
+                            // Try to extract any other errors
+                            const errorMessages = Object.entries(actualError)
+                                .filter(([key]) => key !== 'status_code' && key !== 'code')
+                                .map(([field, messages]) => {
+                                    if (Array.isArray(messages)) {
+                                        return `${field}: ${messages.join(', ')}`;
+                                    } else {
+                                        return `${field}: ${messages}`;
+                                    }
+                                })
+                                .join('; ');
+                            this.toastManager.error(`Failed to create folder: ${errorMessages || 'Unknown error'}`);
+                        }
+                    } else {
+                        // Original error handling
+                        const errorMessages = Object.entries(errorData)
+                            .map(([field, messages]) => {
+                                if (Array.isArray(messages)) {
+                                    return `${field}: ${messages.join(', ')}`;
+                                } else if (typeof messages === 'object' && messages.detail) {
+                                    return `${field}: ${messages.detail}`;
+                                } else {
+                                    return `${field}: ${messages}`;
+                                }
+                            })
+                            .join('; ');
+                        this.toastManager.error(`Failed to create folder: ${errorMessages}`);
+                    }
+                } else {
+                    this.toastManager.error('Failed to create folder: ' + errorData);
+                }
+            } else {
+                this.toastManager.error('Failed to create folder');
+            }
+            throw error;
+        }
+    }
+
+    showFolderDetails(folder) {
+        console.log('[TestCases] Showing folder details:', folder);
+        
+        // Hide all other views
+        this.hideAllViews();
+        
+        // Show folder form view
+        const formView = document.getElementById('folder-form-view');
+        formView.classList.remove('hidden');
+        
+        // Update form title for view mode
+        const formTitle = document.getElementById('folder-form-title');
+        const formSubtitle = document.getElementById('folder-form-subtitle');
+        const actionButtons = document.getElementById('folder-action-buttons');
+        
+        formTitle.textContent = folder.name;
+        formSubtitle.textContent = '';
+        formSubtitle.style.display = 'none';
+        actionButtons.classList.remove('hidden');
+        
+        // Hide form fields in view mode
+        const formFieldsContainer = document.querySelector('#folder-form');
+        if (formFieldsContainer) {
+            formFieldsContainer.style.display = 'none';
+        }
+        
+        // Remove any existing description section
+        const existingDescSection = document.getElementById('folder-description-section');
+        if (existingDescSection) {
+            existingDescSection.remove();
+        }
+        
+        // Add description section if folder has description
+        if (folder.description && folder.description.trim()) {
+            const formContainer = document.querySelector('#folder-form-view .w-full');
+            const descriptionSection = document.createElement('div');
+            descriptionSection.id = 'folder-description-section';
+            descriptionSection.className = 'bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-8 mb-6 overflow-hidden';
+            descriptionSection.innerHTML = `
+                <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-6 flex items-center">
+                    <div class="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center mr-3">
+                        <i class="ri-file-text-line text-blue-600 dark:text-blue-400"></i>
+                    </div>
+                    Описание
+                </h2>
+                <div class="overflow-hidden">
+                    <p class="text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed break-word-wrap">${folder.description}</p>
                 </div>
             `;
             
-            stepsContainer.appendChild(stepElement);
+            // Insert after the actions section
+            const actionsSection = document.querySelector('#folder-form-view .bg-white.border-2');
+            if (actionsSection) {
+                actionsSection.parentElement.insertBefore(descriptionSection, actionsSection.nextSibling);
+            }
+        }
+        
+        // Set meta information
+        document.getElementById('folder-author').textContent = folder.author_name || folder.author || '-';
+        document.getElementById('folder-created-date').textContent = folder.created_at ? new Date(folder.created_at).toLocaleString() : '-';
+        document.getElementById('folder-modified-date').textContent = folder.updated_at ? new Date(folder.updated_at).toLocaleString() : '-';
+        document.getElementById('folder-modified-by').textContent = folder.last_modified_by_name || folder.last_modified_by || '-';
+        
+        // Store folder data
+        formView.dataset.folderId = folder.id;
+        formView.dataset.viewMode = 'true';
+        formView.dataset.folderData = JSON.stringify(folder);
+        
+        // Update save button to edit button for view mode
+        const saveButton = document.querySelector('[onclick="saveFolder()"]');
+        if (saveButton) {
+            saveButton.innerHTML = '<i class="ri-edit-line mr-2 text-xl"></i> Редактировать';
+            saveButton.className = 'px-10 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-xl hover:from-yellow-600 hover:to-orange-600 transition-all shadow-xl hover:shadow-2xl flex items-center text-lg font-semibold transform hover:scale-105';
+            saveButton.onclick = () => this.editFolder(folder.id);
+        }
+        
+        // Make sure the actions section is visible
+        const actionsSection = document.querySelector('#folder-form-view .bg-white.border-2');
+        if (actionsSection) {
+            actionsSection.style.display = 'block';
+        }
+        
+        // Add subfolders and test cases section after the form
+        this.renderFolderContents(folder);
+    }
+    
+    renderFolderContents(folder) {
+        // Find or create contents section
+        let contentsSection = document.getElementById('folder-contents-section');
+        if (!contentsSection) {
+            const formContainer = document.querySelector('#folder-form-view .w-full');
+            contentsSection = document.createElement('div');
+            contentsSection.id = 'folder-contents-section';
+            contentsSection.className = 'mt-6';
+            formContainer.appendChild(contentsSection);
+        }
+        
+        // Get subfolders and test cases
+        const subfolders = this.folders.filter(f => f.parent === folder.id);
+        const testCases = []; // TODO: Load actual test cases
+        
+        contentsSection.innerHTML = `
+            <!-- Subfolders -->
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-8 mb-6">
+                <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-6 flex items-center">
+                    <div class="w-10 h-10 bg-yellow-100 dark:bg-yellow-900/30 rounded-xl flex items-center justify-center mr-3">
+                        <i class="ri-folder-line text-yellow-600 dark:text-yellow-400"></i>
+                    </div>
+                    Подпапки (${subfolders.length})
+                </h2>
+                
+                ${subfolders.length > 0 ? `
+                    <div class="grid gap-3">
+                        ${subfolders.map(subfolder => `
+                            <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-900 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer transition-colors"
+                                 onclick="testCasesPage.selectFolder(testCasesPage.folders.find(f => f.id === '${subfolder.id}'))">
+                                <div class="flex items-center">
+                                    <i class="ri-folder-3-line text-yellow-500 mr-3"></i>
+                                    <div>
+                                        <div class="font-medium text-gray-900 dark:text-gray-100">${subfolder.name}</div>
+                                        ${subfolder.description ? `<div class="text-sm text-gray-500 dark:text-gray-400">${subfolder.description}</div>` : ''}
+                                    </div>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <span class="text-sm text-gray-500 dark:text-gray-400">${subfolder.test_cases_count || 0} тестов</span>
+                                    <i class="ri-arrow-right-s-line text-gray-400"></i>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : `
+                    <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+                        <i class="ri-folder-add-line text-4xl mb-2"></i>
+                        <p>Нет подпапок</p>
+                        <button onclick="testCasesPage.showCreateFolderForm('${folder.id}')" 
+                                class="mt-4 text-sm text-coral-600 hover:text-coral-700">
+                            Создать подпапку
+                        </button>
+                    </div>
+                `}
+            </div>
+            
+            <!-- Test Cases -->
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-8">
+                <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-6 flex items-center">
+                    <div class="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center mr-3">
+                        <i class="ri-file-text-line text-blue-600 dark:text-blue-400"></i>
+                    </div>
+                    Тест-кейсы (${testCases.length})
+                </h2>
+                
+                ${testCases.length > 0 ? `
+                    <div class="grid gap-3">
+                        <!-- Test cases will be rendered here -->
+                    </div>
+                ` : `
+                    <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+                        <i class="ri-file-add-line text-4xl mb-2"></i>
+                        <p>Нет тест-кейсов</p>
+                        <button onclick="testCasesPage.showCreateTestCaseModal('${folder.id}')" 
+                                class="mt-4 text-sm text-coral-600 hover:text-coral-700">
+                            Создать тест-кейс
+                        </button>
+                    </div>
+                `}
+            </div>
+        `;
+    }
+
+    editFolder(folderId) {
+        const folder = this.folders.find(f => f.id === folderId);
+        if (!folder) {
+            console.error('[TestCases] Folder not found:', folderId);
+            return;
+        }
+        
+        console.log('[TestCases] Editing folder:', folder);
+        this.showCreateFolderForm(folder.parent, folder);
+        
+        // After showing the form, make sure the save button is visible and correct
+        setTimeout(() => {
+            const saveButton = document.querySelector('[onclick="saveFolder()"]');
+            console.log('[TestCases] Found save button in edit mode:', saveButton);
+            if (saveButton) {
+                saveButton.innerHTML = '<i class="ri-save-line mr-2 text-xl"></i> Сохранить';
+                saveButton.className = 'px-10 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-xl hover:from-yellow-600 hover:to-orange-600 transition-all shadow-xl hover:shadow-2xl flex items-center text-lg font-semibold transform hover:scale-105';
+                saveButton.onclick = window.saveFolder;
+                console.log('[TestCases] Updated save button to save mode');
+            } else {
+                console.error('[TestCases] Save button not found!');
+                // Try to find any button with saveFolder
+                const allButtons = document.querySelectorAll('#folder-form-view button');
+                console.log('[TestCases] All buttons in form view:', allButtons);
+                allButtons.forEach((btn, index) => {
+                    console.log(`Button ${index}:`, btn.outerHTML);
+                });
+            }
+        }, 100);
+    }
+
+    async updateFolder(folderId, folderData) {
+        if (!this.currentProject) {
+            this.toastManager.warning('Please select a project first');
+            return;
+        }
+
+        try {
+            console.log('[TestCases] Updating folder:', folderId, folderData);
+            
+            // Prepare data for API
+            const apiData = {
+                name: folderData.name,
+                description: folderData.description || '',
+                parent: folderData.parent || null
+            };
+
+            // Update folder via API
+            const response = await this.projectClient.updateFolder(this.currentProject, folderId, apiData);
+            
+            console.log('[TestCases] Folder updated via API:', response);
+            
+            // Reload folders to get updated list from server
+            await this.loadFolders();
+            
+            this.toastManager.success('Folder updated successfully');
+            
+        } catch (error) {
+            console.error('[TestCases] Error updating folder:', error);
+            this.toastManager.error('Failed to update folder');
+            throw error;
+        }
+    }
+
+    async deleteFolder(folderId) {
+        if (!confirm('Are you sure you want to delete this folder and all its contents?')) {
+            return;
+        }
+
+        try {
+            console.log('[TestCases] Deleting folder:', folderId);
+            
+            // Delete folder via API
+            await this.projectClient.deleteFolder(this.currentProject, folderId);
+            
+            this.toastManager.success('Folder deleted successfully');
+            
+            // Reload folders to get updated list from server
+            await this.loadFolders();
+        } catch (error) {
+            console.error('[TestCases] Error deleting folder:', error);
+            this.toastManager.error('Failed to delete folder');
+        }
+    }
+
+    showAutomationModal() {
+        if (!this.currentProject) {
+            this.toastManager.warning('Please select a project first');
+            return;
+        }
+        
+        // Show automation modal
+        if (window.automationModal) {
+            window.automationModal.show(this.currentProject);
+        }
+    }
+
+    viewTestCase(testCase) {
+        console.log('[TestCases] Viewing test case:', testCase);
+        // Open form in edit mode with test case data
+        window.openTestCaseForm(testCase);
+    }
+
+    async runTestCase(testCaseId) {
+        console.log('[TestCases] Running test case:', testCaseId);
+        
+        if (!this.currentProject) {
+            this.toastManager.error('No project selected');
+            return;
+        }
+        
+        try {
+            this.toastManager.info('🚀 Запуск автоматизированного теста...');
+            
+            // Execute the test case
+            const result = await this.testCaseClient.executeTestCase(this.currentProject, testCaseId, {
+                environment: 'default'
+            });
+            
+            if (result.message) {
+                this.toastManager.success(result.message);
+            } else {
+                this.toastManager.success('Test execution started');
+            }
+            
+            // Store test run ID for status monitoring
+            const testRunId = result.test_run?.id;
+            if (testRunId) {
+                this.monitorTestExecution(testRunId, testCaseId);
+            }
+            
+        } catch (error) {
+            console.error('[TestCases] Error running test case:', error);
+            this.toastManager.error('❌ Failed to execute test case');
+        }
+    }
+
+    async monitorTestExecution(testRunId, testCaseId) {
+        console.log('[TestCases] Monitoring test execution:', testRunId);
+        
+        // Poll for test status every 2 seconds
+        const pollInterval = setInterval(async () => {
+            try {
+                // Get test run status
+                const response = await fetch(`/api/runs/${testRunId}/`, {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    const testRun = await response.json();
+                    console.log('[TestCases] Test run status:', testRun.status);
+                    
+                    // Check if test is completed
+                    if (['passed', 'failed', 'error', 'skipped'].includes(testRun.status)) {
+                        clearInterval(pollInterval);
+                        
+                        // Show result notification
+                        if (testRun.status === 'passed') {
+                            this.toastManager.success(`✅ Тест прошел успешно!`);
+                        } else if (testRun.status === 'failed') {
+                            this.toastManager.error(`❌ Тест провален: ${testRun.error_message || 'Unknown error'}`);
+                        } else if (testRun.status === 'error') {
+                            this.toastManager.error(`🚨 Ошибка выполнения: ${testRun.error_message || 'Unknown error'}`);
+                        }
+                        
+                        // Update test case display if not in form view
+                        const formView = document.getElementById('test-case-form-view');
+                        const isFormOpen = formView && !formView.classList.contains('hidden');
+                        
+                        if (!isFormOpen) {
+                            this.loadTestCases(this.currentFolder?.id);
+                        } else {
+                            // Update form view if open
+                            this.updateTestCaseStatusInForm(testCaseId, testRun);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('[TestCases] Error polling test status:', error);
+                clearInterval(pollInterval);
+            }
+        }, 2000);
+        
+        // Stop polling after 30 seconds to prevent infinite polling
+        setTimeout(() => {
+            clearInterval(pollInterval);
+        }, 30000);
+    }
+
+    updateTestCaseStatusInForm(testCaseId, testRun) {
+        // If form is open for this test case, show status in form
+        const formView = document.getElementById('test-case-form-view');
+        const currentTestCaseId = formView?.dataset?.testCaseId;
+        
+        if (currentTestCaseId == testCaseId) {
+            // Add or update status indicator in form
+            let statusIndicator = document.getElementById('test-execution-status');
+            if (!statusIndicator) {
+                statusIndicator = document.createElement('div');
+                statusIndicator.id = 'test-execution-status';
+                statusIndicator.className = 'mt-4 p-3 rounded-lg';
+                
+                const formTitle = document.getElementById('form-title');
+                if (formTitle && formTitle.parentNode) {
+                    formTitle.parentNode.insertBefore(statusIndicator, formTitle.nextSibling);
+                }
+            }
+            
+            if (testRun.status === 'passed') {
+                statusIndicator.className = 'mt-4 p-3 rounded-lg bg-green-50 text-green-800 border border-green-200';
+                statusIndicator.innerHTML = `
+                    <div class="flex items-center">
+                        <i class="ri-check-circle-line text-green-600 mr-2"></i>
+                        <span class="font-medium">Тест выполнен успешно!</span>
+                    </div>
+                    <div class="text-sm mt-1">${testRun.output || 'Test completed successfully'}</div>
+                `;
+            } else if (testRun.status === 'failed') {
+                statusIndicator.className = 'mt-4 p-3 rounded-lg bg-red-50 text-red-800 border border-red-200';
+                statusIndicator.innerHTML = `
+                    <div class="flex items-center">
+                        <i class="ri-close-circle-line text-red-600 mr-2"></i>
+                        <span class="font-medium">Тест провален</span>
+                    </div>
+                    <div class="text-sm mt-1">${testRun.error_message || testRun.output || 'Test failed'}</div>
+                `;
+            }
+        }
+    }
+
+    async editTestCase(testCaseId) {
+        console.log('[TestCases] Editing test case:', testCaseId);
+        const testCase = this.testCases.find(tc => tc.id === testCaseId);
+        if (testCase) {
+            window.openTestCaseForm(testCase);
+        }
+    }
+
+    async duplicateTestCase(testCaseId) {
+        console.log('[TestCases] Duplicating test case:', testCaseId);
+        // TODO: Implement test case duplication
+        this.toastManager.info('Duplicate functionality coming soon');
+    }
+
+    async deleteTestCase(testCaseId) {
+        if (!confirm('Are you sure you want to delete this test case?')) {
+            return;
+        }
+
+        try {
+            console.log('[TestCases] Deleting test case:', testCaseId);
+            // TODO: Replace with actual API call
+            // await this.testCaseClient.deleteTestCase(testCaseId);
+            
+            this.toastManager.success('Test case deleted successfully');
+            
+            if (this.currentFolder) {
+                await this.loadTestCases(this.currentFolder.id);
+            }
+        } catch (error) {
+            console.error('[TestCases] Error deleting test case:', error);
+            this.toastManager.error('Failed to delete test case');
+        }
+    }
+
+    // Search in folders tree
+    handleFolderSearch(searchTerm) {
+        const term = searchTerm.toLowerCase();
+        const folderElements = document.querySelectorAll('#folders-tree .folder-item');
+        const testCaseElements = document.querySelectorAll('#folders-tree .test-case-item');
+        
+        if (!term) {
+            // Show all items if search is empty
+            folderElements.forEach(el => {
+                el.style.display = '';
+                el.querySelectorAll('.folder-item').forEach(child => child.style.display = '');
+            });
+            testCaseElements.forEach(el => el.style.display = '');
+            return;
+        }
+        
+        // Hide all items first
+        folderElements.forEach(el => el.style.display = 'none');
+        testCaseElements.forEach(el => el.style.display = 'none');
+        
+        // Show matching folders and their parents
+        folderElements.forEach(el => {
+            const folderName = el.querySelector('.folder-name')?.textContent.toLowerCase();
+            if (folderName && folderName.includes(term)) {
+                el.style.display = '';
+                // Show all parent folders
+                let parent = el.parentElement;
+                while (parent && parent.id !== 'folders-tree') {
+                    if (parent.classList.contains('folder-item')) {
+                        parent.style.display = '';
+                        // Expand parent folder
+                        const folderId = parent.dataset.folderId;
+                        if (folderId) {
+                            this.expandedFolders.add(folderId);
+                        }
+                    }
+                    parent = parent.parentElement;
+                }
+            }
         });
-    } else {
-        stepsContainer.innerHTML = `
-            <p class="text-gray-500 dark:text-gray-400">${i18n.t('noSteps') || 'No steps defined for this test case.'}</p>
+        
+        // Show matching test cases and their parent folders
+        testCaseElements.forEach(el => {
+            const testCaseName = el.textContent.toLowerCase();
+            if (testCaseName.includes(term)) {
+                el.style.display = '';
+                // Show all parent folders
+                let parent = el.parentElement;
+                while (parent && parent.id !== 'folders-tree') {
+                    if (parent.classList.contains('folder-item')) {
+                        parent.style.display = '';
+                        const folderId = parent.dataset.folderId;
+                        if (folderId) {
+                            this.expandedFolders.add(folderId);
+                        }
+                    }
+                    parent = parent.parentElement;
+                }
+            }
+        });
+        
+        // Update folder tree to reflect expanded state
+        this.updateFolderTree();
+    }
+    
+    // Search, filter and sort methods for test cases list
+    handleSearch(searchTerm) {
+        this.searchTerm = searchTerm.toLowerCase();
+        this.updateTestCasesList();
+    }
+
+    applyFilters() {
+        const statusFilter = document.getElementById('filter-status').value;
+        const priorityFilter = document.getElementById('filter-priority').value;
+        const typeFilter = document.getElementById('filter-type').value;
+
+        this.filters = {
+            status: statusFilter,
+            priority: priorityFilter,
+            type: typeFilter
+        };
+
+        this.updateTestCasesList();
+    }
+
+    applySorting() {
+        const sortBy = document.querySelector('input[name="sort"]:checked').value;
+        this.sortBy = sortBy;
+        this.updateTestCasesList();
+    }
+
+    getFilteredAndSortedTestCases() {
+        let filtered = [...this.testCases];
+
+        // Apply search
+        if (this.searchTerm) {
+            filtered = filtered.filter(tc => 
+                tc.name.toLowerCase().includes(this.searchTerm) ||
+                tc.description.toLowerCase().includes(this.searchTerm)
+            );
+        }
+
+        // Apply filters
+        if (this.filters.status) {
+            filtered = filtered.filter(tc => tc.status === this.filters.status);
+        }
+        if (this.filters.priority) {
+            filtered = filtered.filter(tc => tc.priority === this.filters.priority);
+        }
+        if (this.filters.type) {
+            filtered = filtered.filter(tc => tc.type === this.filters.type);
+        }
+
+        // Apply sorting
+        switch (this.sortBy) {
+            case 'name':
+                filtered.sort((a, b) => (a.title || a.name || '').localeCompare(b.title || b.name || ''));
+                break;
+            case 'created':
+                filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+                break;
+            case 'updated':
+                filtered.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+                break;
+            case 'priority':
+                const priorityOrder = { high: 0, medium: 1, low: 2 };
+                filtered.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
+                break;
+        }
+
+        return filtered;
+    }
+    
+    /**
+     * Clear folder selection and update URL
+     */
+    clearFolderSelection() {
+        // Remove visual selection
+        document.querySelectorAll('.folder-header').forEach(header => {
+            header.classList.remove('bg-blue-50', 'dark:bg-blue-900', 'border-l-2', 'border-blue-500');
+        });
+        
+        // Clear current folder
+        this.currentFolder = null;
+        
+        // Clear URL hash
+        this.clearUrl();
+        
+        // Hide any open forms
+        const folderForm = document.getElementById('folder-form-view');
+        if (folderForm && !folderForm.classList.contains('hidden')) {
+            folderForm.classList.add('hidden');
+        }
+        
+        const testCaseForm = document.getElementById('test-case-form-view');
+        if (testCaseForm && !testCaseForm.classList.contains('hidden')) {
+            testCaseForm.classList.add('hidden');
+        }
+    }
+    
+    /**
+     * Routing methods for deep linking
+     */
+    updateUrlForNewFolder(parentId = null) {
+        let hash;
+        if (parentId) {
+            hash = `folder/${parentId}/new-folder`;
+        } else {
+            hash = `new-folder`;
+        }
+        this.router.updateHash(hash);
+    }
+    
+    updateUrlForEditFolder(folderId) {
+        const hash = `folder/${folderId}/edit`;
+        this.router.updateHash(hash);
+    }
+    
+    async openFolderForEdit(folderId) {
+        console.log('[TestCases] Opening folder for edit:', folderId);
+        
+        try {
+            const folder = this.folders.find(f => f.id === parseInt(folderId));
+            if (folder) {
+                this.showCreateFolderForm(folder.parent, folder);
+            } else {
+                // Try to load folder data from API
+                const folderData = await this.projectClient.getFolder(this.currentProject, folderId);
+                if (folderData) {
+                    this.showCreateFolderForm(folderData.parent, folderData);
+                }
+            }
+        } catch (error) {
+            console.error('[TestCases] Error opening folder for edit:', error);
+            this.toastManager.error('Не удалось открыть папку для редактирования');
+        }
+    }
+    
+    openFolderById(folderId) {
+        console.log('[TestCases] Opening folder by ID:', folderId);
+        const folder = this.folders.find(f => f.id === parseInt(folderId));
+        if (folder) {
+            this.currentFolder = folder;
+            this.expandedFolders.add(folder.id);
+            this.updateFolderTree();
+        }
+    }
+    
+    async openTestCaseById(testCaseId, folderId = null) {
+        console.log('[TestCases] Opening test case by ID:', testCaseId, 'in folder:', folderId);
+        
+        try {
+            // If folder specified, open it first
+            if (folderId) {
+                this.openFolderById(folderId);
+            }
+            
+            // Load test case data
+            const testCase = await this.testCaseClient.getTestCase(this.currentProject, testCaseId);
+            if (testCase) {
+                this.openTestCase(testCase);
+            }
+        } catch (error) {
+            console.error('[TestCases] Error opening test case:', error);
+            this.toastManager.error('Не удалось открыть тест-кейс');
+        }
+    }
+    
+    updateUrlForTestCase(testCaseId, folderId = null) {
+        let hash;
+        if (folderId) {
+            hash = `folder/${folderId}/testcase/${testCaseId}`;
+        } else {
+            hash = `testcase/${testCaseId}`;
+        }
+        this.router.updateHash(hash);
+    }
+    
+    updateUrlForNewTestCase(folderId = null) {
+        let hash;
+        if (folderId) {
+            hash = `folder/${folderId}/new-testcase`;
+        } else {
+            hash = `new-testcase`;
+        }
+        this.router.updateHash(hash);
+    }
+    
+    updateUrlForFolder(folderId) {
+        const hash = `folder/${folderId}`;
+        this.router.updateHash(hash);
+    }
+    
+    clearUrl() {
+        this.router.updateHash('');
+    }
+
+    getMockTestCases(folderId = null) {
+        // Mock test cases with both manual and automated types for testing
+        return [
+            {
+                id: 1,
+                title: 'Тест входа в систему',
+                description: 'Проверка корректной авторизации пользователя',
+                type: 'manual',
+                test_type: 'manual',
+                priority: 'high',
+                platform: 'Web',
+                author_name: 'Admin Adminovich',
+                status: 'pending',
+                created_at: '2024-01-15T10:30:00Z',
+                tags: ['authentication', 'login']
+            },
+            {
+                id: 2,
+                title: 'Автоматизированный тест API',
+                description: 'Проверка REST API endpoints',
+                type: 'automated',
+                test_type: 'automated',
+                automation_test_name: 'test_api_endpoints',
+                priority: 'medium',
+                platform: 'API',
+                author_name: 'Admin Adminovich',
+                status: 'passed',
+                created_at: '2024-01-16T14:20:00Z',
+                tags: ['api', 'automation']
+            },
+            {
+                id: 3,
+                title: 'Тест создания проекта',
+                description: 'Проверка функциональности создания нового проекта',
+                type: 'manual',
+                test_type: 'manual',
+                priority: 'medium',
+                platform: 'Web',
+                author_name: 'Admin Adminovich',
+                status: 'failed',
+                created_at: '2024-01-17T09:15:00Z',
+                tags: ['project', 'creation']
+            },
+            {
+                id: 4,
+                title: 'Автоматизированный UI тест',
+                description: 'Проверка пользовательского интерфейса через Selenium',
+                type: 'automated',
+                test_type: 'automated',
+                automation_test_name: 'test_ui_workflow',
+                priority: 'high',
+                platform: 'Web',
+                author_name: 'Admin Adminovich',
+                status: 'running',
+                created_at: '2024-01-18T16:45:00Z',
+                tags: ['ui', 'selenium', 'automation']
+            }
+        ].filter(testCase => {
+            // Filter by folder if specified
+            if (folderId) {
+                // In a real scenario, test cases would have folder_id field
+                return true; // For now, return all test cases
+            }
+            return true;
+        });
+    }
+}
+
+// Function to update action buttons based on test case type
+function updateActionButtons(isAutomated, testCaseId) {
+    const actionButtons = document.getElementById('tc-action-buttons');
+    if (!actionButtons) return;
+    
+    // Keep only the delete button in the left area
+    let buttonsHTML = `
+        <button type="button" onclick="deleteTestCase()" 
+                class="text-red-600 hover:text-red-700 font-medium flex items-center">
+            <i class="ri-delete-bin-line mr-2"></i> Удалить тест-кейс
+        </button>
+    `;
+    
+    actionButtons.innerHTML = buttonsHTML;
+    
+    // Update the right-side buttons (Cancel/Run/Save) 
+    updateFormActionButtons(isAutomated, testCaseId);
+}
+
+// Function to update the right-side form action buttons (Cancel/Run/Save)
+function updateFormActionButtons(isAutomated, testCaseId) {
+    // Find the container that holds Cancel and Save buttons
+    const actionButtons = document.getElementById('tc-action-buttons');
+    if (!actionButtons) return;
+    
+    const parentContainer = actionButtons.parentElement;
+    if (!parentContainer) return;
+    
+    // Find or create the right-side buttons container
+    let rightButtonsContainer = parentContainer.querySelector('.form-action-buttons');
+    if (!rightButtonsContainer) {
+        // If container doesn't exist, find the existing buttons and wrap them
+        const existingButtons = parentContainer.querySelector('.flex.gap-3.ml-auto');
+        if (existingButtons) {
+            rightButtonsContainer = existingButtons;
+            rightButtonsContainer.classList.add('form-action-buttons');
+        }
+    }
+    
+    if (!rightButtonsContainer) return;
+    
+    // Create buttons HTML with run button in the middle for automated tests
+    let buttonsHTML = `
+        <button type="button" onclick="closeTestCaseForm()" 
+                class="px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+            Отмена
+        </button>
+    `;
+    
+    // Add run button for automated test cases between Cancel and Save
+    if (isAutomated) {
+        buttonsHTML += `
+            <button type="button" onclick="runTestCaseFromForm(${testCaseId})" 
+                    class="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-medium flex items-center transition-colors shadow-lg hover:shadow-xl">
+                <i class="ri-play-line mr-2"></i> Запустить тест
+            </button>
         `;
     }
     
-    // Set button event listeners
-    if (deleteButton) {
-        deleteButton.onclick = () => {
-            if (confirm(i18n.t('delete-confirm') || 'Are you sure you want to delete this test case?')) {
-                deleteTestCase(testCaseId);
-            }
-        };
-    }
+    buttonsHTML += `
+        <button type="button" onclick="saveTestCase()" 
+                class="px-8 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl flex items-center">
+            <i class="ri-save-line mr-2"></i> Сохранить
+        </button>
+    `;
     
-    if (runButton) {
-        runButton.onclick = () => {
-            runTestCase(testCaseId);
-        };
-    }
-    
-    if (editButton) {
-        editButton.onclick = () => {
-            editTestCase(testCaseId);
-        };
-    }
-    
-    // Close button
-    if (closeButton) {
-        closeButton.onclick = () => {
-            modal.classList.add('hidden');
-            modal.classList.remove('flex');
-        };
-    }
-    
-    // Close when clicking outside modal content
-    modal.onclick = (event) => {
-        if (event.target === modal) {
-            modal.classList.add('hidden');
-            modal.classList.remove('flex');
-        }
-    };
-    
-    // Show modal
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
+    rightButtonsContainer.innerHTML = buttonsHTML;
 }
 
-/**
- * Run a test case
- * @param {string} testCaseId - Test case ID
- */
-function runTestCase(testCaseId) {
-    ToastManager.info(i18n.t('running-testcase') || 'Running test case...');
+// Function to run test case from the form view
+window.runTestCaseFromForm = function(testCaseId) {
+    console.log('[TestCases] Running test case from form:', testCaseId);
     
-    // Example implementation (in a real app, this would call the API to run the test case)
-    setTimeout(() => {
-        const testCase = AppState.testCases.find(tc => tc.id === testCaseId);
-        if (testCase) {
-            // Update test case status randomly for demonstration
-            const statuses = ['passed', 'failed'];
-            testCase.status = statuses[Math.floor(Math.random() * statuses.length)];
-            
-            // Refresh test case list
-            renderTestCases();
-            
-            // Show notification
-            if (testCase.status === 'passed') {
-                ToastManager.success(i18n.t('testcase-passed') || 'Test case passed successfully');
-            } else {
-                ToastManager.error(i18n.t('testcase-failed') || 'Test case failed');
-            }
-            
-            // Close details modal if open
-            const detailsModal = document.getElementById('testcase-details-modal');
-            if (detailsModal && !detailsModal.classList.contains('hidden')) {
-                detailsModal.classList.add('hidden');
-                detailsModal.classList.remove('flex');
-            }
-        }
-    }, 2000);
-}
-
-/**
- * Edit a test case
- * @param {string} testCaseId - Test case ID
- */
-function editTestCase(testCaseId) {
-    // For demonstration purposes, simply show a message
-    ToastManager.info(i18n.t('edit-testcase-not-implemented') || 'Edit test case functionality is not implemented in this demo');
-}
-
-/**
- * Delete a test case
- * @param {string} testCaseId - Test case ID
- */
-function deleteTestCase(testCaseId) {
-    // For demonstration purposes, remove the test case from the array and refresh the list
-    AppState.testCases = AppState.testCases.filter(tc => tc.id !== testCaseId);
-    renderTestCases();
-    
-    // Close details modal
-    const detailsModal = document.getElementById('testcase-details-modal');
-    if (detailsModal) {
-        detailsModal.classList.add('hidden');
-        detailsModal.classList.remove('flex');
-    }
-    
-    ToastManager.success(i18n.t('testcase-deleted') || 'Test case deleted successfully');
-}
-
-/**
- * Initialize filter modal
- */
-function initFilterModal() {
-    const modal = document.getElementById('filter-modal');
-    const closeButton = document.getElementById('close-filter-modal');
-    const clearButton = document.getElementById('clear-filters-button');
-    const form = document.getElementById('filter-form');
-    
-    // Close modal
-    const closeModal = () => {
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-    };
-    
-    // Close button
-    if (closeButton) {
-        closeButton.addEventListener('click', closeModal);
-    }
-    
-    // Clear filters button
-    if (clearButton) {
-        clearButton.addEventListener('click', () => {
-            form.reset();
-            
-            // Clear filters
-            AppState.filters = {
-                status: '',
-                priority: '',
-                type: '',
-                tags: '',
-                search: document.getElementById('search-testcases').value
-            };
-            
-            // Render test cases with cleared filters
-            renderTestCases();
-            
-            // Close modal
-            closeModal();
-        });
-    }
-    
-    // Close when clicking outside modal content
-    if (modal) {
-        modal.addEventListener('click', (event) => {
-            if (event.target === modal) {
-                closeModal();
-            }
-        });
-    }
-    
-    // Form submission
-    if (form) {
-        form.addEventListener('submit', (event) => {
-            event.preventDefault();
-            
-            // Get filter values
-            const statusFilter = document.getElementById('filter-status').value;
-            const priorityFilter = document.getElementById('filter-priority').value;
-            const typeFilter = document.getElementById('filter-type').value;
-            const tagsFilter = document.getElementById('filter-tags').value;
-            
-            // Update filters
-            AppState.filters.status = statusFilter;
-            AppState.filters.priority = priorityFilter;
-            AppState.filters.type = typeFilter;
-            AppState.filters.tags = tagsFilter;
-            
-            // Render test cases with new filters
-            renderTestCases();
-            
-            // Close modal
-            closeModal();
-        });
-    }
-}
-
-/**
- * Show filter modal
- */
-function showFilterModal() {
-    const modal = document.getElementById('filter-modal');
-    
-    // Set current filter values
-    document.getElementById('filter-status').value = AppState.filters.status;
-    document.getElementById('filter-priority').value = AppState.filters.priority;
-    document.getElementById('filter-type').value = AppState.filters.type;
-    document.getElementById('filter-tags').value = AppState.filters.tags;
-    
-    // Show modal
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
-}
-
-/**
- * Initialize context menu
- */
-function initContextMenu() {
-    const contextMenu = document.getElementById('context-menu');
-    
-    // Hide context menu on document click
-    document.addEventListener('click', () => {
-        contextMenu.classList.add('hidden');
-    });
-    
-    // Add folder item context menu
-    document.addEventListener('contextmenu', (event) => {
-        const folderItem = event.target.closest('.tree-item');
+    if (window.testCasesPage && window.testCasesPage.runTestCase) {
+        // Show immediate feedback
+        const button = event.target;
+        const originalText = button.innerHTML;
+        button.innerHTML = '<i class="ri-loader-4-line mr-2 animate-spin"></i> Запуск...';
+        button.disabled = true;
         
-        if (folderItem) {
-            event.preventDefault();
+        // Run the test
+        window.testCasesPage.runTestCase(testCaseId).then(() => {
+            // Restore button after a delay
+            setTimeout(() => {
+                button.innerHTML = originalText;
+                button.disabled = false;
+            }, 3000);
+        }).catch((error) => {
+            console.error('[TestCases] Error in runTestCaseFromForm:', error);
+            // Restore button on error
+            button.innerHTML = originalText;
+            button.disabled = false;
+        });
+    } else {
+        console.error('TestCasesPage instance not available or runTestCase method not found');
+        alert('Невозможно запустить тест. Попробуйте позже.');
+    }
+};
+
+// Initialize page when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('[TestCases] DOM loaded, initializing page');
+    window.testCasesPage = new TestCasesPage();
+});
+
+// Global functions for HTML onclick handlers
+window.closeFolderForm = function() {
+    const formView = document.getElementById('folder-form-view');
+    
+    // Show form fields back
+    const formContainer = document.querySelector('#folder-form');
+    if (formContainer) {
+        formContainer.style.display = 'block';
+    }
+    
+    // Re-enable form fields if they were disabled
+    document.getElementById('folder-name').disabled = false;
+    document.getElementById('folder-description').disabled = false;
+    document.getElementById('folder-parent').disabled = false;
+    
+    // Reset save button
+    const saveButton = document.querySelector('[onclick="saveFolder()"]');
+    if (!saveButton) {
+        // Find button by its content if onclick was changed
+        const buttons = document.querySelectorAll('#folder-form-view button');
+        buttons.forEach(btn => {
+            if (btn.textContent.includes('Редактировать')) {
+                btn.innerHTML = '<i class="ri-save-line mr-2 text-xl"></i> Сохранить';
+                btn.className = 'px-10 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-xl hover:from-yellow-600 hover:to-orange-600 transition-all shadow-xl hover:shadow-2xl flex items-center text-lg font-semibold transform hover:scale-105';
+                btn.onclick = window.saveFolder;
+            }
+        });
+    }
+    
+    // Make sure the actions section is visible
+    const actionsSection = document.querySelector('#folder-form-view .bg-white.border-2');
+    if (actionsSection) {
+        actionsSection.style.display = 'block';
+    }
+    
+    // Remove folder contents section if exists
+    const contentsSection = document.getElementById('folder-contents-section');
+    if (contentsSection) {
+        contentsSection.remove();
+    }
+    
+    // Remove any description sections
+    const descriptionSection = document.getElementById('folder-description-section');
+    if (descriptionSection) {
+        descriptionSection.remove();
+    }
+    
+    // Hide folder form view
+    formView.classList.add('hidden');
+    
+    // Clear dataset
+    delete formView.dataset.folderId;
+    delete formView.dataset.viewMode;
+    delete formView.dataset.folderData;
+    
+    // Show appropriate view
+    if (window.testCasesPage && window.testCasesPage.folders && window.testCasesPage.folders.length > 0) {
+        // Stay on the folder tree view when we have folders
+        document.getElementById('empty-state').classList.add('hidden');
+    } else {
+        document.getElementById('empty-state').classList.remove('hidden');
+    }
+    
+    // Clear URL hash
+    if (window.testCasesPage) {
+        window.testCasesPage.clearUrl();
+    }
+    
+    // Reset form
+    document.getElementById('folder-form').reset();
+};
+
+window.saveFolder = async function() {
+    const formView = document.getElementById('folder-form-view');
+    const folderId = formView.dataset.folderId;
+    
+    // Collect form data
+    const formData = {
+        name: document.getElementById('folder-name').value.trim(),
+        description: document.getElementById('folder-description').value.trim(),
+        parent: document.getElementById('folder-parent').value || null
+    };
+    
+    // Validate required fields
+    if (!formData.name) {
+        window.testCasesPage.toastManager.warning('Пожалуйста, введите название папки');
+        document.getElementById('folder-name').focus();
+        return;
+    }
+    
+    try {
+        if (folderId) {
+            // Update existing folder
+            console.log('Updating folder:', folderId, formData);
+            await window.testCasesPage.updateFolder(folderId, formData);
             
-            // Get folder ID
-            const folderId = folderItem.getAttribute('data-folder-id');
+            // After update, show the updated folder in view mode
+            const updatedFolder = window.testCasesPage.folders.find(f => f.id === folderId);
+            if (updatedFolder) {
+                // Update folder data with new values
+                Object.assign(updatedFolder, formData);
+                // Show in view mode
+                window.testCasesPage.showFolderDetails(updatedFolder);
+            }
             
-            // Position context menu
-            contextMenu.style.top = `${event.clientY}px`;
-            contextMenu.style.left = `${event.clientX}px`;
+            window.testCasesPage.toastManager.success('Папка обновлена');
+        } else {
+            // Create new folder
+            console.log('Creating folder:', formData);
+            const newFolder = await window.testCasesPage.createFolder(formData);
             
-            // Set context menu content
-            contextMenu.innerHTML = `
-                <div class="py-1">
-                    <button class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700" data-action="add-testcase" data-folder-id="${folderId}">
-                        <i class="ri-add-line mr-2"></i> ${i18n.t('createTestCase') || 'Create Test Case'}
-                    </button>
-                    <button class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700" data-action="add-subfolder" data-folder-id="${folderId}">
-                        <i class="ri-folder-add-line mr-2"></i> ${i18n.t('createSubfolder') || 'Create Subfolder'}
-                    </button>
-                    <div class="border-t border-gray-200 dark:border-gray-700"></div>
-                    <button class="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700" data-action="delete-folder" data-folder-id="${folderId}">
-                        <i class="ri-delete-bin-line mr-2"></i> ${i18n.t('deleteFolder') || 'Delete Folder'}
+            if (newFolder && newFolder.id) {
+                // Update URL to editing mode for the new folder
+                window.testCasesPage.updateUrlForEditFolder(newFolder.id);
+                
+                // Update form to editing mode
+                const formView = document.getElementById('folder-form-view');
+                if (formView) {
+                    formView.dataset.folderId = newFolder.id;
+                }
+                
+                // Update header to show we're now editing
+                const formTitle = document.getElementById('folder-form-title');
+                if (formTitle) {
+                    formTitle.textContent = 'Редактирование папки';
+                }
+                
+                window.testCasesPage.toastManager.success('Папка создана');
+            } else {
+                // If creation failed or doesn't return ID, close form
+                window.closeFolderForm();
+            }
+        }
+        
+    } catch (error) {
+        console.error('Error saving folder:', error);
+        window.testCasesPage.toastManager.error('Ошибка при сохранении папки');
+    }
+};
+
+window.deleteFolder = async function() {
+    if (!confirm('Вы уверены, что хотите удалить эту папку и все ее содержимое?')) {
+        return;
+    }
+    
+    const formView = document.getElementById('folder-form-view');
+    const folderId = formView.dataset.folderId;
+    
+    if (!folderId) return;
+    
+    try {
+        console.log('Deleting folder:', folderId);
+        window.testCasesPage.toastManager.success('Папка удалена');
+        window.closeFolderForm();
+        
+        // Refresh folders list
+        if (window.testCasesPage) {
+            window.testCasesPage.loadFolders();
+        }
+    } catch (error) {
+        console.error('Error deleting folder:', error);
+        window.testCasesPage.toastManager.error('Ошибка при удалении папки');
+    }
+};
+
+// Global functions for test case form
+window.openTestCaseForm = function(testCase = null) {
+    // Hide all views using the instance method if available
+    if (window.testCasesPage) {
+        window.testCasesPage.hideAllViews();
+    } else {
+        // Fallback if instance not available
+        document.getElementById('empty-state').classList.add('hidden');
+        document.getElementById('test-cases-list').classList.add('hidden');
+        document.getElementById('folder-form-view').classList.add('hidden');
+    }
+    
+    // Show form view
+    const formView = document.getElementById('test-case-form-view');
+    formView.classList.remove('hidden');
+    
+    // Update form title
+    const formTitle = document.getElementById('form-title');
+    const formSubtitle = document.getElementById('form-subtitle');
+    const actionButtons = document.getElementById('tc-action-buttons');
+    
+    if (testCase) {
+        // Edit mode
+        formTitle.textContent = 'Редактирование тест-кейса';
+        formSubtitle.textContent = 'Внесите изменения в тестовый сценарий';
+        actionButtons.classList.remove('hidden');
+        
+        // Fill form with test case data
+        document.getElementById('tc-title').value = testCase.title || testCase.name || '';
+        document.getElementById('tc-description').value = testCase.description || '';
+        document.getElementById('tc-preconditions').value = testCase.condition || '';
+        document.getElementById('tc-priority').value = testCase.priority || 'medium';
+        document.getElementById('tc-type').value = testCase.test_type || 'manual';
+        document.getElementById('tc-platform').value = testCase.platform || 'all';
+        document.getElementById('tc-estimated-time').value = testCase.estimated_time || '';
+        document.getElementById('tc-automation-name').value = testCase.automation_test_name || '';
+        
+        // Set meta information
+        document.getElementById('tc-author').textContent = testCase.author_name || testCase.author || '-';
+        document.getElementById('tc-created-date').textContent = testCase.created_at ? new Date(testCase.created_at).toLocaleString() : '-';
+        document.getElementById('tc-modified-date').textContent = testCase.updated_at ? new Date(testCase.updated_at).toLocaleString() : '-';
+        document.getElementById('tc-modified-by').textContent = testCase.last_modified_by_name || testCase.last_modified_by || '-';
+        
+        // Fill test steps
+        fillTestStepsFromData(testCase.steps, testCase.expected_results);
+        
+        // Fill tags
+        fillTagsFromData(testCase.tags || []);
+        
+        // Show/hide automation section based on test type
+        if (testCase.test_type === 'automated') {
+            document.getElementById('automation-section').classList.remove('hidden');
+        } else {
+            document.getElementById('automation-section').classList.add('hidden');
+        }
+        
+        // Update action buttons for automated test cases
+        const isAutomated = testCase.test_type === 'automated' || testCase.type === 'automated';
+        updateActionButtons(isAutomated, testCase.id);
+        
+        // Store test case ID for saving
+        formView.dataset.testCaseId = testCase.id;
+    } else {
+        // Create mode
+        formTitle.textContent = 'Новый тест-кейс';
+        formSubtitle.textContent = 'Создайте подробный сценарий тестирования';
+        actionButtons.classList.add('hidden');
+        
+        // Reset form
+        document.getElementById('test-case-form').reset();
+        
+        // Clear test steps to default single step
+        document.getElementById('test-steps').innerHTML = `
+            <div class="test-step bg-gray-50 dark:bg-gray-900 rounded-xl p-6 relative group">
+                <div class="flex items-start gap-4">
+                    <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white font-bold flex-shrink-0">
+                        1
+                    </div>
+                    <div class="flex-1">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Действие</label>
+                                <input type="text" placeholder="Опишите действие" 
+                                       class="w-full px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Ожидаемый результат</label>
+                                <input type="text" placeholder="Опишите ожидаемый результат" 
+                                       class="w-full px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all">
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" onclick="removeTestStep(this)" class="text-gray-400 hover:text-red-500 p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <i class="ri-delete-bin-line text-xl"></i>
                     </button>
                 </div>
-            `;
-            
-            // Show context menu
-            contextMenu.classList.remove('hidden');
-            
-            // Add event listeners to context menu items
-            const addTestCaseButton = contextMenu.querySelector('[data-action="add-testcase"]');
-            const addSubfolderButton = contextMenu.querySelector('[data-action="add-subfolder"]');
-            const deleteFolderButton = contextMenu.querySelector('[data-action="delete-folder"]');
-            
-            if (addTestCaseButton) {
-                addTestCaseButton.addEventListener('click', () => {
-                    showTestCaseModal(folderId);
-                });
-            }
-            
-            if (addSubfolderButton) {
-                addSubfolderButton.addEventListener('click', () => {
-                    showFolderModal(folderId);
-                });
-            }
-            
-            if (deleteFolderButton) {
-                deleteFolderButton.addEventListener('click', () => {
-                    // For demonstration purposes, show a confirmation message
-                    if (confirm(i18n.t('delete-folder-confirm') || 'Are you sure you want to delete this folder?')) {
-                        ToastManager.info(i18n.t('delete-folder-not-implemented') || 'Delete folder functionality is not implemented in this demo');
-                    }
-                });
+            </div>
+        `;
+        
+        // Clear tags list
+        document.getElementById('tc-tags-list').innerHTML = '';
+        
+        // Hide automation section by default
+        document.getElementById('automation-section').classList.add('hidden');
+        
+        // Set current user as author
+        const currentUser = localStorage.getItem('flowtest_username') || 'Текущий пользователь';
+        document.getElementById('tc-author').textContent = currentUser;
+        document.getElementById('tc-created-date').textContent = new Date().toLocaleString();
+        document.getElementById('tc-modified-date').textContent = '-';
+        document.getElementById('tc-modified-by').textContent = '-';
+        
+        // Clear test case ID
+        delete formView.dataset.testCaseId;
+    }
+    
+    // Scroll to top
+    window.scrollTo(0, 0);
+    
+    // Focus on title field
+    setTimeout(() => {
+        document.getElementById('tc-title').focus();
+    }, 100);
+};
+
+window.closeTestCaseForm = function() {
+    // Hide form view
+    document.getElementById('test-case-form-view').classList.add('hidden');
+    
+    // Show appropriate view
+    if (window.testCasesPage && window.testCasesPage.testCases.length > 0) {
+        document.getElementById('test-cases-list').classList.remove('hidden');
+    } else {
+        document.getElementById('empty-state').classList.remove('hidden');
+    }
+    
+    // Reset form
+    document.getElementById('test-case-form').reset();
+    document.getElementById('test-steps').innerHTML = `
+        <div class="test-step bg-gray-50 dark:bg-gray-900 rounded-xl p-6 relative group">
+            <div class="flex items-start gap-4">
+                <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white font-bold flex-shrink-0">
+                    1
+                </div>
+                <div class="flex-1">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Действие</label>
+                            <input type="text" placeholder="Опишите действие" 
+                                   class="w-full px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Ожидаемый результат</label>
+                            <input type="text" placeholder="Опишите ожидаемый результат" 
+                                   class="w-full px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all">
+                        </div>
+                    </div>
+                </div>
+                <button type="button" onclick="removeTestStep(this)" class="text-gray-400 hover:text-red-500 p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <i class="ri-delete-bin-line text-xl"></i>
+                </button>
+            </div>
+        </div>
+    `;
+    document.getElementById('tc-tags-list').innerHTML = '';
+    document.getElementById('automation-section').classList.add('hidden');
+};
+
+window.saveTestCase = async function() {
+    const formView = document.getElementById('test-case-form-view');
+    const testCaseId = formView.dataset.testCaseId;
+    
+    // Collect form data
+    const formData = {
+        title: document.getElementById('tc-title').value.trim(),
+        description: document.getElementById('tc-description').value.trim(),
+        condition: document.getElementById('tc-preconditions').value.trim(), // Fixed: changed from preconditions to condition
+        priority: document.getElementById('tc-priority').value,
+        test_type: document.getElementById('tc-type').value,
+        platform: document.getElementById('tc-platform').value,
+        estimated_time: document.getElementById('tc-estimated-time').value.trim(),
+        automation_test_name: document.getElementById('tc-automation-name').value.trim(),
+    };
+    
+    // Validate required fields
+    if (!formData.title) {
+        window.testCasesPage.toastManager.warning('Пожалуйста, введите название тест-кейса');
+        document.getElementById('tc-title').focus();
+        return;
+    }
+    
+    if (!formData.description) {
+        window.testCasesPage.toastManager.warning('Пожалуйста, введите описание тест-кейса');
+        document.getElementById('tc-description').focus();
+        return;
+    }
+    
+    // Collect test steps and format as string for backend
+    const steps = [];
+    const stepElements = document.querySelectorAll('#test-steps .test-step');
+    stepElements.forEach((stepEl, index) => {
+        const actionInput = stepEl.querySelector('input[placeholder="Опишите действие"]');
+        const resultInput = stepEl.querySelector('input[placeholder="Опишите ожидаемый результат"]');
+        if (actionInput.value.trim() || resultInput.value.trim()) {
+            steps.push(`${index + 1}. ${actionInput.value.trim()}`);
+        }
+    });
+    // Convert steps array to string format for backend
+    formData.steps = steps.join('\n');
+    
+    // Collect expected results and format as string for backend
+    const expectedResults = [];
+    stepElements.forEach((stepEl, index) => {
+        const resultInput = stepEl.querySelector('input[placeholder="Опишите ожидаемый результат"]');
+        if (resultInput.value.trim()) {
+            expectedResults.push(`${index + 1}. ${resultInput.value.trim()}`);
+        }
+    });
+    formData.expected_results = expectedResults.join('\n');
+    
+    // Collect tags
+    const tags = [];
+    document.querySelectorAll('#tc-tags-list .tag-item').forEach(tagEl => {
+        const tagText = tagEl.textContent.replace('×', '').trim();
+        if (tagText) tags.push(tagText);
+    });
+    formData.tags = tags;
+    
+    // Add folder if current folder is selected
+    if (window.testCasesPage && window.testCasesPage.currentFolder) {
+        formData.folder = window.testCasesPage.currentFolder.id;
+    }
+    
+    // Add project ID (required by serializer)
+    if (window.testCasesPage && window.testCasesPage.currentProject) {
+        formData.project = window.testCasesPage.currentProject; // currentProject is already the ID, not an object
+        console.log('Added project ID to formData:', formData.project);
+    } else {
+        console.error('Current project not found:', window.testCasesPage?.currentProject);
+        // Fallback: extract project ID from URL or use hardcoded value
+        const urlMatch = window.location.pathname.match(/\/projects\/(\d+)/);
+        if (urlMatch) {
+            formData.project = parseInt(urlMatch[1]);
+            console.log('Extracted project ID from URL:', formData.project);
+        }
+    }
+    
+    try {
+        if (testCaseId) {
+            // Update existing test case
+            console.log('Updating test case:', testCaseId, formData);
+            if (window.testCasesPage && window.testCasesPage.currentProject) {
+                await window.testCasesPage.testCaseClient.updateTestCase(
+                    window.testCasesPage.currentProject,
+                    testCaseId,
+                    formData
+                );
+                window.testCasesPage.toastManager.success('Тест-кейс обновлен');
             }
         } else {
-            contextMenu.classList.add('hidden');
+            // Create new test case
+            console.log('Creating test case:', formData);
+            console.log('Final formData keys:', Object.keys(formData));
+            if (window.testCasesPage && window.testCasesPage.currentProject) {
+                const newTestCase = await window.testCasesPage.testCaseClient.createTestCase(
+                    window.testCasesPage.currentProject,
+                    formData
+                );
+                window.testCasesPage.toastManager.success('Тест-кейс создан');
+                
+                // Update URL to show the newly created test case
+                if (newTestCase && newTestCase.id) {
+                    window.testCasesPage.updateUrlForTestCase(newTestCase.id, formData.folder);
+                    
+                    // Update form to editing mode
+                    const formView = document.getElementById('test-case-form-view');
+                    if (formView) {
+                        formView.dataset.testCaseId = newTestCase.id;
+                    }
+                    
+                    // Update header to show we're now editing
+                    const header = document.querySelector('#test-case-form-view h2');
+                    if (header) {
+                        header.textContent = 'Редактировать тест-кейс';
+                    }
+                }
+            } else {
+                window.testCasesPage.toastManager.error('Пожалуйста, выберите проект');
+                return;
+            }
         }
-    });
-    
-    // Add test case item context menu
-    document.addEventListener('contextmenu', (event) => {
-        const testCaseItem = event.target.closest('[data-testcase-id]');
         
-        if (testCaseItem && !event.target.closest('.tree-item')) {
-            event.preventDefault();
-            
-            // Get test case ID
-            const testCaseId = testCaseItem.getAttribute('data-testcase-id');
-            
-            // Position context menu
-            contextMenu.style.top = `${event.clientY}px`;
-            contextMenu.style.left = `${event.clientX}px`;
-            
-            // Set context menu content
-            contextMenu.innerHTML = `
-                <div class="py-1">
-                    <button class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700" data-action="run-testcase" data-testcase-id="${testCaseId}">
-                        <i class="ri-play-circle-line mr-2"></i> ${i18n.t('run') || 'Run'}
-                    </button>
-                    <button class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700" data-action="edit-testcase" data-testcase-id="${testCaseId}">
-                        <i class="ri-edit-line mr-2"></i> ${i18n.t('edit') || 'Edit'}
-                    </button>
-                    <button class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700" data-action="view-testcase" data-testcase-id="${testCaseId}">
-                        <i class="ri-eye-line mr-2"></i> ${i18n.t('view') || 'View Details'}
-                    </button>
-                    <div class="border-t border-gray-200 dark:border-gray-700"></div>
-                    <button class="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700" data-action="delete-testcase" data-testcase-id="${testCaseId}">
-                        <i class="ri-delete-bin-line mr-2"></i> ${i18n.t('delete') || 'Delete'}
+        // DON'T close form - keep it open
+        // For creating new test case, reset form fields. For editing, keep the data
+        if (!testCaseId) {
+            // Only reset form for new test case creation
+            document.getElementById('test-case-form').reset();
+        document.getElementById('test-steps').innerHTML = `
+            <div class="test-step bg-gray-50 dark:bg-gray-900 rounded-xl p-6 relative group">
+                <div class="flex items-start gap-4">
+                    <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white font-bold flex-shrink-0">
+                        1
+                    </div>
+                    <div class="flex-1">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Действие</label>
+                                <input type="text" placeholder="Опишите действие" 
+                                       class="w-full px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Ожидаемый результат</label>
+                                <input type="text" placeholder="Опишите ожидаемый результат" 
+                                       class="w-full px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all">
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" onclick="removeTestStep(this)" class="text-gray-400 hover:text-red-500 p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <i class="ri-delete-bin-line text-xl"></i>
                     </button>
                 </div>
-            `;
+            </div>
+        `;
+            document.getElementById('tc-tags-list').innerHTML = '';
+        }
+        
+        // Refresh ONLY the folder tree to update counters
+        if (window.testCasesPage) {
+            window.testCasesPage.loadFolders();
+        }
+    } catch (error) {
+        console.error('Error saving test case:', error);
+        window.testCasesPage.toastManager.error('Ошибка при сохранении тест-кейса: ' + (error.message || 'Неизвестная ошибка'));
+    }
+};
+
+window.deleteTestCase = async function() {
+    if (!confirm('Вы уверены, что хотите удалить этот тест-кейс?')) {
+        return;
+    }
+    
+    const formView = document.getElementById('test-case-form-view');
+    const testCaseId = formView.dataset.testCaseId;
+    
+    if (!testCaseId) return;
+    
+    try {
+        console.log('Deleting test case:', testCaseId);
+        
+        if (window.testCasesPage && window.testCasesPage.currentProject) {
+            await window.testCasesPage.testCaseClient.deleteTestCase(
+                window.testCasesPage.currentProject,
+                testCaseId
+            );
+            window.testCasesPage.toastManager.success('Тест-кейс удален');
+            window.closeTestCaseForm();
             
-            // Show context menu
-            contextMenu.classList.remove('hidden');
-            
-            // Add event listeners to context menu items
-            const runButton = contextMenu.querySelector('[data-action="run-testcase"]');
-            const editButton = contextMenu.querySelector('[data-action="edit-testcase"]');
-            const viewButton = contextMenu.querySelector('[data-action="view-testcase"]');
-            const deleteButton = contextMenu.querySelector('[data-action="delete-testcase"]');
-            
-            if (runButton) {
-                runButton.addEventListener('click', () => {
-                    runTestCase(testCaseId);
-                });
-            }
-            
-            if (editButton) {
-                editButton.addEventListener('click', () => {
-                    editTestCase(testCaseId);
-                });
-            }
-            
-            if (viewButton) {
-                viewButton.addEventListener('click', () => {
-                    showTestCaseDetails(testCaseId);
-                });
-            }
-            
-            if (deleteButton) {
-                deleteButton.addEventListener('click', () => {
-                    if (confirm(i18n.t('delete-confirm') || 'Are you sure you want to delete this test case?')) {
-                        deleteTestCase(testCaseId);
-                    }
-                });
+            // Refresh test cases list
+            if (window.testCasesPage.currentFolder) {
+                window.testCasesPage.loadTestCases(window.testCasesPage.currentFolder.id);
             }
         }
+    } catch (error) {
+        console.error('Error deleting test case:', error);
+        window.testCasesPage.toastManager.error('Ошибка при удалении тест-кейса: ' + (error.message || 'Неизвестная ошибка'));
+    }
+};
+
+window.toggleAutomationSection = function() {
+    const type = document.getElementById('tc-type').value;
+    const automationSection = document.getElementById('automation-section');
+    
+    if (type === 'automated') {
+        automationSection.classList.remove('hidden');
+    } else {
+        automationSection.classList.add('hidden');
+    }
+};
+
+window.addTestStep = function() {
+    const stepsContainer = document.getElementById('test-steps');
+    const stepCount = stepsContainer.querySelectorAll('.test-step').length + 1;
+    
+    const stepHtml = `
+        <div class="test-step bg-gray-50 dark:bg-gray-900 rounded-xl p-6 relative group">
+            <div class="flex items-start gap-4">
+                <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white font-bold flex-shrink-0">
+                    ${stepCount}
+                </div>
+                <div class="flex-1">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Действие</label>
+                            <input type="text" placeholder="Опишите действие" 
+                                   class="w-full px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Ожидаемый результат</label>
+                            <input type="text" placeholder="Опишите ожидаемый результат" 
+                                   class="w-full px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all">
+                        </div>
+                    </div>
+                </div>
+                <button type="button" onclick="removeTestStep(this)" class="text-gray-400 hover:text-red-500 p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <i class="ri-delete-bin-line text-xl"></i>
+                </button>
+            </div>
+        </div>
+    `;
+    
+    stepsContainer.insertAdjacentHTML('beforeend', stepHtml);
+    
+    // Focus on the new action input
+    const newStep = stepsContainer.lastElementChild;
+    const actionInput = newStep.querySelector('input[placeholder="Опишите действие"]');
+    if (actionInput) {
+        actionInput.focus();
+    }
+};
+
+window.removeTestStep = function(button) {
+    const step = button.closest('.test-step');
+    const stepsContainer = document.getElementById('test-steps');
+    
+    // Don't remove if it's the last step
+    if (stepsContainer.querySelectorAll('.test-step').length === 1) {
+        window.testCasesPage.toastManager.warning('Должен остаться хотя бы один шаг');
+        return;
+    }
+    
+    step.remove();
+    
+    // Renumber remaining steps
+    stepsContainer.querySelectorAll('.test-step').forEach((stepEl, index) => {
+        const numberEl = stepEl.querySelector('.w-10.h-10');
+        if (numberEl) {
+            numberEl.textContent = index + 1;
+        }
+    });
+};
+
+window.addTag = function() {
+    const input = document.getElementById('tc-tag-input');
+    const tagText = input.value.trim();
+    
+    if (!tagText) return;
+    
+    // Check if tag already exists
+    const existingTags = Array.from(document.querySelectorAll('#tc-tags-list .tag-item')).map(el => 
+        el.textContent.replace('×', '').trim()
+    );
+    
+    if (existingTags.includes(tagText)) {
+        window.testCasesPage.toastManager.warning('Этот тег уже добавлен');
+        return;
+    }
+    
+    const tagHtml = `
+        <span class="tag-item inline-flex items-center gap-2 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 py-1.5 rounded-full text-sm">
+            ${tagText}
+            <button type="button" onclick="removeTag(this)" class="hover:text-blue-900 dark:hover:text-blue-100 transition-colors">
+                <i class="ri-close-line text-sm"></i>
+            </button>
+        </span>
+    `;
+    
+    document.getElementById('tc-tags-list').insertAdjacentHTML('beforeend', tagHtml);
+    input.value = '';
+    input.focus();
+};
+
+window.removeTag = function(button) {
+    button.closest('.tag-item').remove();
+};
+
+// Helper functions for filling form data
+function fillTestStepsFromData(stepsText, expectedResultsText) {
+    const stepsContainer = document.getElementById('test-steps');
+    stepsContainer.innerHTML = '';
+    
+    // Parse steps and expected results
+    const steps = stepsText ? stepsText.split('\n').filter(s => s.trim()) : [];
+    const expectedResults = expectedResultsText ? expectedResultsText.split('\n').filter(s => s.trim()) : [];
+    
+    // Create step elements
+    const maxSteps = Math.max(steps.length, expectedResults.length, 1);
+    
+    for (let i = 0; i < maxSteps; i++) {
+        const stepDiv = document.createElement('div');
+        stepDiv.className = 'test-step bg-gray-50 dark:bg-gray-900 rounded-xl p-6 relative group';
+        
+        stepDiv.innerHTML = `
+            <div class="flex items-start gap-4">
+                <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white font-bold flex-shrink-0">
+                    ${i + 1}
+                </div>
+                <div class="flex-1">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Действие</label>
+                            <input type="text" placeholder="Опишите действие" 
+                                   value="${cleanStepText(steps[i] || '')}"
+                                   class="w-full px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Ожидаемый результат</label>
+                            <input type="text" placeholder="Опишите ожидаемый результат" 
+                                   value="${cleanStepText(expectedResults[i] || '')}"
+                                   class="w-full px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all">
+                        </div>
+                    </div>
+                </div>
+                <button type="button" onclick="removeTestStep(this)" class="text-gray-400 hover:text-red-500 p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <i class="ri-delete-bin-line text-xl"></i>
+                </button>
+            </div>
+        `;
+        
+        stepsContainer.appendChild(stepDiv);
+    }
+}
+
+function cleanStepText(text) {
+    // Remove step numbers like "1. ", "2. " etc.
+    return text.replace(/^\d+\.\s*/, '').trim();
+}
+
+function fillTagsFromData(tags) {
+    const tagsContainer = document.getElementById('tc-tags-list');
+    tagsContainer.innerHTML = '';
+    
+    tags.forEach(tag => {
+        const tagElement = document.createElement('span');
+        tagElement.className = 'tag-item inline-flex items-center gap-2 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 py-1.5 rounded-full text-sm';
+        tagElement.innerHTML = `
+            ${tag}
+            <button type="button" onclick="removeTag(this)" class="hover:text-blue-900 dark:hover:text-blue-100 transition-colors">
+                <i class="ri-close-line text-sm"></i>
+            </button>
+        `;
+        tagsContainer.appendChild(tagElement);
     });
 }
+
+// Export for use in other modules if needed
+export default TestCasesPage;

@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     'testcases',
     'automation',
     'reports',
+    'events',
     'api',
 ]
 
@@ -224,13 +225,12 @@ SIMPLE_JWT = {
 
 # CORS Configuration
 CORS_ALLOW_ALL_ORIGINS = DEBUG  # In debug mode, allow all origins
-CORS_ALLOWED_ORIGINS = []  # Add your specific origins here for production
-
-if not DEBUG:
-    CORS_ALLOWED_ORIGINS = [
-        "http://localhost:8080",
-        "http://127.0.0.1:8080",
-    ]
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
+    "http://localhost",
+    "http://localhost:80"
+]
 
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_METHODS = [
@@ -251,6 +251,9 @@ CORS_ALLOW_HEADERS = [
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
+    'access-control-allow-origin',
+    'access-control-allow-methods',
+    'access-control-allow-headers'
 ]
 
 # Celery Configuration
@@ -266,6 +269,20 @@ CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 
 # Celery beat scheduler
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+
+# Celery beat schedule
+CELERY_BEAT_SCHEDULE = {
+    'process-due-events': {
+        'task': 'automation.tasks.process_due_events',
+        'schedule': 60.0,  # Run every minute
+        'options': {'expires': 30}  # Task expires in 30 seconds if not executed
+    },
+    'cleanup-old-executions': {
+        'task': 'automation.tasks.cleanup_old_executions',
+        'schedule': 24 * 60 * 60.0,  # Run daily
+        'options': {'expires': 60 * 60}  # Task expires in 1 hour
+    },
+}
 
 # Logging Configuration
 LOGGING = {

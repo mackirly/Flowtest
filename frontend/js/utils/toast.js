@@ -1,5 +1,5 @@
 /**
- * Toast notification system for FlowTest 2.0
+ * Toast notification system for FlowTest
  * Creates temporary notifications that appear at the bottom of the screen
  */
 const ToastManager = (() => {
@@ -231,3 +231,4 @@ document.addEventListener('DOMContentLoaded', ToastManager.initialize);
 
 // Export for use in other modules
 export default ToastManager;
+export { ToastManager };

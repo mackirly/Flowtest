@@ -7,129 +7,144 @@ import ToastManager from '../utils/toast.js';
 import i18n from '../i18n/i18n.js';
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Получаем элементы формы и уведомлений
+    // Form elements
     const loginForm = document.getElementById('login-form');
     const loginError = document.getElementById('login-error');
-    const loginSuccess = document.getElementById('login-success');
     
-    // Add a small delay to prevent page flickering
-    // Initialize auth first
+    // Add logging for initialization
+    console.log('[Login] Page loaded, checking auth status...');
+    
+    // Initialize auth first to check if already logged in
     auth.initialize().then(async (initialized) => {
-        console.log('Checking authentication status...');
         try {
             const isAuth = await auth.isAuthenticated();
-            console.log('Authentication status:', isAuth);
+            console.log('[Login] Authentication status:', isAuth);
             
             if (isAuth) {
-                console.log('User is authenticated, checking profile...');
-                try {
-                    const user = await auth.getUserProfile();
-                    console.log('User profile:', user);
+                console.log('[Login] User is authenticated, checking profile...');
+                const user = await auth.getUserProfile();
+                console.log('[Login] User profile:', user);
+                
+                // Redirect if we have valid user and are on login page
+                if (user && window.location.pathname.endsWith('login.html')) {
+                    console.log('[Login] Redirecting authenticated user to dashboard...');
                     
-                    // Only redirect if we're on the login page and have a valid user
-                    if (window.location.pathname.endsWith('login.html')) {
-                        console.log('User is authenticated, redirecting to index.html');
-                        window.location.href = 'index.html'; // Убираем слеш в начале пути
-                        return; // Exit to prevent further execution
+                    // Check for saved redirect URL first
+                    const savedRedirectUrl = sessionStorage.getItem('redirectUrl');
+                    let redirectUrl;
+                    
+                    if (savedRedirectUrl) {
+                        console.log('[Login] Found saved redirect URL:', savedRedirectUrl);
+                        redirectUrl = savedRedirectUrl;
+                        sessionStorage.removeItem('redirectUrl');
+                    } else {
+                        // Build default redirect URL
+                        const basePath = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/'));
+                        redirectUrl = new URL('/index.html', window.location.origin + basePath).href;
                     }
-                } catch (profileError) {
-                    console.error('Error getting user profile:', profileError);
-                    // If we can't get profile, clear auth and stay on login page
-                    if (!window.location.pathname.endsWith('login.html')) {
-                        window.location.href = 'login.html'; // Убираем слеш в начале пути
-                    }
-                    return;
+                    
+                    console.log('[Login] Redirect URL:', redirectUrl);
+                    
+                    // Use replace for proper redirect
+                    window.location.replace(redirectUrl);
                 }
             } else {
-                console.log('User is not authenticated');
-                // If not authenticated, make sure we're on the login page
-                if (!window.location.pathname.endsWith('login.html')) {
-                    console.log('Redirecting to login page - not authenticated');
-                    window.location.href = 'login.html'; // Убираем слеш в начале пути
-                }
+                console.log('[Login] Not authenticated');
             }
         } catch (error) {
-            console.error('Error checking authentication:', error);
-            // On error, redirect to login page if not already there
-            if (!window.location.pathname.endsWith('login.html')) {
-                window.location.href = 'login.html'; // Убираем слеш в начале пути
-            }
+            console.error('[Login] Error during initialization:', error);
+            auth.logout();
         }
     });
     
     loginForm.addEventListener('submit', async function(e) {
         e.preventDefault();
+        console.log('[Login] Form submitted');
         
-        // Clear previous errors
+        // Clear previous error
         loginError.classList.add('hidden');
         loginError.textContent = '';
         
+        // Get form data
         const username = document.getElementById('email').value;
         const password = document.getElementById('password').value;
         const remember = document.getElementById('remember').checked;
         
-        // Перемещаем объявление переменных за пределы блока try-catch
+        // Add loading state
         const submitButton = loginForm.querySelector('button[type="submit"]');
         const originalButtonText = submitButton.innerHTML;
+        submitButton.disabled = true;
+        submitButton.innerHTML = '<span class="loading-spinner"></span><span>Signing in...</span>';
         
         try {
-            console.log('Attempting to login...');
-            // Call login API with retry logic
+            console.log('[Login] Attempting login for user:', username);
             const user = await auth.login(username, password);
             
-            if (!user) {
-                throw new Error('No user data received');
+            if (!user) throw new Error('No user data received');
+            
+            console.log('[Login] Login successful:', user);
+            
+            // Small delay to ensure token is stored
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            // Verify token is stored
+            const token = localStorage.getItem('flowtest_access_token');
+            if (!token) {
+                throw new Error('Token not stored after login');
             }
             
-            console.log('Login successful, user:', user);
+            // Show success message
+            ToastManager.success(i18n.t('login-success') || 'Login successful');
             
-            // Логируем информацию для отладки
-            if (user.is_superuser || user.role_name === 'Admin' || user.username === 'root') {
-                console.log('Admin user logged in successfully');
+            // Update button state
+            submitButton.innerHTML = '<span class="loading-spinner"></span><span>Redirecting...</span>';
+            
+            // Check if there's a saved redirect URL
+            const savedRedirectUrl = sessionStorage.getItem('redirectUrl');
+            let redirectUrl;
+            
+            if (savedRedirectUrl) {
+                console.log('[Login] Found saved redirect URL:', savedRedirectUrl);
+                redirectUrl = savedRedirectUrl;
+                sessionStorage.removeItem('redirectUrl'); // Clean up
             } else {
-                console.log('Regular user logged in successfully');
+                // Build default redirect URL relative to current path
+                const basePath = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/'));
+                redirectUrl = new URL('/index.html', window.location.origin + basePath).href;
+                console.log('[Login] Built default redirect URL:', redirectUrl);
             }
             
-            // Показываем зеленое уведомление Toast об успешном входе
-            ToastManager.success('Успешный вход в систему');
+            console.log('[Login] Redirecting to:', redirectUrl);
             
-            // Добавляем небольшую задержку перед редиректом
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            // Small delay then redirect
+            await new Promise(resolve => setTimeout(resolve, 1000));
             
-            console.log('Redirecting to index.html');
-            window.location.href = 'index.html';
+            try {
+                window.location.replace(redirectUrl);
+            } catch (e) {
+                console.error('[Login] Redirect failed:', e);
+                window.location.href = redirectUrl;
+            }
             
         } catch (error) {
-            console.error('Login error:', error);
+            console.error('[Login] Login failed:', error);
             
-            // Determine error message
-            let errorMessage = 'Ошибка при входе в систему. Пожалуйста, попробуйте снова.';
+            // Reset button state
+            submitButton.disabled = false;
+            submitButton.innerHTML = originalButtonText;
             
+            // Get error message
+            let errorMessage = 'Failed to sign in. Please try again.';
             if (error.message.includes('429')) {
-                errorMessage = 'Слишком много попыток входа. Пожалуйста, подождите несколько минут и попробуйте снова.';
-            } else if (error.message.includes('401') || error.message.includes('credentials') || error.message.includes('Authentication failed')) {
-                errorMessage = 'Неверное имя пользователя или пароль. Пожалуйста, попробуйте снова.';
+                errorMessage = 'Too many attempts. Please wait a few minutes and try again.';
+            } else if (error.message.includes('401') || error.message.includes('credentials')) {
+                errorMessage = 'Invalid username or password';
             } else if (error.message) {
                 errorMessage = error.message;
             }
             
-            // Показываем красное toast-уведомление об ошибке
-            console.error('Login failed:', error);
+            // Show error message
             ToastManager.error(errorMessage);
-            
-            // Reset button with a small delay to prevent rapid clicks
-            setTimeout(() => {
-                submitButton.disabled = false;
-                submitButton.innerHTML = originalButtonText;
-            }, 1000);
-        }
-    });
-    
-    // Handle language changes
-    window.addEventListener('language-changed', () => {
-        // Update any dynamic content that needs translation
-        if (loginError && !loginError.classList.contains('hidden')) {
-            loginError.textContent = i18n.t('login-error');
         }
     });
 });

@@ -36,10 +36,33 @@
     
     <link rel="stylesheet" href="css/tailwind-base.css">
     <link rel="stylesheet" href="css/style.css">
+    <style>
+        #user-avatar {
+            position: relative;
+        }
+        #user-avatar-img {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 9999px;
+        }
+        #user-avatar-img:not(.hidden) {
+            display: block !important;
+        }
+        #user-avatar-img.hidden + #user-initials {
+            display: flex !important;
+        }
+        #user-initials {
+            position: relative;
+            z-index: 1;
+        }
+    </style>
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@6.6.6/css/flag-icons.min.css"/>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.2.0/flowbite.min.css" rel="stylesheet">
-    <script type="module" src="js/utils/theme.js"></script>
+    <script type="module" src="js/utils/init-settings.js"></script>
     
     <script>
     // Настройка Tailwind для работы с темной темой
@@ -242,7 +265,7 @@
 <body class="bg-gray-50 dark:bg-gray-900">
     <div class="min-h-screen flex">
         <!-- Sidebar -->
-        <aside class="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 hidden md:block h-screen sticky top-0">
+        <aside class="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 hidden md:block h-screen fixed top-0 left-0">
             <div class="p-4 sticky top-0">
                 <img src="images/FlowTest.png" alt="Company Logo" class="h-12 w-auto mb-8" data-i18n="companyLogo">
                 <nav class="space-y-2">
@@ -311,8 +334,9 @@
                         <!-- User Menu -->
                         <div class="relative">
                             <button id="user-menu-button" class="flex items-center space-x-2 focus:outline-none">
-                                <div id="user-avatar" class="w-10 h-10 rounded-full bg-coral-500 flex items-center justify-center text-white">
-                                    <span id="user-initials">U</span>
+                                <div id="user-avatar" class="relative w-10 h-10 rounded-full bg-coral-500 flex items-center justify-center text-white overflow-hidden">
+                                    <img id="user-avatar-img" class="hidden w-full h-full object-cover" src="" alt="User avatar">
+                                    <span id="user-initials" class="text-sm font-medium">U</span>
                                 </div>
                                 <span id="user-name" class="inline-block text-sm text-gray-700 dark:text-gray-200">User</span>
                                 <i class="ri-arrow-down-s-line text-gray-500 dark:text-gray-400"></i>
@@ -338,7 +362,7 @@
             </header>
 
             <!-- Main content -->
-            <main class="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900 p-4">
+            <main class="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900 p-4" style="margin-left: var(--sidebar-width, 256px); transition: margin-left 0.1s ease;">
                 <!-- Error container -->
                 <div id="dashboard-error" class="mb-4"></div>
                 
@@ -457,38 +481,84 @@
                         </div>
                     </div>
 
-                    <!-- Recent activity and project sections -->
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <!-- Projects section -->
+                    <!-- Дополнительные графики -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                        <!-- Тесты по времени -->
+                        <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+                            <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">Тесты по времени</h3>
+                            <div class="chart-container relative" id="testsTimeChartContainer">
+                                <canvas id="testsTimeChart"></canvas>
+                                <div class="no-data-overlay">
+                                    <div class="text-gray-400 dark:text-gray-500 mb-3">
+                                        <i class="ri-time-line text-5xl"></i>
+                                    </div>
+                                    <p class="text-gray-500 dark:text-gray-400 text-center">Недостаточно данных для построения графика.</p>
+                                    <p class="text-sm text-gray-400 dark:text-gray-500 mt-2 text-center">Запустите несколько тестов, чтобы увидеть статистику.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Время выполнения -->
+                        <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+                            <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">Время выполнения</h3>
+                            <div class="chart-container relative" id="executionTimeChartContainer">
+                                <canvas id="executionTimeChart"></canvas>
+                                <div class="no-data-overlay">
+                                    <div class="text-gray-400 dark:text-gray-500 mb-3">
+                                        <i class="ri-timer-line text-5xl"></i>
+                                    </div>
+                                    <p class="text-gray-500 dark:text-gray-400 text-center">Недостаточно данных для построения графика.</p>
+                                    <p class="text-sm text-gray-400 dark:text-gray-500 mt-2 text-center">Запустите несколько тестов, чтобы увидеть статистику.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Приоритеты и списки топов -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <!-- Распределение по приоритетам -->
+                        <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+                            <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">Распределение по приоритетам</h3>
+                            <div class="chart-container relative" id="priorityChartContainer">
+                                <canvas id="priorityChart"></canvas>
+                                <div class="no-data-overlay">
+                                    <div class="text-gray-400 dark:text-gray-500 mb-3">
+                                        <i class="ri-bar-chart-line text-5xl"></i>
+                                    </div>
+                                    <p class="text-gray-500 dark:text-gray-400 text-center">Недостаточно данных для построения графика.</p>
+                                    <p class="text-sm text-gray-400 dark:text-gray-500 mt-2 text-center">Создайте тест-кейсы с приоритетами.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Топ активных пользователей -->
                         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
                             <div class="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-                                <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200" data-i18n="projects">Проекты</h2>
-                                <a href="projects.html" class="text-sm text-coral-600 dark:text-coral-400 hover:underline flex items-center">
-                                    <span data-i18n="viewAll">Все проекты</span>
-                                    <i class="ri-arrow-right-line ml-1"></i>
-                                </a>
+                                <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200">Топ активных пользователей</h2>
                             </div>
-                            <div class="p-4" id="projects-list">
+                            <div class="p-4" id="active-users-list">
                                 <div class="text-center py-8">
-                                    <div class="loading-spinner mx-auto mb-4"></div>
-                                    <p class="text-gray-500 dark:text-gray-400" data-i18n="loadingProjects">Загрузка проектов...</p>
+                                    <div class="text-gray-400 dark:text-gray-500 mb-3">
+                                        <i class="ri-user-star-line text-4xl"></i>
+                                    </div>
+                                    <p class="text-gray-500 dark:text-gray-400">Нет данных о пользователях</p>
+                                    <p class="text-sm text-gray-400 dark:text-gray-500 mt-2">Создайте тест-кейсы, чтобы увидеть активность.</p>
                                 </div>
                             </div>
                         </div>
                         
-                        <!-- Recent activity section -->
+                        <!-- Топ падающих тестов -->
                         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
                             <div class="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-                                <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200" data-i18n="recentActivity">Последние действия</h2>
-                                <a href="activity.html" class="text-sm text-coral-600 dark:text-coral-400 hover:underline flex items-center">
-                                    <span data-i18n="viewAll">Все действия</span>
-                                    <i class="ri-arrow-right-line ml-1"></i>
-                                </a>
+                                <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200">Топ падающих тестов</h2>
                             </div>
-                            <div class="p-4" id="activity-list">
+                            <div class="p-4" id="failing-tests-list">
                                 <div class="text-center py-8">
-                                    <div class="loading-spinner mx-auto mb-4"></div>
-                                    <p class="text-gray-500 dark:text-gray-400" data-i18n="loadingActivity">Загрузка последних действий...</p>
+                                    <div class="text-gray-400 dark:text-gray-500 mb-3">
+                                        <i class="ri-bug-line text-4xl"></i>
+                                    </div>
+                                    <p class="text-gray-500 dark:text-gray-400">Нет падающих тестов</p>
+                                    <p class="text-sm text-gray-400 dark:text-gray-500 mt-2">Запустите тесты, чтобы увидеть статистику.</p>
                                 </div>
                             </div>
                         </div>
@@ -500,7 +570,7 @@
             <footer class="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 py-4">
                 <div class="container mx-auto px-4">
                     <div class="flex flex-col md:flex-row items-center justify-between">
-                        <p class="text-gray-600 dark:text-gray-400 text-sm">&copy; 2025 FlowTest 2.0. All rights reserved.</p>
+                        <p class="text-gray-600 dark:text-gray-400 text-sm">&copy; 2025 FlowTest. All rights reserved.</p>
                         <div class="flex space-x-4 mt-4 md:mt-0">
                             <a href="#" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 text-sm" data-i18n="privacyPolicy">Политика конфиденциальности</a>
                             <a href="#" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 text-sm" data-i18n="termsOfService">Условия использования</a>
@@ -634,8 +704,16 @@
         document.addEventListener('DOMContentLoaded', function() {
             // Initialize charts when no data is available yet
             function initializeEmptyCharts() {
+                const isDark = document.documentElement.classList.contains('dark');
+                const gridColor = isDark ? 'rgba(75, 85, 99, 0.15)' : 'rgba(209, 213, 219, 0.5)';
+                const textColor = isDark ? '#9CA3AF' : '#6B7280';
+                const tooltipBg = isDark ? '#374151' : '#FFF';
+                const tooltipTitle = isDark ? '#E5E7EB' : '#1F2937';
+                const tooltipBody = isDark ? '#9CA3AF' : '#4B5563';
+                const tooltipBorder = isDark ? '#4B5563' : '#E5E7EB';
+
                 // Success Rate Chart
-                const successRateCtx = document.getElementById('successRateChart').getContext('2d');
+                const successRateCtx = document.getElementById('successRateChart')?.getContext('2d');
                 if (successRateCtx) {
                     new Chart(successRateCtx, {
                         type: 'line',
@@ -661,16 +739,16 @@
                                         boxWidth: 15,
                                         usePointStyle: true,
                                         pointStyle: 'circle',
-                                        color: document.documentElement.classList.contains('dark') ? '#E5E7EB' : '#4B5563'
+                                        color: isDark ? '#E5E7EB' : '#4B5563'
                                     }
                                 },
                                 tooltip: {
                                     mode: 'index',
                                     intersect: false,
-                                    backgroundColor: document.documentElement.classList.contains('dark') ? '#374151' : '#FFF',
-                                    titleColor: document.documentElement.classList.contains('dark') ? '#E5E7EB' : '#1F2937',
-                                    bodyColor: document.documentElement.classList.contains('dark') ? '#9CA3AF' : '#4B5563',
-                                    borderColor: document.documentElement.classList.contains('dark') ? '#4B5563' : '#E5E7EB',
+                                    backgroundColor: tooltipBg,
+                                    titleColor: tooltipTitle,
+                                    bodyColor: tooltipBody,
+                                    borderColor: tooltipBorder,
                                     borderWidth: 1,
                                     padding: 10,
                                     displayColors: false
@@ -679,25 +757,15 @@
                             scales: {
                                 x: {
                                     display: true,
-                                    grid: {
-                                        display: true,
-                                        color: document.documentElement.classList.contains('dark') ? 'rgba(75, 85, 99, 0.15)' : 'rgba(209, 213, 219, 0.5)'
-                                    },
-                                    ticks: {
-                                        color: document.documentElement.classList.contains('dark') ? '#9CA3AF' : '#6B7280'
-                                    }
+                                    grid: { display: true, color: gridColor },
+                                    ticks: { color: textColor }
                                 },
                                 y: {
                                     display: true,
-                                    grid: {
-                                        display: true,
-                                        color: document.documentElement.classList.contains('dark') ? 'rgba(75, 85, 99, 0.15)' : 'rgba(209, 213, 219, 0.5)'
-                                    },
+                                    grid: { display: true, color: gridColor },
                                     ticks: {
-                                        color: document.documentElement.classList.contains('dark') ? '#9CA3AF' : '#6B7280',
-                                        callback: function(value) {
-                                            return value + '%';
-                                        }
+                                        color: textColor,
+                                        callback: function(value) { return value + '%'; }
                                     },
                                     min: 0,
                                     max: 100
@@ -708,7 +776,7 @@
                 }
 
                 // Results Chart (Doughnut)
-                const resultsCtx = document.getElementById('resultsChart').getContext('2d');
+                const resultsCtx = document.getElementById('resultsChart')?.getContext('2d');
                 if (resultsCtx) {
                     new Chart(resultsCtx, {
                         type: 'doughnut',
@@ -716,11 +784,7 @@
                             labels: ['Успешные', 'Неудачные', 'В ожидании'],
                             datasets: [{
                                 data: [0, 0, 0],
-                                backgroundColor: [
-                                    '#10B981', // green
-                                    '#EF4444', // red
-                                    '#F59E0B'  // yellow
-                                ],
+                                backgroundColor: ['#10B981', '#EF4444', '#F59E0B'],
                                 borderWidth: 0,
                                 hoverOffset: 4
                             }]
@@ -737,17 +801,174 @@
                                         usePointStyle: true,
                                         pointStyle: 'circle',
                                         padding: 15,
-                                        color: document.documentElement.classList.contains('dark') ? '#E5E7EB' : '#4B5563'
+                                        color: isDark ? '#E5E7EB' : '#4B5563'
                                     }
                                 },
                                 tooltip: {
-                                    backgroundColor: document.documentElement.classList.contains('dark') ? '#374151' : '#FFF',
-                                    titleColor: document.documentElement.classList.contains('dark') ? '#E5E7EB' : '#1F2937',
-                                    bodyColor: document.documentElement.classList.contains('dark') ? '#9CA3AF' : '#4B5563',
-                                    borderColor: document.documentElement.classList.contains('dark') ? '#4B5563' : '#E5E7EB',
+                                    backgroundColor: tooltipBg,
+                                    titleColor: tooltipTitle,
+                                    bodyColor: tooltipBody,
+                                    borderColor: tooltipBorder,
                                     borderWidth: 1,
                                     padding: 10,
                                     displayColors: true,
+                                    callbacks: {
+                                        label: function(context) {
+                                            const label = context.label || '';
+                                            const value = context.raw || 0;
+                                            const total = context.dataset.data.reduce((acc, val) => acc + val, 0);
+                                            const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
+                                            return `${label}: ${value} (${percentage}%)`;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+
+                // Tests Over Time Chart
+                const testsTimeCtx = document.getElementById('testsTimeChart')?.getContext('2d');
+                if (testsTimeCtx) {
+                    new Chart(testsTimeCtx, {
+                        type: 'bar',
+                        data: {
+                            labels: [],
+                            datasets: [{
+                                label: 'Количество тестов',
+                                data: [],
+                                backgroundColor: 'rgba(255, 127, 80, 0.8)',
+                                borderColor: '#FF7F50',
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    backgroundColor: tooltipBg,
+                                    titleColor: tooltipTitle,
+                                    bodyColor: tooltipBody,
+                                    borderColor: tooltipBorder,
+                                    borderWidth: 1,
+                                    padding: 10
+                                }
+                            },
+                            scales: {
+                                x: {
+                                    display: true,
+                                    grid: { display: true, color: gridColor },
+                                    ticks: { color: textColor }
+                                },
+                                y: {
+                                    display: true,
+                                    grid: { display: true, color: gridColor },
+                                    ticks: { color: textColor },
+                                    beginAtZero: true
+                                }
+                            }
+                        }
+                    });
+                }
+
+                // Execution Time Chart
+                const executionTimeCtx = document.getElementById('executionTimeChart')?.getContext('2d');
+                if (executionTimeCtx) {
+                    new Chart(executionTimeCtx, {
+                        type: 'line',
+                        data: {
+                            labels: [],
+                            datasets: [{
+                                label: 'Время выполнения (мс)',
+                                data: [],
+                                borderColor: '#8B5CF6',
+                                backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                                tension: 0.4,
+                                fill: true
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    display: true,
+                                    position: 'top',
+                                    labels: {
+                                        boxWidth: 15,
+                                        usePointStyle: true,
+                                        pointStyle: 'circle',
+                                        color: isDark ? '#E5E7EB' : '#4B5563'
+                                    }
+                                },
+                                tooltip: {
+                                    backgroundColor: tooltipBg,
+                                    titleColor: tooltipTitle,
+                                    bodyColor: tooltipBody,
+                                    borderColor: tooltipBorder,
+                                    borderWidth: 1,
+                                    padding: 10
+                                }
+                            },
+                            scales: {
+                                x: {
+                                    display: true,
+                                    grid: { display: true, color: gridColor },
+                                    ticks: { color: textColor }
+                                },
+                                y: {
+                                    display: true,
+                                    grid: { display: true, color: gridColor },
+                                    ticks: {
+                                        color: textColor,
+                                        callback: function(value) { return value + 'мс'; }
+                                    },
+                                    beginAtZero: true
+                                }
+                            }
+                        }
+                    });
+                }
+
+                // Priority Distribution Chart
+                const priorityCtx = document.getElementById('priorityChart')?.getContext('2d');
+                if (priorityCtx) {
+                    new Chart(priorityCtx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['Высокий', 'Средний', 'Низкий'],
+                            datasets: [{
+                                data: [0, 0, 0],
+                                backgroundColor: ['#EF4444', '#F59E0B', '#10B981'],
+                                borderWidth: 0,
+                                hoverOffset: 4
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            cutout: '60%',
+                            plugins: {
+                                legend: {
+                                    position: 'bottom',
+                                    labels: {
+                                        boxWidth: 12,
+                                        usePointStyle: true,
+                                        pointStyle: 'circle',
+                                        padding: 10,
+                                        font: { size: 11 },
+                                        color: isDark ? '#E5E7EB' : '#4B5563'
+                                    }
+                                },
+                                tooltip: {
+                                    backgroundColor: tooltipBg,
+                                    titleColor: tooltipTitle,
+                                    bodyColor: tooltipBody,
+                                    borderColor: tooltipBorder,
+                                    borderWidth: 1,
+                                    padding: 10,
                                     callbacks: {
                                         label: function(context) {
                                             const label = context.label || '';
@@ -784,37 +1005,18 @@
                 });
             }
 
-            // Project Modal Functionality
-            const addProjectBtn = document.getElementById('addProjectBtn');
-            const noProjectsCreateBtn = document.getElementById('noProjectsCreateBtn');
-            const createProjectModal = document.getElementById('createProjectModal');
-            const closeModalButton = document.getElementById('closeModalButton');
-            const cancelModalButton = document.getElementById('cancelModalButton');
-            
-            function showProjectModal() {
-                createProjectModal.classList.remove('hidden');
-            }
-            
-            function hideProjectModal() {
-                createProjectModal.classList.add('hidden');
-            }
-            
-            if (addProjectBtn) {
-                addProjectBtn.addEventListener('click', showProjectModal);
-            }
-            
-            if (noProjectsCreateBtn) {
-                noProjectsCreateBtn.addEventListener('click', showProjectModal);
-            }
-            
-            if (closeModalButton) {
-                closeModalButton.addEventListener('click', hideProjectModal);
-            }
-            
-            if (cancelModalButton) {
-                cancelModalButton.addEventListener('click', hideProjectModal);
-            }
+            // Project Modal Functionality is now handled in dashboard.js
         });
+    </script>
+    
+    <!-- Auth Guard and App initialization -->
+    <script type="module">
+        import AuthGuard from './js/auth-guard.js';
+        import './js/app.js';
+        import './js/utils/resizable-sidebar.js';
+        
+        // Auth guard will automatically check authentication
+        // and redirect to login if needed
     </script>
 </body>
 </html>

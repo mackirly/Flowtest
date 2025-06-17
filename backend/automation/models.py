@@ -46,8 +46,9 @@ class AutomationProject(models.Model):
         verbose_name=_('Project'),
         help_text=_('Project that this automation project belongs to')
     )
-    repository_url = models.URLField(
+    repository_url = models.CharField(
         _('Repository URL'),
+        max_length=500,
         help_text=_('URL of the repository containing the automated tests')
     )
     repository_type = models.CharField(

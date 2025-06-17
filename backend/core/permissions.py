@@ -133,6 +133,25 @@ class HasAutomationManagementPermission(permissions.BasePermission):
         return user.has_permission('manage_automation')
 
 
+class HasEventManagementPermission(permissions.BasePermission):
+    """
+    Permission that checks if the user has event management permissions
+    """
+    def has_permission(self, request, view):
+        user = request.user
+        
+        # If not authenticated, deny access
+        if not user or not user.is_authenticated:
+            return False
+            
+        # Superusers and admin roles have all permissions
+        if user.is_superuser or (user.role and user.role.is_admin_role):
+            return True
+            
+        # Check for specific permissions
+        return user.has_permission('manage_events')
+
+
 class IsSelf(permissions.BasePermission):
     """
     Permission that only allows users to modify their own resources
@@ -148,6 +167,11 @@ class IsProjectMember(permissions.BasePermission):
     """
     Permission that only allows members of a project to access its resources
     """
+    def has_permission(self, request, view):
+        # For list views without project_id, allow authenticated users
+        # Object-level permissions will be checked later
+        return request.user and request.user.is_authenticated
+    
     def has_object_permission(self, request, view, obj):
         # Check if the object has a project attribute
         project = None
@@ -156,6 +180,9 @@ class IsProjectMember(permissions.BasePermission):
             project = obj.project
         elif hasattr(obj, 'get_project'):
             project = obj.get_project()
+        elif hasattr(obj, 'test_case') and hasattr(obj.test_case, 'project'):
+            # For TestRun objects
+            project = obj.test_case.project
             
         if project:
             return (request.user.is_superuser or 

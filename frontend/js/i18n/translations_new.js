@@ -1,5 +1,5 @@
 /**
- * Translations for FlowTest 2.0
+ * Translations for FlowTest
  */
 
 const translations = {

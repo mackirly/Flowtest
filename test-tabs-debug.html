@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Tabs Debug</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-2xl font-bold mb-6">Test Case Tabs Debug</h1>
+        
+        <div class="bg-white rounded-lg shadow-md">
+            <!-- Tab Navigation -->
+            <div id="test-case-tabs" class="border-b border-gray-200">
+                <nav class="flex space-x-8 px-8 pt-4" aria-label="Tabs">
+                    <button type="button" id="tab-details" 
+                            onclick="switchTab('details')"
+                            class="py-2 px-1 border-b-2 border-blue-500 font-medium text-sm text-blue-600 whitespace-nowrap">
+                        Details
+                    </button>
+                    <button type="button" id="tab-history" 
+                            onclick="switchTab('history')"
+                            class="py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap">
+                        History
+                    </button>
+                </nav>
+            </div>
+            
+            <!-- Tab Content -->
+            <div class="p-6">
+                <div id="tab-content-details" class="tab-content">
+                    <h2 class="text-xl font-semibold mb-4">Test Case Details</h2>
+                    <p>This is the details tab content.</p>
+                </div>
+                
+                <div id="tab-content-history" class="tab-content hidden">
+                    <h2 class="text-xl font-semibold mb-4">Test Run History</h2>
+                    <p>This is the history tab content.</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="mt-6">
+            <button onclick="toggleTabs()" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                Toggle Tabs Visibility
+            </button>
+        </div>
+        
+        <div id="debug-log" class="mt-6 bg-gray-800 text-green-400 p-4 rounded font-mono text-sm">
+            Debug Log:
+        </div>
+    </div>
+    
+    <script>
+        function log(message) {
+            const debugLog = document.getElementById('debug-log');
+            debugLog.innerHTML += '<br>' + new Date().toISOString() + ' - ' + message;
+        }
+        
+        function switchTab(tabName) {
+            log('Switching to tab: ' + tabName);
+            
+            // Update tab buttons
+            const tabButtons = {
+                details: document.getElementById('tab-details'),
+                history: document.getElementById('tab-history')
+            };
+            
+            // Reset all tabs
+            Object.values(tabButtons).forEach(btn => {
+                if (btn) {
+                    btn.classList.remove('border-blue-500', 'text-blue-600');
+                    btn.classList.add('border-transparent', 'text-gray-500');
+                }
+            });
+            
+            // Activate selected tab
+            if (tabButtons[tabName]) {
+                tabButtons[tabName].classList.remove('border-transparent', 'text-gray-500');
+                tabButtons[tabName].classList.add('border-blue-500', 'text-blue-600');
+            }
+            
+            // Update tab content
+            const tabContents = {
+                details: document.getElementById('tab-content-details'),
+                history: document.getElementById('tab-content-history')
+            };
+            
+            // Hide all content
+            Object.values(tabContents).forEach(content => {
+                if (content) {
+                    content.classList.add('hidden');
+                }
+            });
+            
+            // Show selected content
+            if (tabContents[tabName]) {
+                tabContents[tabName].classList.remove('hidden');
+            }
+        }
+        
+        function toggleTabs() {
+            const tabsContainer = document.getElementById('test-case-tabs');
+            if (tabsContainer.classList.contains('hidden')) {
+                log('Showing tabs');
+                tabsContainer.classList.remove('hidden');
+            } else {
+                log('Hiding tabs');
+                tabsContainer.classList.add('hidden');
+            }
+        }
+        
+        // Initial log
+        log('Page loaded');
+        log('Tabs visible: ' + !document.getElementById('test-case-tabs').classList.contains('hidden'));
+    </script>
+</body>
+</html>

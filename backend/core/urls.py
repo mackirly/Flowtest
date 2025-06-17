@@ -13,11 +13,10 @@ from .views import (
     upload_avatar
 )
 from .views.activity import user_activity
-from .views.statistics import user_statistics
+from .views.statistics import user_statistics, dashboard_statistics
 from .views.profile import update_profile, debug_api, user_update_profile_bypass
 from .views.direct_update import direct_update_profile
 from .views.activity import user_activity
-from .views.statistics import user_statistics
 
 # Create a router for viewsets
 router = DefaultRouter()
@@ -58,8 +57,5 @@ urlpatterns = [
     # Activity and statistics endpoints
     path('activity/', user_activity, name='user_activity'),
     path('statistics/', user_statistics, name='user_statistics'),
-    
-    # Activity and Statistics endpoints
-    path('activity/', user_activity, name='user_activity'),
-    path('statistics/', user_statistics, name='user_statistics'),
+    path('dashboard-statistics/', dashboard_statistics, name='dashboard_statistics'),
 ]

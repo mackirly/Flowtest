@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
-from .models import TestCase, TestRun, TestReport, TestEvent
+from .models import TestCase, TestRun, TestReport, TestEvent, RegressionRun
 from projects.models import Project, Folder
 from projects.serializers import ProjectSerializer, FolderSerializer
 
@@ -21,8 +21,10 @@ class TestCaseSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'description', 'created_at', 'updated_at',
             'condition', 'steps', 'expected_results', 'folder', 'folder_name',
-            'project', 'project_name', 'priority', 'platform', 'test_type',
-            'author', 'author_name', 'status', 'tags'
+            'project', 'project_name', 'priority', 'platform', 'estimated_time',
+            'test_type', 'author', 'author_name', 'status', 'tags', 'test_code', 
+            'script_path', 'class_name', 'method_name', 'framework', 
+            'automation_project', 'automation_test_name'
         ]
         read_only_fields = ['created_at', 'updated_at', 'author', 'author_name', 
                            'status', 'folder_name', 'project_name']
@@ -70,7 +72,7 @@ class AutomatedTestCaseSerializer(TestCaseSerializer):
     class Meta(TestCaseSerializer.Meta):
         fields = TestCaseSerializer.Meta.fields + [
             'test_code', 'script_path', 'class_name', 'method_name',
-            'framework', 'automation_project'
+            'framework', 'automation_project', 'automation_test_name'
         ]
 
 
@@ -84,7 +86,7 @@ class TestRunSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'test_case', 'test_case_title', 'status', 'started_at', 'finished_at',
             'duration', 'error_message', 'output', 'executor', 'executor_name',
-            'run_id'
+            'run_id', 'run_type', 'regression_run'
         ]
         read_only_fields = ['started_at', 'finished_at', 'duration', 'executor', 
                            'executor_name', 'test_case_title']
@@ -262,3 +264,106 @@ class TestCaseExportSerializer(serializers.Serializer):
             )
         
         return data
+
+
+class RegressionRunSerializer(serializers.ModelSerializer):
+    """Serializer for RegressionRun model"""
+    progress = serializers.SerializerMethodField()
+    statistics = serializers.SerializerMethodField()
+    created_by_name = serializers.SerializerMethodField()
+    test_cases_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = RegressionRun
+        fields = [
+            'id', 'name', 'project', 'created_by', 'created_by_name',
+            'created_at', 'started_at', 'completed_at', 'status',
+            'description', 'test_cases', 'test_cases_count',
+            'progress', 'statistics'
+        ]
+        read_only_fields = ['created_by', 'created_by_name', 'created_at',
+                           'progress', 'statistics', 'test_cases_count']
+    
+    def get_progress(self, obj):
+        """Get the progress of the regression run"""
+        return obj.get_progress()
+    
+    def get_statistics(self, obj):
+        """Get statistics for the regression run"""
+        return obj.get_statistics()
+    
+    def get_created_by_name(self, obj):
+        """Get the name of the creator"""
+        if obj.created_by:
+            return f"{obj.created_by.first_name} {obj.created_by.last_name}".strip() or obj.created_by.username
+        return None
+    
+    def get_test_cases_count(self, obj):
+        """Get the count of test cases in this regression run"""
+        return obj.test_cases.count()
+    
+    def create(self, validated_data):
+        """Create a new regression run and set the creator"""
+        request = self.context.get('request')
+        if request and hasattr(request, 'user'):
+            validated_data['created_by'] = request.user
+        
+        test_cases = validated_data.pop('test_cases', [])
+        regression_run = super().create(validated_data)
+        
+        if test_cases:
+            regression_run.test_cases.set(test_cases)
+        
+        return regression_run
+
+
+class ManualTestRunSerializer(serializers.ModelSerializer):
+    """Serializer for manual test runs"""
+    test_case_title = serializers.SerializerMethodField()
+    executor_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = TestRun
+        fields = [
+            'id', 'test_case', 'test_case_title', 'status', 
+            'started_at', 'finished_at', 'duration', 'error_message',
+            'output', 'executor', 'executor_name', 'run_type',
+            'regression_run'
+        ]
+        read_only_fields = ['executor', 'executor_name', 'test_case_title']
+    
+    def get_test_case_title(self, obj):
+        """Get the title of the test case"""
+        if obj.test_case:
+            return obj.test_case.title
+        return None
+    
+    def get_executor_name(self, obj):
+        """Get the name of the executor"""
+        if obj.executor:
+            return f"{obj.executor.first_name} {obj.executor.last_name}".strip() or obj.executor.username
+        return None
+    
+    def create(self, validated_data):
+        """Create a manual test run"""
+        request = self.context.get('request')
+        if request and hasattr(request, 'user'):
+            validated_data['executor'] = request.user
+        
+        # Set run type to manual
+        validated_data['run_type'] = 'manual'
+        
+        # Set started_at if not provided
+        if not validated_data.get('started_at'):
+            validated_data['started_at'] = timezone.now()
+        
+        return super().create(validated_data)
+    
+    def update(self, instance, validated_data):
+        """Update a manual test run"""
+        # If status is changing from running to completed, set finished_at
+        if instance.status in ['pending', 'running'] and validated_data.get('status') in ['passed', 'failed', 'error', 'skipped']:
+            if not validated_data.get('finished_at'):
+                validated_data['finished_at'] = timezone.now()
+        
+        return super().update(instance, validated_data)

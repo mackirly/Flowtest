@@ -1,5 +1,5 @@
 /**
- * Internationalization (i18n) module for FlowTest 2.0
+ * Internationalization (i18n) module for FlowTest
  */
 
 import translations from './translations.js';
@@ -7,10 +7,20 @@ import translations from './translations.js';
 class I18n {
     constructor() {
         this.translations = translations;
+        // Get initial language from localStorage to avoid circular dependency
         this.currentLanguage = localStorage.getItem('flowtest-language') || 'en';
         this.initLanguageSelector();
         this.updateLanguageDisplay();
         this.translatePage();
+        
+        // Listen for language changes from settings manager
+        window.addEventListener('language-changed', (e) => {
+            if (e.detail.language !== this.currentLanguage) {
+                this.currentLanguage = e.detail.language;
+                this.updateLanguageFlag(this.currentLanguage);
+                this.translatePage();
+            }
+        });
     }
 
     /**
@@ -64,14 +74,23 @@ class I18n {
     setLanguage(language) {
         if (this.translations[language]) {
             this.currentLanguage = language;
-            localStorage.setItem('flowtest-language', language);
+            // Dispatch event to settings manager
+            window.dispatchEvent(new CustomEvent('language-change-request', {
+                detail: { language: language }
+            }));
             this.updateLanguageFlag(language);
             this.translatePage();
-            
-            // Dispatch event for other components
-            window.dispatchEvent(new CustomEvent('language-changed', {
-                detail: { language }
-            }));
+        }
+    }
+    
+    /**
+     * Set language from settings manager (avoids circular dependency)
+     */
+    setLanguageFromManager(language) {
+        if (this.translations[language] && this.currentLanguage !== language) {
+            this.currentLanguage = language;
+            this.updateLanguageFlag(language);
+            this.translatePage();
         }
     }
 

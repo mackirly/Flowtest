@@ -3,7 +3,10 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     CustomChartViewSet,
     ReportTemplateViewSet,
-    GeneratedReportViewSet
+    GeneratedReportViewSet,
+    ReportsMetricsView,
+    ReportsChartDataView,
+    ExportReportView
 )
 
 router = DefaultRouter()
@@ -13,4 +16,7 @@ router.register(r'projects/(?P<project_id>\d+)/reports', GeneratedReportViewSet,
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('metrics/', ReportsMetricsView.as_view(), name='reports-metrics'),
+    path('chart-data/', ReportsChartDataView.as_view(), name='reports-chart-data'),
+    path('export/', ExportReportView.as_view(), name='reports-export'),
 ]

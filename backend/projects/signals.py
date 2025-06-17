@@ -11,16 +11,10 @@ from projects.models import Project, Folder
 def project_saved(sender, instance, created, **kwargs):
     """
     Signal handler for when a project is saved.
-    Creates a default root folder if this is a new project.
     """
     if created:
-        # Create default root folder for the project
-        Folder.objects.create(
-            name="Root",
-            project=instance,
-            parent=None,
-            is_root=True
-        )
+        # No longer creating default root folder
+        pass
 
 
 @receiver(post_delete, sender=Project)

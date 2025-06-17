@@ -5,11 +5,17 @@ from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample
+from django.utils import timezone
+from django.db.models import Q
+import logging
+
+logger = logging.getLogger(__name__)
 
 from core.permissions import HasProjectPermission, IsProjectMember
 from core.utils.pagination import StandardResultsSetPagination
 from projects.models import Project, Folder
-from .models import TestCase, TestRun, TestReport, TestEvent
+from automation.models import AutomationProject, AutomationTest, TestExecution
+from .models import TestCase, TestRun, TestReport, TestEvent, RegressionRun
 from .serializers import (
     TestCaseSerializer, 
     AutomatedTestCaseSerializer,
@@ -19,8 +25,11 @@ from .serializers import (
     ExecuteTestSerializer,
     BatchExecuteTestsSerializer,
     TestCaseImportSerializer,
-    TestCaseExportSerializer
+    TestCaseExportSerializer,
+    RegressionRunSerializer,
+    ManualTestRunSerializer
 )
+from .tasks import simulate_test_execution
 
 
 class TestCaseViewSet(viewsets.ModelViewSet):
@@ -31,9 +40,9 @@ class TestCaseViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsProjectMember]
     pagination_class = StandardResultsSetPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['status', 'priority', 'type', 'folder']
-    search_fields = ['title', 'description', 'tags__name']
-    ordering_fields = ['created_at', 'updated_at', 'title', 'priority', 'status']
+    filterset_fields = ['priority', 'test_type', 'folder']
+    search_fields = ['title', 'description', 'tags']
+    ordering_fields = ['created_at', 'updated_at', 'title', 'priority']
     ordering = ['-updated_at']
 
     def get_queryset(self):
@@ -42,14 +51,18 @@ class TestCaseViewSet(viewsets.ModelViewSet):
         """
         user = self.request.user
         project_id = self.kwargs.get('project_id')
-        folder_id = self.request.query_params.get('folder_id')
+        folder_id = self.request.query_params.get('folder')
         
-        queryset = TestCase.objects.filter(project_id=project_id)
-        
-        if folder_id:
-            queryset = queryset.filter(folder_id=folder_id)
+        try:
+            queryset = TestCase.objects.filter(project_id=project_id)
             
-        return queryset.filter(project__members=user)
+            if folder_id:
+                queryset = queryset.filter(folder_id=folder_id)
+                
+            return queryset.filter(project__members=user).select_related('folder', 'project', 'author')
+        except Exception as e:
+            logger.error(f"Error in TestCaseViewSet.get_queryset: {e}")
+            raise
     
     def get_serializer_class(self):
         """
@@ -57,7 +70,7 @@ class TestCaseViewSet(viewsets.ModelViewSet):
         """
         if self.action == 'list' or self.action == 'retrieve':
             instance = self.get_object() if self.action == 'retrieve' else None
-            if instance and instance.is_automated:
+            if instance and instance.test_type == 'automated':
                 return AutomatedTestCaseSerializer
         return TestCaseSerializer
     
@@ -67,7 +80,7 @@ class TestCaseViewSet(viewsets.ModelViewSet):
         """
         project_id = self.kwargs.get('project_id')
         project = Project.objects.get(id=project_id)
-        serializer.save(project=project, created_by=self.request.user)
+        serializer.save(project=project, author=self.request.user)
     
     @action(detail=True, methods=['post'])
     def execute(self, request, pk=None, project_id=None):
@@ -81,21 +94,90 @@ class TestCaseViewSet(viewsets.ModelViewSet):
             # Create a test run
             test_run = TestRun.objects.create(
                 test_case=test_case,
-                executed_by=request.user,
-                environment=serializer.validated_data.get('environment', 'Default'),
-                status='in_progress'
+                executor=request.user,
+                status='pending'
             )
             
-            # If automated, trigger the automation process (will be implemented with Celery)
-            if test_case.is_automated:
-                # Launch test execution task
-                # celery_task = execute_test_case.delay(test_run.id)
-                # test_run.task_id = celery_task.id
-                # test_run.save()
-                pass
+            # Start test execution using Celery task
+            test_run.status = 'running'
+            test_run.started_at = timezone.now()
+            test_run.save()
             
-            return Response(TestRunSerializer(test_run).data, status=status.HTTP_201_CREATED)
+            # If automated test case with real automation test available
+            if test_case.test_type == 'automated' and test_case.automation_project and test_case.automation_test_name:
+                try:
+                    # Parse the test name to get file path, class, and method
+                    test_parts = test_case.automation_test_name.split('::')
+                    file_path = test_parts[0] if test_parts else test_case.automation_test_name
+                    
+                    # Find matching automation test
+                    automation_test = AutomationTest.objects.filter(
+                        project=test_case.automation_project,
+                        file_path__icontains=file_path
+                    ).first()
+                    
+                    if automation_test:
+                        # Launch real automation execution
+                        from automation.tasks import execute_automation_test
+                        environment = serializer.validated_data.get('environment', 'default')
+                        parameters = serializer.validated_data.get('parameters', {})
+                        
+                        execution = TestExecution.objects.create(
+                            automation_test=automation_test,
+                            triggered_by=request.user,
+                            status='pending',
+                            environment=environment,
+                            parameters=parameters
+                        )
+                        
+                        # Use Celery task for real automation test execution
+                        execute_task = execute_automation_test.delay(execution.id, test_run.id)
+                        
+                        # Refresh object from database to get updated status
+                        test_run.refresh_from_db()
+                        return Response({
+                            'test_run': TestRunSerializer(test_run).data,
+                            'execution_id': execution.id,
+                            'message': f'Real automation test execution started: {test_case.automation_test_name}'
+                        }, status=status.HTTP_201_CREATED)
+                    else:
+                        # Fallback to simulation using Celery
+                        simulate_test_execution.delay(test_run.id, test_case.id)
+                except Exception as e:
+                    logger.error(f"Error setting up real automation test: {e}")
+                    # Fallback to simulation using Celery
+                    simulate_test_execution.delay(test_run.id, test_case.id)
+            else:
+                # Use Celery task for test simulation (manual tests or tests without automation setup)
+                simulate_test_execution.delay(test_run.id, test_case.id)
+            
+            # Refresh object from database to get updated status
+            test_run.refresh_from_db()
+            return Response({
+                'test_run': TestRunSerializer(test_run).data,
+                'message': f'Test execution started: {test_case.title}'
+            }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['get'])
+    def test_runs(self, request, pk=None, project_id=None):
+        """
+        Get test runs for a specific test case.
+        """
+        test_case = self.get_object()
+        test_runs = TestRun.objects.filter(test_case=test_case).order_by('-id')[:10]
+        return Response(TestRunSerializer(test_runs, many=True).data)
+    
+    @action(detail=True, methods=['get'])
+    def latest_run(self, request, pk=None, project_id=None):
+        """
+        Get the latest test run for a specific test case.
+        """
+        test_case = self.get_object()
+        latest_run = TestRun.objects.filter(test_case=test_case).order_by('-id').first()
+        if latest_run:
+            return Response(TestRunSerializer(latest_run).data)
+        return Response({'message': 'No test runs found'}, status=status.HTTP_404_NOT_FOUND)
     
     @action(detail=True, methods=['post'])
     def copy(self, request, pk=None, project_id=None):
@@ -109,21 +191,27 @@ class TestCaseViewSet(viewsets.ModelViewSet):
         new_test_case = TestCase.objects.create(
             title=f"Copy of {test_case.title}",
             description=test_case.description,
-            preconditions=test_case.preconditions,
+            condition=test_case.condition,
             steps=test_case.steps,
             expected_results=test_case.expected_results,
-            status=test_case.status,
             priority=test_case.priority,
-            type=test_case.type,
+            platform=test_case.platform,
+            test_type=test_case.test_type,
+            test_code=test_case.test_code,
             project=test_case.project,
             folder_id=folder_id if folder_id else test_case.folder_id,
-            created_by=request.user,
-            is_automated=test_case.is_automated,
-            automation_script=test_case.automation_script
+            author=request.user,
+            script_path=test_case.script_path,
+            class_name=test_case.class_name,
+            method_name=test_case.method_name,
+            framework=test_case.framework,
+            automation_project=test_case.automation_project,
+            automation_test_name=test_case.automation_test_name
         )
         
-        # Copy tags
-        new_test_case.tags.set(test_case.tags.all())
+        # Copy tags (tags is a JSONField, not ManyToManyField)
+        new_test_case.tags = test_case.tags
+        new_test_case.save()
         
         return Response(TestCaseSerializer(new_test_case).data, status=status.HTTP_201_CREATED)
     
@@ -144,14 +232,13 @@ class TestCaseViewSet(viewsets.ModelViewSet):
                     test_case = TestCase.objects.get(id=test_case_id, project_id=project_id)
                     test_run = TestRun.objects.create(
                         test_case=test_case,
-                        executed_by=request.user,
-                        environment=environment,
-                        status='in_progress'
+                        executor=request.user,
+                        status='pending'
                     )
                     test_runs.append(test_run)
                     
                     # If automated, trigger the automation process
-                    if test_case.is_automated:
+                    if test_case.test_type == 'automated':
                         # Launch test execution task
                         # celery_task = execute_test_case.delay(test_run.id)
                         # test_run.task_id = celery_task.id
@@ -183,6 +270,66 @@ class TestCaseViewSet(viewsets.ModelViewSet):
             
             return Response({"message": "Import feature will be implemented"}, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['get'])
+    def available_tests(self, request, pk=None, project_id=None):
+        """
+        Get available automation tests for a test case from the repository.
+        """
+        test_case = self.get_object()
+        
+        if not test_case.automation_project:
+            return Response(
+                {"error": "Test case has no automation project assigned"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Get all tests from the automation project
+        automation_tests = AutomationTest.objects.filter(
+            project=test_case.automation_project,
+            is_available=True
+        ).values('id', 'name', 'file_path', 'class_name', 'method_name', 'framework')
+        
+        return Response({
+            "automation_project": test_case.automation_project.name,
+            "tests": list(automation_tests)
+        })
+    
+    @action(detail=True, methods=['get'])
+    def test_runs(self, request, pk=None, project_id=None):
+        """
+        Get test runs for a specific test case.
+        """
+        logger.info(f"Getting test runs for test case {pk} in project {project_id}")
+        test_case = self.get_object()
+        
+        # Debug: Check if test case belongs to the right project
+        logger.info(f"Test case {test_case.id} belongs to project {test_case.project_id}")
+        
+        test_runs = TestRun.objects.filter(test_case=test_case).order_by('-started_at', '-id')
+        logger.info(f"Found {test_runs.count()} test runs for test case {test_case.id}")
+        
+        # Debug: Log first test run details if exists
+        if test_runs.exists():
+            first_run = test_runs.first()
+            logger.info(f"First test run: ID={first_run.id}, Status={first_run.status}, Started={first_run.started_at}")
+        
+        # Serialize the test runs
+        serializer = TestRunSerializer(test_runs, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['get'])
+    def latest_run(self, request, pk=None, project_id=None):
+        """
+        Get the latest test run for a specific test case.
+        """
+        test_case = self.get_object()
+        latest_run = TestRun.objects.filter(test_case=test_case).order_by('-started_at').first()
+        
+        if latest_run:
+            serializer = TestRunSerializer(latest_run)
+            return Response(serializer.data)
+        return Response(None)
     
     @action(detail=False, methods=['get'])
     def export_test_cases(self, request, project_id=None):
@@ -219,10 +366,10 @@ class TestRunViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsProjectMember]
     pagination_class = StandardResultsSetPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['status', 'environment', 'test_case']
-    search_fields = ['notes', 'test_case__title']
-    ordering_fields = ['executed_at', 'completed_at', 'status']
-    ordering = ['-executed_at']
+    filterset_fields = ['status', 'test_case']
+    search_fields = ['error_message', 'test_case__title']
+    ordering_fields = ['started_at', 'finished_at', 'status']
+    ordering = ['-started_at']
 
     def get_queryset(self):
         """
@@ -231,10 +378,16 @@ class TestRunViewSet(viewsets.ModelViewSet):
         user = self.request.user
         project_id = self.kwargs.get('project_id')
         
-        return TestRun.objects.filter(
-            test_case__project_id=project_id,
-            test_case__project__members=user
-        )
+        if project_id:
+            return TestRun.objects.filter(
+                test_case__project_id=project_id,
+                test_case__project__members=user
+            )
+        else:
+            # If no project_id, return all test runs user has access to
+            return TestRun.objects.filter(
+                test_case__project__members=user
+            )
     
     @action(detail=True, methods=['post'])
     def update_status(self, request, pk=None, project_id=None):
@@ -243,27 +396,29 @@ class TestRunViewSet(viewsets.ModelViewSet):
         """
         test_run = self.get_object()
         status_value = request.data.get('status')
-        notes = request.data.get('notes', '')
+        error_message = request.data.get('error_message', '')
+        output = request.data.get('output', '')
         
-        if status_value not in ['in_progress', 'passed', 'failed', 'blocked', 'skipped']:
+        if status_value not in ['pending', 'running', 'passed', 'failed', 'error', 'skipped']:
             return Response(
                 {"error": "Invalid status value"}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
         
         test_run.status = status_value
-        test_run.notes = notes
+        test_run.error_message = error_message
+        test_run.output = output
         
-        if status_value in ['passed', 'failed', 'blocked', 'skipped']:
-            test_run.completed_at = timezone.now()
+        if status_value in ['passed', 'failed', 'error', 'skipped']:
+            test_run.finished_at = timezone.now()
         
         test_run.save()
         
         # Create an event for the status update
         TestEvent.objects.create(
-            test_run=test_run,
-            event_type='status_change',
-            description=f"Status changed to {status_value}",
+            test_case=test_run.test_case,
+            event_type='finish' if status_value in ['passed', 'failed', 'error', 'skipped'] else 'info',
+            description=f"Test run status changed to {status_value}",
             created_by=request.user
         )
         
@@ -278,10 +433,10 @@ class TestReportViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated, IsProjectMember]
     pagination_class = StandardResultsSetPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['created_at', 'report_type']
-    search_fields = ['title', 'description']
-    ordering_fields = ['created_at', 'title']
-    ordering = ['-created_at']
+    filterset_fields = ['status', 'execution_date']
+    search_fields = ['test_case__title', 'comments']
+    ordering_fields = ['execution_date']
+    ordering = ['-execution_date']
 
     def get_queryset(self):
         """
@@ -291,57 +446,10 @@ class TestReportViewSet(viewsets.ReadOnlyModelViewSet):
         project_id = self.kwargs.get('project_id')
         
         return TestReport.objects.filter(
-            project_id=project_id,
-            project__members=user
+            test_case__project_id=project_id,
+            test_case__project__members=user
         )
     
-    @action(detail=False, methods=['post'])
-    def generate_report(self, request, project_id=None):
-        """
-        Generate a new test report.
-        """
-        title = request.data.get('title', f"Test Report {timezone.now().strftime('%Y-%m-%d %H:%M')}")
-        description = request.data.get('description', '')
-        report_type = request.data.get('report_type', 'summary')
-        start_date = request.data.get('start_date')
-        end_date = request.data.get('end_date')
-        test_runs = request.data.get('test_runs', [])
-        
-        project = Project.objects.get(id=project_id)
-        
-        # Create the report
-        report = TestReport.objects.create(
-            title=title,
-            description=description,
-            report_type=report_type,
-            project=project,
-            created_by=request.user
-        )
-        
-        # If test_runs are specified, use those specific runs
-        if test_runs:
-            runs = TestRun.objects.filter(
-                id__in=test_runs,
-                test_case__project_id=project_id
-            )
-        # Otherwise, use date range
-        else:
-            query = Q(test_case__project_id=project_id)
-            
-            if start_date:
-                query &= Q(executed_at__gte=start_date)
-            if end_date:
-                query &= Q(executed_at__lte=end_date)
-                
-            runs = TestRun.objects.filter(query)
-        
-        # Associate test runs with the report
-        report.test_runs.set(runs)
-        
-        # Generate report data (will be implemented)
-        # generate_report_data(report.id)
-        
-        return Response(TestReportSerializer(report).data, status=status.HTTP_201_CREATED)
 
 
 class TestEventViewSet(viewsets.ReadOnlyModelViewSet):
@@ -352,30 +460,227 @@ class TestEventViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated, IsProjectMember]
     pagination_class = StandardResultsSetPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['test_run', 'event_type', 'created_at']
+    filterset_fields = ['test_case', 'event_type', 'timestamp']
     search_fields = ['description']
-    ordering_fields = ['created_at']
-    ordering = ['-created_at']
+    ordering_fields = ['timestamp']
+    ordering = ['-timestamp']
 
     def get_queryset(self):
         """
-        Filter test events based on project and test run.
+        Filter test events based on project and test case.
         """
         user = self.request.user
         project_id = self.kwargs.get('project_id')
-        test_run_id = self.request.query_params.get('test_run_id')
+        test_case_id = self.request.query_params.get('test_case_id')
         
         queryset = TestEvent.objects.filter(
-            test_run__test_case__project_id=project_id,
-            test_run__test_case__project__members=user
+            test_case__project_id=project_id,
+            test_case__project__members=user
         )
         
-        if test_run_id:
-            queryset = queryset.filter(test_run_id=test_run_id)
+        if test_case_id:
+            queryset = queryset.filter(test_case_id=test_case_id)
             
         return queryset
 
 
-# Fix missing imports
-from django.utils import timezone
-from django.db.models import Q
+class RegressionRunViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint for managing regression runs.
+    """
+    serializer_class = RegressionRunSerializer
+    permission_classes = [IsAuthenticated, IsProjectMember]
+    pagination_class = StandardResultsSetPagination
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['status', 'project']
+    search_fields = ['name', 'description']
+    ordering_fields = ['created_at', 'started_at', 'completed_at']
+    ordering = ['-created_at']
+
+    def get_queryset(self):
+        """
+        Filter regression runs based on project.
+        """
+        user = self.request.user
+        project_id = self.kwargs.get('project_id')
+        
+        return RegressionRun.objects.filter(
+            project_id=project_id,
+            project__members=user
+        )
+    
+    def perform_create(self, serializer):
+        """
+        Create a new regression run.
+        """
+        project_id = self.kwargs.get('project_id')
+        project = Project.objects.get(id=project_id)
+        serializer.save(project=project, created_by=self.request.user)
+    
+    @action(detail=True, methods=['post'])
+    def start(self, request, pk=None, project_id=None):
+        """
+        Start a regression run.
+        """
+        regression_run = self.get_object()
+        
+        if regression_run.status != 'planned':
+            return Response(
+                {"error": "Regression run must be in 'planned' status to start"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        regression_run.status = 'in_progress'
+        regression_run.started_at = timezone.now()
+        regression_run.save()
+        
+        # Create pending test runs for all test cases in the regression
+        for test_case in regression_run.test_cases.all():
+            TestRun.objects.create(
+                test_case=test_case,
+                status='pending',
+                run_type='manual',
+                regression_run=regression_run,
+                executor=request.user
+            )
+        
+        return Response(RegressionRunSerializer(regression_run).data)
+    
+    @action(detail=True, methods=['post'])
+    def complete(self, request, pk=None, project_id=None):
+        """
+        Complete a regression run.
+        """
+        regression_run = self.get_object()
+        
+        if regression_run.status != 'in_progress':
+            return Response(
+                {"error": "Regression run must be in 'in_progress' status to complete"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        regression_run.status = 'completed'
+        regression_run.completed_at = timezone.now()
+        regression_run.save()
+        
+        return Response(RegressionRunSerializer(regression_run).data)
+    
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None, project_id=None):
+        """
+        Cancel a regression run.
+        """
+        regression_run = self.get_object()
+        
+        if regression_run.status in ['completed', 'cancelled']:
+            return Response(
+                {"error": "Cannot cancel a completed or already cancelled regression run"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        regression_run.status = 'cancelled'
+        regression_run.save()
+        
+        # Cancel all pending test runs
+        regression_run.test_runs.filter(status='pending').update(status='skipped')
+        
+        return Response(RegressionRunSerializer(regression_run).data)
+    
+    @action(detail=True, methods=['get'])
+    def test_runs(self, request, pk=None, project_id=None):
+        """
+        Get all test runs for a regression run.
+        """
+        regression_run = self.get_object()
+        test_runs = regression_run.test_runs.all().order_by('test_case__title')
+        
+        return Response(TestRunSerializer(test_runs, many=True).data)
+    
+    @action(detail=True, methods=['get'])
+    def progress(self, request, pk=None, project_id=None):
+        """
+        Get detailed progress information for a regression run.
+        """
+        regression_run = self.get_object()
+        
+        return Response({
+            'progress_percentage': regression_run.get_progress(),
+            'statistics': regression_run.get_statistics(),
+            'status': regression_run.status,
+            'started_at': regression_run.started_at,
+            'completed_at': regression_run.completed_at
+        })
+
+
+class ManualTestRunViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint for managing manual test runs.
+    """
+    serializer_class = ManualTestRunSerializer
+    permission_classes = [IsAuthenticated, IsProjectMember]
+    pagination_class = StandardResultsSetPagination
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['status', 'test_case', 'regression_run']
+    search_fields = ['error_message', 'test_case__title']
+    ordering_fields = ['started_at', 'finished_at', 'status']
+    ordering = ['-started_at']
+
+    def get_queryset(self):
+        """
+        Filter manual test runs based on project.
+        """
+        user = self.request.user
+        project_id = self.kwargs.get('project_id')
+        
+        return TestRun.objects.filter(
+            test_case__project_id=project_id,
+            test_case__project__members=user,
+            run_type='manual'
+        )
+    
+    def perform_create(self, serializer):
+        """
+        Create a new manual test run.
+        """
+        serializer.save(executor=self.request.user, run_type='manual')
+    
+    @action(detail=True, methods=['post'])
+    def update_result(self, request, pk=None, project_id=None):
+        """
+        Update the result of a manual test run.
+        """
+        test_run = self.get_object()
+        status_value = request.data.get('status')
+        error_message = request.data.get('error_message', '')
+        output = request.data.get('output', '')
+        
+        if status_value not in ['passed', 'failed', 'error', 'skipped']:
+            return Response(
+                {"error": "Invalid status value for manual test result"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        test_run.status = status_value
+        test_run.error_message = error_message
+        test_run.output = output
+        
+        if not test_run.started_at:
+            test_run.started_at = timezone.now()
+        
+        test_run.finished_at = timezone.now()
+        test_run.save()
+        
+        # Create an event for the manual test result
+        TestEvent.objects.create(
+            test_case=test_run.test_case,
+            event_type='finish',
+            description=f"Manual test completed with status: {status_value}",
+            created_by=request.user,
+            details={
+                'manual_run': True,
+                'status': status_value,
+                'error_message': error_message
+            }
+        )
+        
+        return Response(ManualTestRunSerializer(test_run).data)

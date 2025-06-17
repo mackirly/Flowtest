@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Translations</title>
+    <script type="module">
+        import translations from './js/i18n/translations.js';
+        
+        window.addEventListener('DOMContentLoaded', () => {
+            const container = document.getElementById('translations');
+            const lang = 'ru'; // Change to 'en' to test English
+            
+            // Test keys
+            const testKeys = [
+                'accountSettings',
+                'teamsProjects',
+                'teamsProjectsDesc',
+                'users',
+                'projects',
+                'addUser',
+                'addProject',
+                'user',
+                'email',
+                'role',
+                'members',
+                'created',
+                'addNewUser',
+                'addNewUserDesc',
+                'username',
+                'selectRole',
+                'assignToProjects',
+                'createUser',
+                'cancel',
+                'phone',
+                'personalInformation',
+                'personalInfoDesc',
+                'generalSettingsDesc',
+                'light',
+                'dark',
+                'system',
+                'lightThemeDesc',
+                'darkThemeDesc',
+                'systemThemeDesc',
+                'changePasswordDesc',
+                'passwordStrength',
+                'changesAutoSave'
+            ];
+            
+            let html = `<h1>Testing Translations (${lang})</h1>`;
+            html += '<table border="1" cellpadding="5">';
+            html += '<tr><th>Key</th><th>Translation</th><th>Status</th></tr>';
+            
+            testKeys.forEach(key => {
+                const translation = translations[lang] && translations[lang][key];
+                const status = translation ? '✅' : '❌';
+                html += `<tr>
+                    <td>${key}</td>
+                    <td>${translation || 'MISSING'}</td>
+                    <td>${status}</td>
+                </tr>`;
+            });
+            
+            html += '</table>';
+            
+            // Check if translations object is loaded
+            html += '<h2>Translations Object Status</h2>';
+            html += `<p>Translations loaded: ${translations ? '✅' : '❌'}</p>`;
+            html += `<p>Languages available: ${Object.keys(translations).join(', ')}</p>`;
+            html += `<p>Total keys in ${lang}: ${translations[lang] ? Object.keys(translations[lang]).length : 0}</p>`;
+            
+            container.innerHTML = html;
+        });
+    </script>
+</head>
+<body>
+    <div id="translations"></div>
+</body>
+</html>

@@ -81,6 +81,32 @@ const projects = (() => {
     };
     
     /**
+     * Update a folder in a project
+     * @param {number|string} projectId - Project ID
+     * @param {number|string} folderId - Folder ID
+     * @param {Object} folderData - Updated folder data
+     * @returns {Promise} Promise that resolves to updated folder
+     */
+    const updateFolder = async (projectId, folderId, folderData) => {
+        return apiRequest(`/projects/${projectId}/folders/${folderId}/`, {
+            method: 'PUT',
+            body: JSON.stringify(folderData)
+        });
+    };
+    
+    /**
+     * Delete a folder from a project
+     * @param {number|string} projectId - Project ID
+     * @param {number|string} folderId - Folder ID
+     * @returns {Promise} Promise that resolves when folder is deleted
+     */
+    const deleteFolder = async (projectId, folderId) => {
+        return apiRequest(`/projects/${projectId}/folders/${folderId}/`, {
+            method: 'DELETE'
+        });
+    };
+    
+    /**
      * Get project statistics
      * @param {number|string} projectId - Project ID
      * @returns {Promise} Promise that resolves to project statistics
@@ -132,6 +158,8 @@ const projects = (() => {
         remove,
         getFolders,
         createFolder,
+        updateFolder,
+        deleteFolder,
         getStatistics,
         getMembers,
         addMember,
@@ -140,3 +168,4 @@ const projects = (() => {
 })();
 
 export default projects;
+export { projects };

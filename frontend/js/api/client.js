@@ -1,16 +1,19 @@
 /**
- * API Client for FlowTest 2.0
+ * API Client for FlowTest
  * Core module for making API requests and handling authentication
  */
 
 // Constants
-const API_BASE_URL = '/api';
+const API_BASE_URL = 'http://localhost:8000/api';
 const TOKEN_KEY = 'flowtest_access_token';
-const REFRESH_TOKEN_KEY = 'flowtest_refresh_token';
-const USER_DATA_KEY = 'flowtest_user_data';
+const REFRESH_TOKEN_KEY = 'refreshToken';
+const USER_DATA_KEY = 'userData';
 
 /**
  * Make an API request with authentication and error handling
+ * @param {string} endpoint - API endpoint (starting with /)
+ * @param {Object} options - Request options
+ * @returns {Promise} Promise that resolves to API response
  */
 const apiRequest = async (endpoint, options = {}) => {
     // Get access token
@@ -47,55 +50,60 @@ const apiRequest = async (endpoint, options = {}) => {
         }
     }
     
+    // Log request details for debugging
+    console.log('[API] Request:', {
+        url,
+        method: options.method || 'GET',
+        headers,
+        body: options.body
+    });
+    
     // Make the request
     try {
         const response = await fetch(url, {
             ...options,
-            headers,
-            credentials: 'include' // Include cookies
+            headers
         });
         
         // Handle 401 Unauthorized - Token expired or invalid
         if (response.status === 401) {
-            console.log(`[API Client] Received 401 for ${url}, attempting token refresh`);
-            
+            console.error(`[API Client] Received 401 for ${url} with options:`, options);
             // Try to refresh the token
             const refreshed = await refreshToken();
             
             if (refreshed) {
-                console.log('[API Client] Token refreshed, retrying request');
                 // Retry the request with new token
                 const newToken = localStorage.getItem(TOKEN_KEY);
                 headers['Authorization'] = `Bearer ${newToken}`;
                 
                 const retryResponse = await fetch(url, {
                     ...options,
-                    headers,
-                    credentials: 'include'
+                    headers
                 });
                 
                 return handleResponse(retryResponse);
             } else {
-                console.log('[API Client] Token refresh failed, redirecting to login');
-                // Token refresh failed, clear storage and redirect
+                // Token refresh failed, redirect to login
                 logout();
-                if (!window.location.pathname.endsWith('login.html')) {
-                    window.location.href = 'login.html';
+                if (window.location.pathname !== '/login.html' && window.location.pathname !== '/login') {
+                    window.location.href = 'login.html'; // Ensure immediate redirect
                 }
-                throw new Error('Token refresh failed');
+                throw new Error('Token refresh failed, redirecting to login.');
             }
         }
         
         // Handle other responses
         return handleResponse(response);
     } catch (error) {
-        console.error('[API Client] Request error:', error);
+        console.error('API request error:', error);
         throw error;
     }
 };
 
 /**
  * Handle API response
+ * @param {Response} response - Fetch API Response object
+ * @returns {Promise} Promise that resolves to response data
  */
 const handleResponse = async (response) => {
     // Check if response is JSON
@@ -107,9 +115,17 @@ const handleResponse = async (response) => {
     
     // Handle error responses
     if (!response.ok) {
+        console.error('[API] Error response:', {
+            status: response.status,
+            data: data
+        });
         const error = new Error(isJson && data.detail ? data.detail : 'API request failed');
         error.status = response.status;
         error.data = data;
+        error.response = {
+            status: response.status,
+            data: data
+        };
         throw error;
     }
     
@@ -118,6 +134,7 @@ const handleResponse = async (response) => {
 
 /**
  * Refresh the access token using refresh token
+ * @returns {Promise<boolean>} Promise that resolves to whether refresh was successful
  */
 const refreshToken = async () => {
     const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
@@ -127,15 +144,14 @@ const refreshToken = async () => {
     }
     
     try {
-        const response = await fetch(`${API_BASE_URL}/core/token/refresh/`, {
+        const response = await fetch(`${API_BASE_URL}/token/refresh/`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
                 refresh: refreshToken
-            }),
-            credentials: 'include'
+            })
         });
         
         if (!response.ok) {
@@ -144,64 +160,69 @@ const refreshToken = async () => {
         
         const data = await response.json();
         
-        // Store the new tokens
+        // Store the new access token
         localStorage.setItem(TOKEN_KEY, data.access);
+        localStorage.setItem('flowtest_access_token', data.access); // Add this line
+        
+        // Store new refresh token if provided
         if (data.refresh) {
             localStorage.setItem(REFRESH_TOKEN_KEY, data.refresh);
         }
         
         return true;
     } catch (error) {
-        console.error('[API Client] Token refresh error:', error);
+        console.error('Token refresh error:', error);
+        
+        // Clear tokens on refresh failure
         logout();
+        
         return false;
     }
 };
 
 /**
  * Log in user
+ * @param {string} username - User's username or email
+ * @param {string} password - User's password
+ * @param {boolean} remember - Whether to remember the user
+ * @returns {Promise<Object>} Promise that resolves to user data
  */
 const login = async (username, password, remember = false) => {
     try {
-        const response = await fetch(`${API_BASE_URL}/core/token/`, {
+        const response = await fetch(`${API_BASE_URL}/auth/login/`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
                 username,
-                password
-            }),
-            credentials: 'include'
+                password,
+                remember
+            })
         });
         
         const data = await handleResponse(response);
         
         // Store tokens
         localStorage.setItem(TOKEN_KEY, data.access);
+        localStorage.setItem('flowtest_access_token', data.access); // Add this line
         localStorage.setItem(REFRESH_TOKEN_KEY, data.refresh);
         
-        // Get and store user data
-        const userResponse = await fetch(`${API_BASE_URL}/core/users/me/`, {
-            headers: {
-                'Authorization': `Bearer ${data.access}`,
-                'Content-Type': 'application/json'
-            },
-            credentials: 'include'
-        });
+        // Store user data
+        if (data.user) {
+            localStorage.setItem(USER_DATA_KEY, JSON.stringify(data.user));
+        }
         
-        const userData = await handleResponse(userResponse);
-        localStorage.setItem(USER_DATA_KEY, JSON.stringify(userData));
-        
-        return userData;
+        return data.user;
     } catch (error) {
-        console.error('[API Client] Login error:', error);
+        console.error('Login error:', error);
         throw error;
     }
 };
 
 /**
  * Log out the current user
+ * @returns {Promise<void>} Promise that resolves when logout is complete
  */
 const logout = async () => {
     const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
@@ -210,22 +231,22 @@ const logout = async () => {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem(USER_DATA_KEY);
+    localStorage.removeItem('flowtest_access_token'); // Также удаляем токен из другой системы
     
     // If we have a refresh token, try to invalidate it on the server
     if (refreshToken) {
         try {
-            await fetch(`${API_BASE_URL}/core/token/revoke/`, {
+            await fetch(`${API_BASE_URL}/auth/logout/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
                     refresh: refreshToken
-                }),
-                credentials: 'include'
+                })
             });
         } catch (error) {
-            console.error('[API Client] Logout error:', error);
+            console.error('Logout error:', error);
             // Continue with logout even if server request fails
         }
     }
@@ -233,23 +254,15 @@ const logout = async () => {
 
 /**
  * Check if user is authenticated
+ * @returns {boolean} Whether the user is authenticated
  */
 const isAuthenticated = () => {
-    const token = localStorage.getItem(TOKEN_KEY);
-    if (!token) return false;
-    
-    try {
-        // Check if token is expired
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        return payload.exp * 1000 > Date.now();
-    } catch (error) {
-        console.error('[API Client] Token validation error:', error);
-        return false;
-    }
+    return !!localStorage.getItem(TOKEN_KEY);
 };
 
 /**
  * Get current user data
+ * @returns {Promise<Object>} Promise that resolves to user data
  */
 const getCurrentUser = async () => {
     // Try to get from local storage first
@@ -260,11 +273,11 @@ const getCurrentUser = async () => {
     
     // Fetch from API if not in local storage
     try {
-        const userData = await get('/core/users/me/');
+        const userData = await get('/core/profile/');
         localStorage.setItem(USER_DATA_KEY, JSON.stringify(userData));
         return userData;
     } catch (error) {
-        console.error('[API Client] Get current user error:', error);
+        console.error('Get current user error:', error);
         throw error;
     }
 };
@@ -313,5 +326,8 @@ const ApiClient = {
     patch,
     delete: del
 };
+
+// Named exports for modules that import specific functions
+export { apiRequest, refreshToken, login, logout, isAuthenticated, getCurrentUser };
 
 export default ApiClient;

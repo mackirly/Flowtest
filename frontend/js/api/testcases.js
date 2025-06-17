@@ -4,6 +4,82 @@
  */
 import { apiRequest } from './client.js';
 
+export class TestCaseClient {
+    constructor() {
+        this.baseUrl = '';
+    }
+
+    async getTestCases(projectId, params = {}) {
+        const queryString = new URLSearchParams(params).toString();
+        return apiRequest(`/projects/${projectId}/test-cases/?${queryString}`, {
+            method: 'GET'
+        });
+    }
+
+    async getTestCase(projectId, testCaseId) {
+        return apiRequest(`/projects/${projectId}/test-cases/${testCaseId}/`, {
+            method: 'GET'
+        });
+    }
+
+    async createTestCase(projectId, data) {
+        return apiRequest(`/projects/${projectId}/test-cases/`, {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+    }
+
+    async updateTestCase(projectId, testCaseId, data) {
+        const url = `/projects/${projectId}/test-cases/${testCaseId}/`;
+        console.log('API updateTestCase URL:', url);
+        console.log('API updateTestCase projectId:', projectId);
+        console.log('API updateTestCase testCaseId:', testCaseId);
+        console.log('API updateTestCase data:', data);
+        return apiRequest(url, {
+            method: 'PATCH',
+            body: JSON.stringify(data)
+        });
+    }
+
+    async deleteTestCase(projectId, testCaseId) {
+        return apiRequest(`/projects/${projectId}/test-cases/${testCaseId}/`, {
+            method: 'DELETE'
+        });
+    }
+
+    async executeTestCase(projectId, testCaseId, data = {}) {
+        return apiRequest(`/projects/${projectId}/test-cases/${testCaseId}/execute/`, {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+    }
+
+    async getAvailableTests(projectId, testCaseId) {
+        return apiRequest(`/projects/${projectId}/test-cases/${testCaseId}/available_tests/`, {
+            method: 'GET'
+        });
+    }
+
+    async copyTestCase(projectId, testCaseId, data = {}) {
+        return apiRequest(`/projects/${projectId}/test-cases/${testCaseId}/copy/`, {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+    }
+
+    async getTestRuns(projectId, testCaseId) {
+        return apiRequest(`/projects/${projectId}/test-cases/${testCaseId}/test_runs/`, {
+            method: 'GET'
+        });
+    }
+
+    async getLatestRun(projectId, testCaseId) {
+        return apiRequest(`/projects/${projectId}/test-cases/${testCaseId}/latest_run/`, {
+            method: 'GET'
+        });
+    }
+}
+
 const testcases = (() => {
     /**
      * Get all test cases for a project
@@ -137,6 +213,16 @@ const testcases = (() => {
         return apiRequest(`/projects/${projectId}/test-cases/search/?${queryString}`);
     };
     
+    /**
+     * Get test runs for a specific test case
+     * @param {number|string} projectId - Project ID
+     * @param {number|string} testCaseId - Test case ID
+     * @returns {Promise} Promise that resolves to array of test runs
+     */
+    const getTestRuns = async (projectId, testCaseId) => {
+        return apiRequest(`/projects/${projectId}/test-cases/${testCaseId}/test_runs/`);
+    };
+    
     // Return public API
     return {
         getAll,
@@ -150,8 +236,10 @@ const testcases = (() => {
         getExecutionHistory,
         getReports,
         clone,
-        search
+        search,
+        getTestRuns
     };
 })();
 
 export default testcases;
+export { testcases };

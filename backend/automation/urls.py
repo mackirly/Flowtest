@@ -8,7 +8,9 @@ from .views import (
 )
 
 router = DefaultRouter()
-router.register(r'projects/(?P<project_id>\d+)/automations', AutomationProjectViewSet, basename='automation-project')
+
+# Project-specific automation endpoints
+router.register(r'projects/(?P<project_id>\d+)/automation', AutomationProjectViewSet, basename='automation-project')
 router.register(
     r'projects/(?P<project_id>\d+)/automations/(?P<automation_project_id>\d+)/tests', 
     AutomationTestViewSet, 
@@ -16,6 +18,9 @@ router.register(
 )
 router.register(r'projects/(?P<project_id>\d+)/schedules', TestScheduleViewSet, basename='test-schedule')
 router.register(r'projects/(?P<project_id>\d+)/executions', TestExecutionViewSet, basename='test-execution')
+
+# Global automation endpoints for settings
+router.register(r'projects', AutomationProjectViewSet, basename='global-automation-project')
 
 urlpatterns = [
     path('', include(router.urls)),

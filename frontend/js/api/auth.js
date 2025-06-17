@@ -3,11 +3,23 @@
  * Handles login, logout, token refresh, and authentication state
  */
 const auth = (() => {
-    // Constants
-    const TOKEN_KEY = 'flowtest_access_token';
-    const REFRESH_TOKEN_KEY = 'flowtest_refresh_token';
-    // Настраиваем URL API для работы с Docker-окружением
-    const API_BASE_URL = '/api';
+    // API Configuration
+    const API_CONFIG = {
+        baseUrl: '',
+        endpoints: {
+            token: '/api/core/token/',
+            tokenRefresh: '/api/core/token/refresh/',
+            tokenRevoke: '/api/core/token/revoke/',
+            userProfile: '/api/core/users/me/'
+        }
+    };
+
+    // Storage keys
+    const STORAGE_KEYS = {
+        accessToken: 'flowtest_access_token',
+        refreshToken: 'flowtest_refresh_token',
+        userData: 'flowtest_user_data'
+    };
 
     // State
     let currentUser = null;
@@ -18,8 +30,8 @@ const auth = (() => {
      */
     const getTokens = () => {
         return {
-            accessToken: localStorage.getItem(TOKEN_KEY),
-            refreshToken: localStorage.getItem(REFRESH_TOKEN_KEY)
+            accessToken: localStorage.getItem(STORAGE_KEYS.accessToken),
+            refreshToken: localStorage.getItem(STORAGE_KEYS.refreshToken)
         };
     };
     
@@ -29,16 +41,16 @@ const auth = (() => {
      * @param {string} refreshToken - JWT refresh token
      */
     const storeTokens = (accessToken, refreshToken) => {
-        localStorage.setItem(TOKEN_KEY, accessToken);
-        localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+        localStorage.setItem(STORAGE_KEYS.accessToken, accessToken);
+        localStorage.setItem(STORAGE_KEYS.refreshToken, refreshToken);
     };
     
     /**
      * Clear stored tokens
      */
     const clearTokens = () => {
-        localStorage.removeItem(TOKEN_KEY);
-        localStorage.removeItem(REFRESH_TOKEN_KEY);
+        localStorage.removeItem(STORAGE_KEYS.accessToken);
+        localStorage.removeItem(STORAGE_KEYS.refreshToken);
     };
     
     /**
@@ -55,8 +67,10 @@ const auth = (() => {
         
         try {
             // Step 1: Get tokens
-            console.log('Requesting authentication tokens...');
-            const tokenResponse = await fetch(`${API_BASE_URL}/core/token/`, {
+            const tokenEndpoint = `${API_CONFIG.baseUrl}${API_CONFIG.endpoints.token}`;
+            console.log('Requesting tokens from:', tokenEndpoint);
+            
+            const tokenResponse = await fetch(tokenEndpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -65,40 +79,59 @@ const auth = (() => {
                 },
                 credentials: 'include',
                 body: JSON.stringify({ username, password }),
-                // Add cache control to prevent caching
                 cache: 'no-store',
-                // Add a timeout
-                signal: AbortSignal.timeout(15000) // 15 seconds timeout
+                signal: AbortSignal.timeout(15000)
             });
             
-            // Check for rate limiting
+            console.log('Token response status:', tokenResponse.status);
+            let tokenData;
+            try {
+                tokenData = await tokenResponse.json();
+                console.log('Token response data:', tokenData);
+            } catch (e) {
+                console.error('Failed to parse token response:', e);
+                throw new Error('Failed to parse server response');
+            }
+            
+            // Handle errors
             if (tokenResponse.status === 429) {
                 const error = new Error('Too many login attempts. Please wait a few minutes and try again.');
                 error.retryAfter = parseInt(tokenResponse.headers.get('Retry-After') || '60', 10);
                 throw error;
             }
             
-            // Handle other errors
             if (!tokenResponse.ok) {
-                const errorData = await tokenResponse.json().catch(() => ({}));
-                const errorMessage = errorData.detail || 'Authentication failed. Please check your credentials.';
+                const errorMessage = tokenData.detail || 'Authentication failed. Please check your credentials.';
+                console.error('Login failed:', errorMessage);
                 throw new Error(errorMessage);
             }
             
-            // Parse token data
-            const tokenData = await tokenResponse.json();
-            if (!tokenData.access) {
-                throw new Error('Invalid server response: No access token received');
+            if (!tokenData.access || !tokenData.refresh) {
+                console.error('Invalid token data:', tokenData);
+                throw new Error('Invalid server response: missing tokens');
             }
             
             // Store tokens
-            console.log('Storing authentication tokens...');
-            storeTokens(tokenData.access, tokenData.refresh);
+            console.log('Storing tokens...');
+            localStorage.setItem(STORAGE_KEYS.accessToken, tokenData.access);
+            localStorage.setItem(STORAGE_KEYS.refreshToken, tokenData.refresh);
+            console.log('[Auth] Tokens stored:', {
+                access: !!tokenData.access,
+                refresh: !!tokenData.refresh
+            });
             
-            // Wait a bit before requesting profile to prevent rate limiting
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // Verify tokens were stored
+            const storedAccess = localStorage.getItem(STORAGE_KEYS.accessToken);
+            const storedRefresh = localStorage.getItem(STORAGE_KEYS.refreshToken);
             
-            // Step 2: Get user profile (only once, no retries)
+            if (!storedAccess || !storedRefresh) {
+                throw new Error('Failed to store tokens');
+            }
+            
+            // Small delay before profile request
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Step 2: Get user profile
             console.log('Fetching user profile...');
             currentUser = await getUserProfile();
             
@@ -106,12 +139,15 @@ const auth = (() => {
                 throw new Error('Failed to load user profile');
             }
             
+            // Store user data
+            localStorage.setItem(STORAGE_KEYS.userData, JSON.stringify(currentUser));
+            
             // Dispatch login event
             window.dispatchEvent(new CustomEvent('auth:login', {
                 detail: { user: currentUser }
             }));
             
-            console.log('Login successful');
+            console.log('Login successful:', currentUser);
             return currentUser;
             
         } catch (error) {
@@ -140,13 +176,15 @@ const auth = (() => {
         currentUser = null;
         
         // Clear user data from localStorage
-        localStorage.removeItem('flowtest_user_data');
+        localStorage.removeItem(STORAGE_KEYS.userData);
         
         // Dispatch logout event
         window.dispatchEvent(new CustomEvent('auth:logout'));
         
         // Redirect to login page
-        window.location.href = '/login.html';
+        const basePath = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/'));
+        const loginUrl = new URL('/login.html', window.location.origin + basePath).href;
+        window.location.href = loginUrl;
     };
     
     /**
@@ -161,7 +199,7 @@ const auth = (() => {
         }
         
         try {
-            const response = await fetch(`${API_BASE_URL}/token/refresh/`, {
+            const response = await fetch(`${API_CONFIG.baseUrl}${API_CONFIG.endpoints.tokenRefresh}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -178,11 +216,11 @@ const auth = (() => {
             const data = await response.json();
             
             // Store new access token
-            localStorage.setItem(TOKEN_KEY, data.access);
+            localStorage.setItem(STORAGE_KEYS.accessToken, data.access);
             
             // Store new refresh token if provided
             if (data.refresh) {
-                localStorage.setItem(REFRESH_TOKEN_KEY, data.refresh);
+                localStorage.setItem(STORAGE_KEYS.refreshToken, data.refresh);
             }
             
             return true;
@@ -197,16 +235,17 @@ const auth = (() => {
      * @returns {Promise<Object>} User profile data
      */
     const getUserProfile = async () => {
-        const { accessToken } = getTokens();
+        const accessToken = localStorage.getItem(STORAGE_KEYS.accessToken);
         
         if (!accessToken) {
+            console.error('No access token available');
             throw new Error('No access token available');
         }
         
-        console.log('Fetching user profile with token:', accessToken.substring(0, 10) + '...');
+        console.log('Fetching user profile...');
+        const profileEndpoint = `${API_CONFIG.baseUrl}${API_CONFIG.endpoints.userProfile}`;
         
         try {
-            // Вывод заголовков для отладки
             const headers = {
                 'Authorization': `Bearer ${accessToken}`,
                 'Content-Type': 'application/json',
@@ -214,25 +253,22 @@ const auth = (() => {
                 'X-Requested-With': 'XMLHttpRequest'
             };
             
-            console.log('Request headers:', headers);
-            
-            const response = await fetch(`${API_BASE_URL}/core/users/me/`, {
+            const response = await fetch(profileEndpoint, {
                 method: 'GET',
                 headers: headers,
                 credentials: 'include',
                 cache: 'no-store',
-                signal: AbortSignal.timeout(10000) // 10 seconds timeout
+                signal: AbortSignal.timeout(10000)
             });
 
             console.log('Profile response status:', response.status);
             
-            // Пробуем обновить токен, если получаем 401
             if (response.status === 401) {
                 console.log('Unauthorized, trying to refresh token...');
                 const refreshed = await refreshToken();
                 if (refreshed) {
                     console.log('Token refreshed, retrying profile fetch...');
-                    return getUserProfile(); // Рекурсивный вызов с новым токеном
+                    return getUserProfile();
                 } else {
                     console.error('Token refresh failed');
                     clearTokens();
@@ -244,7 +280,7 @@ const auth = (() => {
                 if (response.status === 429) {
                     throw new Error('Too many requests. Please wait a few minutes and try again.');
                 }
-                throw new Error(`HTTP error! status: ${response.status}`);
+                throw new Error(`Failed to fetch profile: ${response.status}`);
             }
 
             const user = await response.json();
@@ -252,6 +288,15 @@ const auth = (() => {
             
             if (!user) {
                 throw new Error('Invalid user data received');
+            }
+
+            // Handle avatar URL
+            if (user.avatar) {
+                // If avatar doesn't start with http/https, build full URL
+                if (!user.avatar.startsWith('http')) {
+                    user.avatar = new URL(user.avatar, window.location.origin).href;
+                }
+                console.log('Final avatar URL:', user.avatar);
             }
             
             // If the user is "root", ensure proper data is set
@@ -302,23 +347,54 @@ const auth = (() => {
      * Get the current user
      * @returns {Object|null} Current user object or null if not authenticated
      */
-    const getCurrentUser = () => {
-        // If we have a current user from API
-        if (currentUser) {
+    const getCurrentUser = async () => {
+        try {
+            // Check if we have a valid token first
+            const accessToken = localStorage.getItem(STORAGE_KEYS.accessToken);
+            if (!accessToken) {
+                console.log('[Auth] No access token, cannot get current user');
+                return null;
+            }
+
+            // Always fetch fresh user data from API
+            const response = await fetch(`${API_CONFIG.baseUrl}${API_CONFIG.endpoints.userProfile}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                credentials: 'include'
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch user data');
+            }
+
+            currentUser = await response.json();
+            localStorage.setItem(STORAGE_KEYS.userData, JSON.stringify(currentUser));
+            return currentUser;
+        } catch (error) {
+            console.error('Error getting current user:', error);
+            // Try to use cached data if available
+            if (currentUser) {
+                return currentUser;
+            }
+            
+            // Try localStorage as last resort
             try {
-                // Try to get additional data from localStorage
-                const savedUserData = localStorage.getItem('flowtest_user_data');
+                const savedUserData = localStorage.getItem(STORAGE_KEYS.userData);
                 if (savedUserData) {
                     const parsedUserData = JSON.parse(savedUserData);
-                    // Return merged data, giving preference to localStorage
-                    return { ...currentUser, ...parsedUserData };
+                    currentUser = parsedUserData;
+                    return currentUser;
                 }
-            } catch (error) {
-                console.error('Error getting user data from localStorage:', error);
-                // Fall back to just returning currentUser
+            } catch (storageError) {
+                console.error('Error getting user data from localStorage:', storageError);
             }
+            
+            return null;
         }
-        return currentUser;
     };
     
     /**
@@ -391,7 +467,7 @@ const auth = (() => {
      */
     const register = async (userData) => {
         try {
-            const response = await fetch(`${API_BASE_URL}/users/register/`, {
+            const response = await fetch(`${API_CONFIG.baseUrl}/users/register/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -418,7 +494,7 @@ const auth = (() => {
      */
     const requestPasswordReset = async (email) => {
         try {
-            const response = await fetch(`${API_BASE_URL}/users/reset-password/`, {
+            const response = await fetch(`${API_CONFIG.baseUrl}/users/reset-password/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -446,7 +522,7 @@ const auth = (() => {
      */
     const resetPassword = async (token, password) => {
         try {
-            const response = await fetch(`${API_BASE_URL}/users/reset-password/${token}/`, {
+            const response = await fetch(`${API_CONFIG.baseUrl}/users/reset-password/${token}/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -483,3 +559,4 @@ const auth = (() => {
 
 // Export for use in other modules
 export default auth;
+export { auth };

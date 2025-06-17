@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Проверка обновлений страницы События</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-2xl font-bold mb-6">Проверка обновлений для страницы События</h1>
+        
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 class="text-lg font-semibold mb-4">Статус проверки:</h2>
+            <div id="status" class="space-y-2"></div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 class="text-lg font-semibold mb-4">Инструкции:</h2>
+            <ol class="list-decimal list-inside space-y-2 text-gray-700">
+                <li>Откройте страницу <strong>События</strong> (events.html) в вашем приложении</li>
+                <li>Нажмите <kbd>Ctrl+Shift+R</kbd> для полной перезагрузки страницы</li>
+                <li>После календарных контролов должна появиться зеленая секция "Создать прогон тестов"</li>
+                <li>Если не видите секцию, откройте консоль браузера (F12) и выполните: <code class="bg-gray-100 px-2 py-1 rounded">window.debugEvents.injectQuickSection()</code></li>
+            </ol>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold mb-4">Предпросмотр новой секции:</h2>
+            <iframe src="test-quick-events.html" class="w-full h-96 border rounded"></iframe>
+        </div>
+    </div>
+    
+    <script>
+        const status = document.getElementById('status');
+        
+        // Check if we can access the events page
+        fetch('frontend/events.html')
+            .then(response => response.text())
+            .then(html => {
+                if (html.includes('Создать прогон тестов')) {
+                    status.innerHTML += '<p class="text-green-600">✓ HTML содержит новую секцию</p>';
+                } else {
+                    status.innerHTML += '<p class="text-red-600">✗ HTML не содержит новую секцию</p>';
+                }
+                
+                if (html.includes('quick-test-event-btn')) {
+                    status.innerHTML += '<p class="text-green-600">✓ Кнопка быстрого создания найдена</p>';
+                } else {
+                    status.innerHTML += '<p class="text-red-600">✗ Кнопка быстрого создания не найдена</p>';
+                }
+            })
+            .catch(error => {
+                status.innerHTML += '<p class="text-yellow-600">⚠ Не удалось загрузить events.html: ' + error + '</p>';
+            });
+        
+        // Check if we can access the JS file
+        fetch('frontend/js/pages/events.js')
+            .then(response => response.text())
+            .then(js => {
+                if (js.includes('showQuickTestEventModal')) {
+                    status.innerHTML += '<p class="text-green-600">✓ JavaScript функции добавлены</p>';
+                } else {
+                    status.innerHTML += '<p class="text-red-600">✗ JavaScript функции не найдены</p>';
+                }
+                
+                if (js.includes('updateQuickTestStats')) {
+                    status.innerHTML += '<p class="text-green-600">✓ Функция обновления статистики добавлена</p>';
+                } else {
+                    status.innerHTML += '<p class="text-red-600">✗ Функция обновления статистики не найдена</p>';
+                }
+            })
+            .catch(error => {
+                status.innerHTML += '<p class="text-yellow-600">⚠ Не удалось загрузить events.js: ' + error + '</p>';
+            });
+    </script>
+</body>
+</html>

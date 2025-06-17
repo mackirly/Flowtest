@@ -12,6 +12,9 @@ urlpatterns = [
     # Include router URLs
     path('', include(router.urls)),
     
+    # Test cases under projects
+    path('<int:project_id>/', include('projects.testcase_urls')),
+    
     # Project stats
     path('<int:project_id>/stats/', ProjectStatsView.as_view(), name='project-stats'),
     

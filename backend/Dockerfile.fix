@@ -5,6 +5,7 @@ RUN apt-get update && apt-get install -y \
     git \
     build-essential \
     libpq-dev \
+    netcat-traditional \
     && rm -rf /var/lib/apt/lists/*
 
 # Установка рабочей директории
@@ -49,5 +50,5 @@ RUN mkdir -p automation_projects
 EXPOSE 8000
 
 # Запуск сервера разработки Django по умолчанию
-ENTRYPOINT ["docker-entrypoint.sh"]
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]

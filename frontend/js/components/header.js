@@ -1,5 +1,5 @@
 /**
- * Header component for FlowTest 2.0
+ * Header component for FlowTest
  * Includes navigation, user menu, and theme toggle
  */
 class Header extends HTMLElement {
@@ -103,7 +103,7 @@ class Header extends HTMLElement {
                                     <button type="button" id="user-menu-button" class="flex items-center bg-white dark:bg-gray-800 rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500" aria-expanded="false" aria-haspopup="true">
                                         <span class="sr-only">Open user menu</span>
                                         <img class="h-8 w-8 rounded-full" src="${currentUser?.avatar || 'images/avatar-placeholder.svg'}" alt="">
-                                        <span class="ml-2 text-sm font-medium text-gray-700 dark:text-gray-200 hidden sm:block">${currentUser?.name || 'Guest'}</span>
+                                        <span class="ml-2 text-sm font-medium text-gray-700 dark:text-gray-200 hidden sm:block">${currentUser?.username || 'Guest'}</span>
                                         <i class="ri-arrow-down-s-line ml-1 text-gray-400"></i>
                                     </button>
                                 </div>

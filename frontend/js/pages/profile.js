@@ -54,7 +54,13 @@ async function initializePage() {
         // Setup UI after data is loaded
         setupTabNavigation();
         setupPasswordToggles();
-        initializeAvatarUpload();
+        
+        // Initialize avatar upload with a small delay to ensure Cropper.js is loaded
+        setTimeout(() => {
+            console.log('[Profile] Delayed avatar upload initialization');
+            initializeAvatarUpload();
+        }, 500);
+        
         setupEventListeners();
         
         console.log('Profile page initialized successfully');
@@ -97,6 +103,17 @@ async function loadUserProfile() {
             console.log('No user data from auth, trying profileService...');
             userData = await profileService.getProfile();
         }
+
+        // Универсальная обработка avatar для любого источника
+        if (userData && userData.avatar && !userData.avatar.startsWith('http')) {
+    // Формируем URL без порта (http://localhost/media/...)
+    if (userData.avatar.startsWith('/media')) {
+        userData.avatar = window.location.origin.replace(/:\d+$/, '') + userData.avatar;
+    } else {
+        userData.avatar = new URL(userData.avatar, window.location.origin).href;
+    }
+    console.log('[Profile] Итоговый URL аватара:', userData.avatar);
+}
         
         if (!userData) {
             console.error('Failed to load user profile from both sources');
@@ -148,19 +165,31 @@ function updateUI(userData) {
     };
 
     // Update main info
+    // For header - use username
+    const headerDisplayName = userData.username || userData.email?.split('@')[0] || 'Пользователь';
+    
+    // For profile card - use full name
     const fullName = `${userData.first_name || ''} ${userData.last_name || ''}`.trim();
-    const displayName = fullName || userData.username || userData.email || 'Пользователь';
+    const profileDisplayName = fullName || userData.username || userData.email?.split('@')[0] || 'Пользователь';
+    
+    // Generate initials
+    const headerInitialsText = getInitials(headerDisplayName); // Для хедера
+    const profileInitialsText = getInitials(profileDisplayName); // Для профиля
     
     // Обновляем все элементы с проверкой на null
-    if (elements.userName) elements.userName.textContent = displayName;
-    if (elements.userFullName) elements.userFullName.textContent = displayName;
+    if (elements.userName) elements.userName.textContent = headerDisplayName; // Header
+    if (elements.userFullName) elements.userFullName.textContent = profileDisplayName; // Profile card
     if (elements.userEmail) elements.userEmail.textContent = userData.email || 'email@example.com';
-    if (elements.userRole) elements.userRole.textContent = userData.role_name || 'Пользователь';
+    if (elements.userRole) {
+        const roleName = userData.role_name || 'User';
+        // Convert role name to lowercase for translation key
+        const roleKey = roleName.toLowerCase();
+        elements.userRole.textContent = i18n.t(roleKey) || roleName;
+    }
     
-    // Обновляем инициалы для аватара
+    // Обновляем инициалы для аватара - используем полное имя для профиля
     if (elements.userAvatarText) {
-        const initials = getInitials(displayName);
-        elements.userAvatarText.textContent = initials;
+        elements.userAvatarText.textContent = profileInitialsText;
     }
     
     // Update dates
@@ -189,9 +218,9 @@ function updateUI(userData) {
             console.warn('Error parsing avatar URL:', e);
         }
     }
-    // Используем функцию getInitials для получения инициалов
-    const userInitials = getInitials(displayName);
+    // Initials уже определены выше
 
+    // Update profile avatar
     if (avatarUrl && elements.userAvatarImage) {
         elements.userAvatarImage.src = avatarUrl;
         elements.userAvatarImage.classList.remove('hidden');
@@ -204,6 +233,26 @@ function updateUI(userData) {
         if (elements.userAvatarImage) {
             elements.userAvatarImage.classList.add('hidden');
         }
+    }
+
+    // Update header avatar
+    try {
+        const headerAvatar = document.querySelector('#user-avatar-img');
+        const headerInitials = document.getElementById('user-initials');
+        if (headerAvatar && headerInitials) {
+            if (avatarUrl) {
+                headerAvatar.src = avatarUrl;
+                headerAvatar.classList.remove('hidden');
+                headerInitials.classList.add('hidden');
+            } else {
+                headerInitials.textContent = headerInitialsText;
+                headerInitials.classList.remove('hidden');
+                headerAvatar.classList.add('hidden');
+            }
+        }
+        console.log('[Profile] Updated header avatar:', { avatarUrl, initials: headerInitialsText });
+    } catch (error) {
+        console.error('[Profile] Error updating header avatar:', error);
     }
 
     // Update activity timeline if data exists
@@ -245,6 +294,7 @@ function updateStatistics(stats) {
 // Handle form submissions
 async function handleProfileUpdate(formData) {
     try {
+        console.log('[Profile] Starting profile update...');
         const data = {
             first_name: formData.get('first-name'),
             username: formData.get('nickname'),
@@ -252,13 +302,15 @@ async function handleProfileUpdate(formData) {
             email: formData.get('email'),
             bio: formData.get('bio')
         };
+        console.log('[Profile] Form data:', data);
 
-        await profileService.updateProfile(data);
+        const result = await profileService.updateProfile(data);
+        console.log('[Profile] Update successful:', result);
         ToastManager.success(i18n.t('profileUpdated'));
         await loadUserProfile();
     } catch (error) {
-        console.error('Error updating profile:', error);
-        ToastManager.error(i18n.t('failedToUpdateProfile'));
+        console.error('[Profile] Error updating profile:', error);
+        ToastManager.error(`${i18n.t('failedToUpdateProfile')}: ${error.message}`);
     }
 }
 
@@ -284,31 +336,53 @@ async function handlePasswordChange(formData) {
 
 // Initialize avatar upload
 function initializeAvatarUpload() {
+    console.log('[Profile] Initializing avatar upload');
     const fileInput = document.getElementById('avatar-upload');
-    if (!fileInput) return;
+    if (!fileInput) {
+        console.error('[Profile] Avatar upload input not found');
+        return;
+    }
+
+    // Initialize AvatarCropper
+    console.log('[Profile] Initializing AvatarCropper');
+    AvatarCropper.init();
+    
+    // Set the save callback
+    AvatarCropper.setSaveCallback(async (file, dataUrl) => {
+        console.log('[Profile] Avatar save callback triggered');
+        try {
+            const result = await profileService.uploadAvatar(file);
+            console.log('[Profile] Avatar upload result:', result);
+            ToastManager.success(i18n.t('avatarUpdated') || 'Аватар обновлен');
+            
+            // Reload user profile to show new avatar
+            await loadUserProfile();
+        } catch (error) {
+            console.error('[Profile] Error uploading avatar:', error);
+            ToastManager.error(i18n.t('failedToUploadAvatar') || 'Ошибка загрузки аватара');
+        }
+    });
 
     fileInput.addEventListener('change', async (e) => {
+        console.log('[Profile] File input changed');
         const file = e.target.files[0];
-        if (!file) return;
-
-        if (!file.type.startsWith('image/')) {
-            ToastManager.error(i18n.t('invalidImageFile'));
+        if (!file) {
+            console.log('[Profile] No file selected');
             return;
         }
 
-        AvatarCropper.setSaveCallback(async (file, dataUrl) => {
-            try {
-                await profileService.uploadAvatar(file);
-                ToastManager.success(i18n.t('avatarUpdated'));
-                await loadUserProfile();
-            } catch (error) {
-                console.error('Error uploading avatar:', error);
-                ToastManager.error(i18n.t('failedToUploadAvatar'));
-            }
-        });
+        console.log('[Profile] File selected:', file.name, file.type, file.size);
 
+        if (!file.type.startsWith('image/')) {
+            ToastManager.error(i18n.t('invalidImageFile') || 'Выберите файл изображения');
+            return;
+        }
+
+        // Let AvatarCropper handle the file
         AvatarCropper.handleFileSelect(e);
     });
+    
+    console.log('[Profile] Avatar upload initialized');
 }
 
 // Handle tab navigation

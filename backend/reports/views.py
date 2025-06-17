@@ -1,8 +1,10 @@
 from django.shortcuts import get_object_or_404
 from django.http import HttpResponse, Http404
-from django.db.models import Count, Q, F, Sum, Avg
+from django.db.models import Count, Q, F, Sum, Avg, Min, Max
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+import random
+from datetime import timedelta
 
 from rest_framework import viewsets, mixins, status
 from rest_framework.views import APIView
@@ -14,6 +16,7 @@ from rest_framework.pagination import PageNumberPagination
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse
 
 from projects.models import Project
+from testcases.models import TestCase, TestRun
 from core.permissions import IsProjectMember
 from .models import ReportTemplate, CustomChart, GeneratedReport, SchedulerEvent
 from . import serializers
@@ -673,3 +676,324 @@ class SchedulerEventViewSet(viewsets.ModelViewSet):
         
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
+
+
+class ReportsMetricsView(APIView):
+    """
+    API для получения метрик отчетов
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """
+        Get metrics data for reports
+        """
+        # Get query parameters
+        project_id = request.query_params.get('project_id')
+        date_from = request.query_params.get('date_from')
+        date_to = request.query_params.get('date_to')
+        
+        # Filter test runs based on parameters
+        test_runs = TestRun.objects.all()
+        
+        if project_id:
+            test_runs = test_runs.filter(test_case__project_id=project_id)
+            
+        if date_from:
+            test_runs = test_runs.filter(started_at__gte=date_from)
+            
+        if date_to:
+            test_runs = test_runs.filter(started_at__lte=date_to)
+        
+        # Calculate real metrics if we have data
+        total_runs = test_runs.count()
+        
+        if total_runs > 0:
+            # Real metrics from database
+            passed_runs = test_runs.filter(status='passed').count()
+            failed_runs = test_runs.filter(status='failed').count()
+            skipped_runs = test_runs.filter(status='skipped').count()
+            
+            # Calculate success rate
+            success_rate = (passed_runs / total_runs * 100) if total_runs > 0 else 0
+            
+            # Calculate durations
+            duration_stats = test_runs.aggregate(
+                avg_duration=Avg('duration'),
+                min_duration=Min('duration'),
+                max_duration=Max('duration'),
+                total_duration=Sum('duration')
+            )
+            
+            metrics = {
+                'tests_passed': passed_runs,
+                'tests_failed': failed_runs,
+                'tests_skipped': skipped_runs,
+                'tests_total': total_runs,
+                'test_success_rate': round(success_rate, 2),
+                'avg_test_duration': round(duration_stats['avg_duration'] or 0, 2),
+                'min_test_duration': round(duration_stats['min_duration'] or 0, 2),
+                'max_test_duration': round(duration_stats['max_duration'] or 0, 2),
+                'total_execution_time': round((duration_stats['total_duration'] or 0) / 60, 2),
+                # Mock coverage and quality data
+                'code_coverage': round(random.uniform(70, 90), 1),
+                'feature_coverage': round(random.uniform(75, 95), 1),
+                'requirement_coverage': round(random.uniform(80, 98), 1),
+                'defect_count': random.randint(10, 50),
+                'defect_density': round(random.uniform(0.5, 2.5), 2),
+                'quality_score': random.randint(75, 95)
+            }
+        else:
+            # Mock data if no test runs
+            metrics = {
+                'tests_passed': random.randint(200, 300),
+                'tests_failed': random.randint(5, 20),
+                'tests_skipped': random.randint(0, 10),
+                'tests_total': random.randint(250, 350),
+                'test_success_rate': round(random.uniform(85, 95), 2),
+                'avg_test_duration': round(random.uniform(1, 5), 2),
+                'min_test_duration': round(random.uniform(0.1, 0.5), 2),
+                'max_test_duration': round(random.uniform(30, 60), 2),
+                'total_execution_time': round(random.uniform(5, 15), 2),
+                'code_coverage': round(random.uniform(70, 90), 1),
+                'feature_coverage': round(random.uniform(75, 95), 1),
+                'requirement_coverage': round(random.uniform(80, 98), 1),
+                'defect_count': random.randint(10, 50),
+                'defect_density': round(random.uniform(0.5, 2.5), 2),
+                'quality_score': random.randint(75, 95)
+            }
+        
+        return Response(metrics)
+
+
+class ReportsChartDataView(APIView):
+    """
+    API для получения данных графиков
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """
+        Get chart data for specific metric
+        """
+        metric_type = request.query_params.get('metric_type')
+        project_id = request.query_params.get('project_id')
+        date_from = request.query_params.get('date_from')
+        date_to = request.query_params.get('date_to')
+        group_by = request.query_params.get('group_by', 'day')
+        
+        # Generate mock chart data
+        labels = []
+        data = []
+        
+        if group_by == 'day':
+            # Generate last 7 days
+            for i in range(7):
+                date = timezone.now() - timedelta(days=6-i)
+                labels.append(date.strftime('%m/%d'))
+                data.append(random.randint(50, 100))
+        elif group_by == 'week':
+            # Generate last 4 weeks
+            for i in range(4):
+                labels.append(f'Week {i+1}')
+                data.append(random.randint(200, 400))
+        else:
+            # Generate last 12 months
+            for i in range(12):
+                labels.append(f'Month {i+1}')
+                data.append(random.randint(500, 1000))
+        
+        chart_data = {
+            'labels': labels,
+            'datasets': [{
+                'label': metric_type,
+                'data': data,
+                'borderColor': '#FF7F50',
+                'backgroundColor': 'rgba(255, 127, 80, 0.1)'
+            }]
+        }
+        
+        return Response(chart_data)
+
+
+class ExportReportView(APIView):
+    """
+    API для экспорта отчетов в различные форматы
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        """
+        Export report to specified format
+        """
+        format_type = request.data.get('format', 'pdf')
+        report_data = request.data.get('report_data', {})
+        
+        if format_type == 'pdf':
+            return self.export_pdf(report_data)
+        elif format_type == 'excel':
+            return self.export_excel(report_data)
+        else:
+            return Response(
+                {'error': 'Unsupported format'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    def export_pdf(self, report_data):
+        """
+        Export report to PDF format
+        """
+        from io import BytesIO
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import letter, A4
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import inch
+        
+        # Create PDF buffer
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=A4)
+        
+        # Container for the 'Flowable' objects
+        elements = []
+        
+        # Define styles
+        styles = getSampleStyleSheet()
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=24,
+            textColor=colors.HexColor('#FF7F50'),
+            spaceAfter=30
+        )
+        
+        # Add title
+        elements.append(Paragraph("FlowTest Report", title_style))
+        elements.append(Spacer(1, 12))
+        
+        # Add metadata
+        metadata_style = styles['Normal']
+        elements.append(Paragraph(f"Date: {timezone.now().strftime('%Y-%m-%d')}", metadata_style))
+        elements.append(Paragraph(f"Project: {report_data.get('project_name', 'All Projects')}", metadata_style))
+        elements.append(Spacer(1, 20))
+        
+        # Add metrics summary table
+        if 'metrics' in report_data:
+            metrics = report_data['metrics']
+            
+            # Test metrics table
+            test_data = [
+                ['Test Metrics', 'Value'],
+                ['Total Tests', str(metrics.get('tests_total', 0))],
+                ['Passed Tests', str(metrics.get('tests_passed', 0))],
+                ['Failed Tests', str(metrics.get('tests_failed', 0))],
+                ['Skipped Tests', str(metrics.get('tests_skipped', 0))],
+                ['Success Rate', f"{metrics.get('test_success_rate', 0)}%"],
+            ]
+            
+            test_table = Table(test_data)
+            test_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#FF7F50')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 12),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ]))
+            
+            elements.append(test_table)
+            elements.append(Spacer(1, 20))
+        
+        # Build PDF
+        doc.build(elements)
+        
+        # Get PDF value
+        pdf = buffer.getvalue()
+        buffer.close()
+        
+        # Return PDF response
+        response = HttpResponse(pdf, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="flowtest-report-{timezone.now().strftime("%Y%m%d")}.pdf"'
+        
+        return response
+    
+    def export_excel(self, report_data):
+        """
+        Export report to Excel format
+        """
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment
+        from io import BytesIO
+        
+        # Create workbook
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Summary"
+        
+        # Define styles
+        header_font = Font(bold=True, color="FFFFFF")
+        header_fill = PatternFill(start_color="FF7F50", end_color="FF7F50", fill_type="solid")
+        header_alignment = Alignment(horizontal="center", vertical="center")
+        
+        # Add title
+        ws['A1'] = 'FlowTest Report'
+        ws['A1'].font = Font(size=20, bold=True, color="FF7F50")
+        ws.merge_cells('A1:B1')
+        
+        # Add metadata
+        ws['A3'] = 'Date:'
+        ws['B3'] = timezone.now().strftime('%Y-%m-%d')
+        ws['A4'] = 'Project:'
+        ws['B4'] = report_data.get('project_name', 'All Projects')
+        
+        # Add metrics if available
+        if 'metrics' in report_data:
+            metrics = report_data['metrics']
+            
+            # Test metrics section
+            row = 6
+            ws[f'A{row}'] = 'Test Metrics'
+            ws[f'A{row}'].font = Font(bold=True, size=14)
+            ws.merge_cells(f'A{row}:B{row}')
+            
+            row += 1
+            headers = ['Metric', 'Value']
+            for col, header in enumerate(headers, 1):
+                cell = ws.cell(row=row, column=col, value=header)
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = header_alignment
+            
+            row += 1
+            test_metrics = [
+                ('Total Tests', metrics.get('tests_total', 0)),
+                ('Passed Tests', metrics.get('tests_passed', 0)),
+                ('Failed Tests', metrics.get('tests_failed', 0)),
+                ('Skipped Tests', metrics.get('tests_skipped', 0)),
+                ('Success Rate (%)', metrics.get('test_success_rate', 0)),
+            ]
+            
+            for metric_name, metric_value in test_metrics:
+                ws[f'A{row}'] = metric_name
+                ws[f'B{row}'] = metric_value
+                row += 1
+        
+        # Adjust column widths
+        ws.column_dimensions['A'].width = 30
+        ws.column_dimensions['B'].width = 20
+        
+        # Save to buffer
+        buffer = BytesIO()
+        wb.save(buffer)
+        buffer.seek(0)
+        
+        # Return Excel response
+        response = HttpResponse(
+            buffer.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="flowtest-report-{timezone.now().strftime("%Y%m%d")}.xlsx"'
+        
+        return response

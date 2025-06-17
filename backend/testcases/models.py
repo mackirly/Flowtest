@@ -102,6 +102,13 @@ class TestCase(models.Model):
         default="Any",
         help_text=_('Platform or environment for the test case')
     )
+    estimated_time = models.CharField(
+        _('Estimated time'),
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text=_('Estimated time for test execution')
+    )
     test_type = models.CharField(
         _('Test type'),
         max_length=50, 
@@ -163,6 +170,21 @@ class TestCase(models.Model):
         related_name='test_cases',
         verbose_name=_('Automation project'),
         help_text=_('Automation project that this test case belongs to')
+    )
+    automation_test_name = models.CharField(
+        _('Automation test name'),
+        max_length=500,
+        blank=True,
+        null=True,
+        help_text=_('Full name of the automation test in the repository (e.g., tests/test_login.py::TestLogin::test_successful_login)')
+    )
+    automation_test = models.ForeignKey(
+        'automation.AutomationTest',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='linked_test_cases',
+        help_text=_('Linked automation test from repository')
     )
     tags = models.JSONField(
         _('Tags'),
@@ -226,6 +248,11 @@ class TestRun(models.Model):
         ('skipped', _('Skipped')),
     ]
     
+    RUN_TYPE_CHOICES = [
+        ('manual', _('Manual')),
+        ('automated', _('Automated')),
+    ]
+    
     test_case = models.ForeignKey(
         TestCase, 
         on_delete=models.CASCADE, 
@@ -281,6 +308,21 @@ class TestRun(models.Model):
         blank=True, 
         null=True,
         help_text=_('Unique identifier for batch test runs')
+    )
+    run_type = models.CharField(
+        _('Run type'),
+        max_length=20,
+        choices=RUN_TYPE_CHOICES,
+        default='automated',
+        help_text=_('Type of test run (manual or automated)')
+    )
+    regression_run = models.ForeignKey(
+        'RegressionRun',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='test_runs',
+        help_text=_('Regression run this test is part of')
     )
     
     class Meta:
@@ -509,3 +551,107 @@ class TestEvent(models.Model):
     
     def __str__(self):
         return f"{self.event_type} - {self.timestamp} - {self.test_case.title}"
+
+
+class RegressionRun(models.Model):
+    """
+    Regression run model for tracking regression testing sessions
+    """
+    STATUS_CHOICES = [
+        ('planned', _('Planned')),
+        ('in_progress', _('In Progress')),
+        ('completed', _('Completed')),
+        ('cancelled', _('Cancelled')),
+    ]
+    
+    name = models.CharField(
+        _('Name'),
+        max_length=255,
+        help_text=_('Name of the regression run')
+    )
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        related_name='regression_runs',
+        help_text=_('Project this regression run belongs to')
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='created_regression_runs',
+        help_text=_('User who created this regression run')
+    )
+    created_at = models.DateTimeField(
+        _('Created at'),
+        auto_now_add=True,
+        help_text=_('When the regression run was created')
+    )
+    started_at = models.DateTimeField(
+        _('Started at'),
+        null=True,
+        blank=True,
+        help_text=_('When the regression run was started')
+    )
+    completed_at = models.DateTimeField(
+        _('Completed at'),
+        null=True,
+        blank=True,
+        help_text=_('When the regression run was completed')
+    )
+    status = models.CharField(
+        _('Status'),
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='planned',
+        help_text=_('Current status of the regression run')
+    )
+    description = models.TextField(
+        _('Description'),
+        blank=True,
+        null=True,
+        help_text=_('Description of the regression run')
+    )
+    test_cases = models.ManyToManyField(
+        TestCase,
+        related_name='regression_runs',
+        help_text=_('Test cases included in this regression run')
+    )
+    
+    class Meta:
+        verbose_name = _('regression run')
+        verbose_name_plural = _('regression runs')
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['project', 'status']),
+            models.Index(fields=['created_at']),
+        ]
+    
+    def __str__(self):
+        return f"{self.name} - {self.get_status_display()}"
+    
+    def get_progress(self):
+        """
+        Calculate progress of the regression run
+        """
+        total_tests = self.test_cases.count()
+        if total_tests == 0:
+            return 0
+        
+        completed_tests = self.test_runs.exclude(status__in=['pending', 'running']).count()
+        return int((completed_tests / total_tests) * 100)
+    
+    def get_statistics(self):
+        """
+        Get statistics for the regression run
+        """
+        test_runs = self.test_runs.all()
+        return {
+            'total': test_runs.count(),
+            'passed': test_runs.filter(status='passed').count(),
+            'failed': test_runs.filter(status='failed').count(),
+            'skipped': test_runs.filter(status='skipped').count(),
+            'error': test_runs.filter(status='error').count(),
+            'pending': test_runs.filter(status='pending').count(),
+            'running': test_runs.filter(status='running').count(),
+        }

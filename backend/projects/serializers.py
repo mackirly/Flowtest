@@ -11,23 +11,49 @@ class FolderSerializer(serializers.ModelSerializer):
     """Serializer for Folder model"""
     has_subfolders = serializers.SerializerMethodField()
     test_cases_count = serializers.SerializerMethodField()
+    direct_test_cases_count = serializers.SerializerMethodField()
     author_name = serializers.SerializerMethodField()
+    project = serializers.PrimaryKeyRelatedField(
+        queryset=Project.objects.all(),
+        required=False,
+        allow_null=True
+    )
     
     class Meta:
         model = Folder
         fields = [
             'id', 'name', 'description', 'created_at', 'updated_at',
-            'project', 'parent_folder', 'status', 'author', 'author_name',
-            'has_subfolders', 'test_cases_count'
+            'project', 'parent', 'status', 'author', 'author_name',
+            'has_subfolders', 'test_cases_count', 'direct_test_cases_count'
         ]
         read_only_fields = ['created_at', 'updated_at', 'author', 'author_name']
+        extra_kwargs = {
+            'project': {'required': False}  # Project will be set in perform_create
+        }
     
     def get_has_subfolders(self, obj):
         """Check if the folder has subfolders"""
         return obj.subfolders.exists()
     
     def get_test_cases_count(self, obj):
-        """Get the count of test cases in this folder"""
+        """Get the count of test cases in this folder and all subfolders"""
+        from django.db.models import Count, Q
+        
+        # Get all descendant folder IDs
+        def get_all_subfolder_ids(folder):
+            ids = [folder.id]
+            for subfolder in folder.subfolders.all():
+                ids.extend(get_all_subfolder_ids(subfolder))
+            return ids
+        
+        all_folder_ids = get_all_subfolder_ids(obj)
+        
+        # Count test cases in all folders at once
+        from testcases.models import TestCase
+        return TestCase.objects.filter(folder_id__in=all_folder_ids).count()
+    
+    def get_direct_test_cases_count(self, obj):
+        """Get the count of test cases in this folder only (not including subfolders)"""
         return obj.test_cases.count()
     
     def get_author_name(self, obj):
@@ -94,7 +120,7 @@ class ProjectDetailSerializer(ProjectSerializer):
     
     def get_root_folders(self, obj):
         """Get the root folders of this project"""
-        root_folders = obj.folders.filter(parent_folder__isnull=True)
+        root_folders = obj.folders.filter(parent__isnull=True)
         return FolderSerializer(root_folders, many=True, context=self.context).data
 
 

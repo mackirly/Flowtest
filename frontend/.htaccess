@@ -1,0 +1,4 @@
+# Prevent 404 errors for missing favicon
+<FilesMatch "favicon\.ico">
+    ErrorDocument 404 "data:image/x-icon;base64,AAABAAEAEBAAAAAAAABoBQAAFgAAACgAAAAQAAAAIAAAAAEACAAAAAAAAAEAAAAAAAAAAAAAAAEAAAAAAAAAAAAA"
+</FilesMatch>

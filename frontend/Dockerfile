@@ -9,6 +9,11 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 # Copy frontend files
 COPY . /usr/share/nginx/html
 
+# Create media directory with proper permissions
+RUN mkdir -p /usr/share/nginx/html/media/avatars && \
+    chown -R nginx:nginx /usr/share/nginx/html/media && \
+    chmod -R 755 /usr/share/nginx/html/media
+
 # Create a startup script that's correctly formatted
 RUN echo '#!/bin/bash' > /docker-entrypoint.sh && \
     echo '# Add host.docker.internal to /etc/hosts for WSL compatibility' >> /docker-entrypoint.sh && \

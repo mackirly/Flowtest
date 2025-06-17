@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Settings Sync</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="css/tailwind-base.css">
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <script type="module" src="js/utils/init-settings.js"></script>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-8">Settings Synchronization Test</h1>
+        
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">Current Settings</h2>
+            <div class="space-y-2">
+                <p>Theme: <span id="current-theme" class="font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded"></span></p>
+                <p>Language: <span id="current-language" class="font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded"></span></p>
+            </div>
+        </div>
+        
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">Change Settings</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2">Theme</label>
+                    <select id="theme-select" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700">
+                        <option value="light">Light</option>
+                        <option value="dark">Dark</option>
+                        <option value="system">System</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium mb-2">Language</label>
+                    <select id="language-select" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700">
+                        <option value="en">English</option>
+                        <option value="ru">Русский</option>
+                        <option value="de">Deutsch</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">Instructions</h2>
+            <ol class="list-decimal list-inside space-y-2">
+                <li>Open this page in multiple tabs or windows</li>
+                <li>Change the theme or language in one tab</li>
+                <li>Watch as the settings automatically sync across all tabs</li>
+                <li>The settings will persist even after page reload</li>
+            </ol>
+        </div>
+        
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-semibold mb-4">Event Log</h2>
+            <div id="event-log" class="space-y-1 text-sm font-mono max-h-64 overflow-y-auto">
+                <div class="text-gray-500">Waiting for events...</div>
+            </div>
+        </div>
+    </div>
+    
+    <script type="module">
+        import settingsManager from './js/utils/settings-manager.js';
+        import ThemeManager from './js/utils/theme.js';
+        import i18n from './js/i18n/i18n.js';
+        
+        // Update current settings display
+        function updateCurrentSettings() {
+            document.getElementById('current-theme').textContent = settingsManager.getTheme();
+            document.getElementById('current-language').textContent = settingsManager.getLanguage();
+            
+            // Update select values
+            document.getElementById('theme-select').value = settingsManager.getTheme();
+            document.getElementById('language-select').value = settingsManager.getLanguage();
+        }
+        
+        // Add event to log
+        function addLogEntry(message, type = 'info') {
+            const log = document.getElementById('event-log');
+            const entry = document.createElement('div');
+            const timestamp = new Date().toLocaleTimeString();
+            entry.className = type === 'change' ? 'text-green-600 dark:text-green-400' : 'text-gray-600 dark:text-gray-400';
+            entry.textContent = `[${timestamp}] ${message}`;
+            
+            // Remove "waiting" message if it exists
+            const waitingMsg = log.querySelector('.text-gray-500');
+            if (waitingMsg) {
+                waitingMsg.remove();
+            }
+            
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+        
+        // Initialize
+        updateCurrentSettings();
+        addLogEntry('Page loaded');
+        
+        // Handle theme change
+        document.getElementById('theme-select').addEventListener('change', (e) => {
+            const newTheme = e.target.value;
+            settingsManager.setTheme(newTheme);
+            ThemeManager.applyTheme(newTheme);
+            updateCurrentSettings();
+            addLogEntry(`Theme changed to: ${newTheme}`, 'change');
+        });
+        
+        // Handle language change
+        document.getElementById('language-select').addEventListener('change', (e) => {
+            const newLanguage = e.target.value;
+            settingsManager.setLanguage(newLanguage);
+            i18n.setLanguage(newLanguage);
+            updateCurrentSettings();
+            addLogEntry(`Language changed to: ${newLanguage}`, 'change');
+        });
+        
+        // Listen for external changes
+        window.addEventListener('theme-changed', (e) => {
+            updateCurrentSettings();
+            addLogEntry(`Theme changed externally to: ${e.detail.theme}`, 'change');
+        });
+        
+        window.addEventListener('language-changed', (e) => {
+            updateCurrentSettings();
+            addLogEntry(`Language changed externally to: ${e.detail.language}`, 'change');
+        });
+        
+        // Also listen for storage events directly for debugging
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'flowtest-theme' || e.key === 'flowtest-language') {
+                addLogEntry(`Storage event: ${e.key} = ${e.newValue}`);
+            }
+        });
+    </script>
+</body>
+</html>

@@ -6,16 +6,12 @@ import auth from '../api/auth.js';
 import ToastManager from '../utils/toast.js';
 import i18n from '../i18n/i18n.js';
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
     const registerForm = document.getElementById('register-form');
     const registerError = document.getElementById('register-error');
     
-    // Check if user is already logged in
-    if (auth.isAuthenticated()) {
-        // Redirect to dashboard if already authenticated
-        window.location.href = 'index.html';
-        return;
-    }
+    // Temporarily disable auth check to allow access to registration page
+    console.log('[Register] Registration page loaded, skipping auth check for now');
     
     // Form validation
     function validateForm() {

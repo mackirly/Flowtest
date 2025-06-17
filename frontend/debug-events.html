@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Events Page</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-2xl font-bold mb-4">Events Page Debug</h1>
+        
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 class="text-lg font-semibold mb-2">DOM Elements Check</h2>
+            <div id="dom-check"></div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 class="text-lg font-semibold mb-2">API Check</h2>
+            <div id="api-check"></div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold mb-2">Console Output</h2>
+            <pre id="console-output" class="bg-gray-100 p-4 rounded text-sm"></pre>
+        </div>
+    </div>
+    
+    <script type="module">
+        const domCheck = document.getElementById('dom-check');
+        const apiCheck = document.getElementById('api-check');
+        const consoleOutput = document.getElementById('console-output');
+        
+        // Override console.log to capture output
+        const logs = [];
+        const originalLog = console.log;
+        const originalError = console.error;
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            logs.push('LOG: ' + args.join(' '));
+            updateConsole();
+        };
+        
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            logs.push('ERROR: ' + args.join(' '));
+            updateConsole();
+        };
+        
+        function updateConsole() {
+            consoleOutput.textContent = logs.join('\n');
+        }
+        
+        // Check DOM elements
+        function checkDOM() {
+            const elements = [
+                'calendar-grid',
+                'current-month',
+                'projectSelector',
+                'user-name',
+                'user-avatar',
+                'create-event-btn'
+            ];
+            
+            let html = '<ul class="space-y-1">';
+            
+            elements.forEach(id => {
+                const exists = document.getElementById(id) !== null;
+                html += `<li class="${exists ? 'text-green-600' : 'text-red-600'}">
+                    ${exists ? '✓' : '✗'} #${id}
+                </li>`;
+            });
+            
+            html += '</ul>';
+            domCheck.innerHTML = html;
+        }
+        
+        // Check API
+        async function checkAPI() {
+            let html = '<ul class="space-y-2">';
+            
+            try {
+                const { auth } = await import('./js/api/auth.js');
+                html += '<li class="text-green-600">✓ Auth module loaded</li>';
+                
+                const userData = await auth.getCurrentUser();
+                html += `<li class="text-green-600">✓ User data: ${userData ? userData.username : 'Not logged in'}</li>`;
+            } catch (error) {
+                html += `<li class="text-red-600">✗ Auth error: ${error.message}</li>`;
+            }
+            
+            try {
+                const { projects } = await import('./js/api/projects.js');
+                html += '<li class="text-green-600">✓ Projects module loaded</li>';
+                
+                const projectsData = await projects.getAll();
+                html += `<li class="text-green-600">✓ Projects loaded: ${projectsData ? projectsData.length : 0} projects</li>`;
+            } catch (error) {
+                html += `<li class="text-red-600">✗ Projects error: ${error.message}</li>`;
+            }
+            
+            try {
+                const eventsModule = await import('./js/api/events_api.js');
+                html += '<li class="text-green-600">✓ Events module loaded</li>';
+                
+                const events = await eventsModule.default.getMonthEvents(2025, 1);
+                html += `<li class="text-green-600">✓ Events loaded: ${events ? events.length : 0} events</li>`;
+            } catch (error) {
+                html += `<li class="text-red-600">✗ Events error: ${error.message}</li>`;
+            }
+            
+            html += '</ul>';
+            apiCheck.innerHTML = html;
+        }
+        
+        // Run checks when page loads
+        setTimeout(() => {
+            checkDOM();
+            checkAPI();
+        }, 1000);
+        
+        // Also check immediately
+        checkDOM();
+        
+        // Navigate to actual events page
+        setTimeout(() => {
+            const link = document.createElement('a');
+            link.href = 'events.html';
+            link.className = 'fixed bottom-4 right-4 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600';
+            link.textContent = 'Go to Events Page →';
+            document.body.appendChild(link);
+        }, 2000);
+    </script>
+</body>
+</html>

@@ -24,10 +24,13 @@ def direct_update_profile(request):
 
         changed = False
         # Update user fields if provided and not empty
-        for field in ['first_name', 'last_name', 'email', 'bio']:
+        for field in ['first_name', 'last_name', 'email', 'bio', 'language', 'theme']:
             value = data.get(field)
-            if value is not None and value.strip():  # Check if value exists and is not just whitespace
-                setattr(user, field, value.strip() if value else '')
+            if value is not None:
+                # For string fields, strip whitespace
+                if field in ['first_name', 'last_name', 'email', 'bio'] and hasattr(value, 'strip'):
+                    value = value.strip()
+                setattr(user, field, value)
                 changed = True
 
         if changed:
@@ -40,6 +43,8 @@ def direct_update_profile(request):
             'first_name': user.first_name,
             'last_name': user.last_name,
             'bio': getattr(user, 'bio', '') if hasattr(user, 'bio') else '',
+            'language': getattr(user, 'language', 'en'),
+            'theme': getattr(user, 'theme', 'light'),
             'message': 'Profile updated successfully'
         })
     except Exception as e:

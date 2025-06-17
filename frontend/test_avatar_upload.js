@@ -9,10 +9,10 @@ describe('Avatar Upload Test', () => {
     before(async () => {
         browser = await puppeteer.launch({
             headless: false,
-            args: ['--no-sandbox']
+            args: ['--no-sandbox', '--window-size=1920,1080']
         });
         page = await browser.newPage();
-        await page.setViewport({ width: 1366, height: 768 });
+        await page.setViewport({ width: 1920, height: 1080 });
     });
 
     after(async () => {

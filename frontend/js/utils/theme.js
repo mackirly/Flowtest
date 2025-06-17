@@ -1,7 +1,9 @@
 /**
- * Theme management utility for FlowTest 2.0
+ * Theme management utility for FlowTest
  * Handles switching between light and dark modes
  */
+import settingsManager from './settings-manager.js';
+
 const ThemeManager = (() => {
   // Theme constants
   const THEME_STORAGE_KEY = 'flowtest-theme';
@@ -11,8 +13,8 @@ const ThemeManager = (() => {
     SYSTEM: 'system'
   };
   
-  // Current theme
-  let currentTheme = localStorage.getItem(THEME_STORAGE_KEY) || THEMES.SYSTEM;
+  // Get current theme from settings manager
+  let currentTheme = settingsManager.getTheme();
   
   /**
    * Initialize theme based on saved preference or system preference
@@ -82,7 +84,8 @@ const ThemeManager = (() => {
     }
     
     currentTheme = theme;
-    localStorage.setItem(THEME_STORAGE_KEY, theme);
+    // Use settings manager to save theme
+    settingsManager.setTheme(theme);
     applyTheme(theme);
     updateThemeIcon();
     
@@ -92,8 +95,7 @@ const ThemeManager = (() => {
       themeSelect.value = theme;
     }
     
-    // Dispatch event for other components to react to theme change
-    window.dispatchEvent(new CustomEvent('themechange', { detail: { theme: currentTheme } }));
+    // Settings manager will handle the event dispatch
   };
   
   /**
@@ -181,6 +183,7 @@ const ThemeManager = (() => {
     initialize,
     toggleTheme,
     setTheme,
+    applyTheme,
     getCurrentTheme,
     isDarkMode,
     THEMES
