@@ -770,9 +770,19 @@ class TestCasesPage {
             
             // Load test cases from API
             if (folderId && this.currentProject) {
+                let response; // Declare response here to be available in catch block
                 try {
-                    const response = await this.testCaseClient.getTestCases(this.currentProject, { folder: folderId });
-                    this.testCases = response.results || response || [];
+                    response = await this.testCaseClient.getTestCases(this.currentProject, { folder: folderId });
+                    if (response && response.data) {
+                        this.testCases = response.data.results || response.data || [];
+                    } else if (response && response.results) { // Handle cases where data might be directly in results
+                        this.testCases = response.results;
+                    } else if (Array.isArray(response)) { // Handle cases where response is directly an array
+                        this.testCases = response;
+                    } else {
+                        this.testCases = [];
+                        console.warn('[TestCases] Unexpected response structure for test cases:', response);
+                    }
                     console.log('[TestCases] Loaded test cases from API:', this.testCases.length);
                 } catch (apiError) {
                     console.warn('[TestCases] API call failed, using mock data:', apiError);
@@ -786,8 +796,13 @@ class TestCasesPage {
 
             this.updateTestCasesList();
         } catch (error) {
-            console.error('[TestCases] Error loading test cases:', error);
-            this.toastManager.error('Failed to load test cases');
+            // This catch block is for errors outside the API call itself, e.g., in updateTestCasesList
+            console.error('[TestCases] Error processing test cases (after API call or if no folderId):', error);
+            // If response was defined from a successful API call but processing failed, log it.
+            if (typeof response !== 'undefined') {
+                console.error('[TestCases] API Response that may have caused processing error:', response);
+            }
+            this.toastManager.error('Failed to load or process test cases');
         }
     }
 
