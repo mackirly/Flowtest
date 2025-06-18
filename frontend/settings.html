@@ -1508,8 +1508,22 @@
                 async function loadRoles() {
                     try {
                         const response = await ApiClient.get('/core/roles/');
-                        console.log('[Settings] Roles for select response:', response);
-                        const roles = response.data;
+                        console.log('[Settings] Roles for select API response object:', response);
+
+                        let rolesArray = [];
+                        if (response && response.data) {
+                          if (Array.isArray(response.data.data)) {
+                            rolesArray = response.data.data;
+                          } else if (Array.isArray(response.data)) {
+                            rolesArray = response.data; // Fallback
+                          } else {
+                            console.error('[Settings] Roles data in response.data is not an array and response.data.data is not an array (for user form select):', response.data);
+                          }
+                        } else {
+                          console.error('[Settings] Roles response or response.data is undefined (for user form select):', response);
+                        }
+                        const roles = rolesArray;
+
                         roleSelect.innerHTML = '<option value="" data-i18n="selectRole">Select a role</option>';
                         if (Array.isArray(roles)) {
                             roles.forEach(role => {
@@ -1519,10 +1533,12 @@
                                 roleSelect.appendChild(option);
                             });
                         } else {
-                            console.error('[Settings] Roles data is not an array:', response); // Log the whole response
+                            // This console.error should ideally not be hit if the logic above is correct
+                            // and rolesArray defaults to []. It's a safeguard.
+                            console.error('[Settings] Processed roles variable is not an array (for user form select):', roles);
                         }
                     } catch (error) {
-                        console.error('[Settings] Failed to load roles:', error);
+                        console.error('[Settings] Failed to load roles (for user form select):', error);
                     }
                 }
                 
@@ -1557,8 +1573,21 @@
                 async function loadUsers() {
                     try {
                         const response = await ApiClient.get('/core/users/');
-                        console.log('[Settings] Users response:', response);
-                        const users = response.data;
+                        console.log('[Settings] Users API response object:', response);
+
+                        let usersArray = [];
+                        if (response && response.data) {
+                          if (Array.isArray(response.data.data)) {
+                            usersArray = response.data.data;
+                          } else if (Array.isArray(response.data)) {
+                            usersArray = response.data;
+                          } else {
+                            console.error('[Settings] Users data in response.data is not an array and response.data.data is not an array:', response.data);
+                          }
+                        } else {
+                          console.error('[Settings] Users response or response.data is undefined:', response);
+                        }
+                        const users = usersArray;
                         usersTableBody.innerHTML = '';
                         
                         if (Array.isArray(users)) {
@@ -1611,8 +1640,10 @@
                             // Translate dynamically added content
                             setTimeout(() => i18n.translatePage(), 50);
                         } else {
-                            console.error('[Settings] Users data is not an array:', response); // Log the whole response for better debugging
-                            ToastManager.error('Invalid users data format');
+                            // This else block might be redundant now due to the more specific error logging above,
+                            // but we keep it as a fallback. The 'users' variable here would be an empty array if extraction failed.
+                            console.error('[Settings] Processed users variable is not an array (extraction failed, or API returned empty/unexpected):', users);
+                            ToastManager.error('Invalid users data format or no users found');
                         }
                     } catch (error) {
                         console.error('[Settings] Failed to load users:', error);
@@ -1857,13 +1888,26 @@
                     console.log('[Settings] Loading roles for management...');
                     try {
                         const response = await ApiClient.get('/core/roles/');
-                        console.log('[Settings] Roles response object:', response);
-                        const roles = response.data;
+                        console.log('[Settings] Roles API response object (for roles management):', response);
+
+                        let rolesArray = [];
+                        if (response && response.data) {
+                          if (Array.isArray(response.data.data)) {
+                            rolesArray = response.data.data;
+                          } else if (Array.isArray(response.data)) {
+                            rolesArray = response.data; // Fallback
+                          } else {
+                            console.error('[Settings] Roles data in response.data is not an array and response.data.data is not an array (for roles management):', response.data);
+                          }
+                        } else {
+                          console.error('[Settings] Roles response or response.data is undefined (for roles management):', response);
+                        }
+                        const roles = rolesArray;
                         
                         const tbody = document.getElementById('roles-table-body');
                         tbody.innerHTML = '';
                         
-                        console.log('[Settings] Extracted roles data:', roles);
+                        console.log('[Settings] Extracted roles data (for roles management):', roles);
                         if (Array.isArray(roles)) {
                             roles.forEach(role => {
                             const tr = document.createElement('tr');
@@ -1901,8 +1945,10 @@
                             tbody.appendChild(tr);
                             });
                         } else {
-                            console.error('[Settings] Roles data is not an array. Full response:', response);
-                            ToastManager.error('Invalid roles data format');
+                            // This else block might be redundant now due to the more specific error logging above,
+                            // but we keep it as a fallback. The 'roles' variable here would be an empty array if extraction failed.
+                            console.error('[Settings] Processed roles variable is not an array (for roles management):', roles);
+                            ToastManager.error('Invalid roles data format or no roles found (for roles management)');
                         }
                         
                         // Translate dynamically added content
